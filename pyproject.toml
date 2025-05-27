@@ -13,3 +13,7 @@ dependencies = [
 
 [project.scripts]
 translate-dir = "cli:app"
+
+[tool.setuptools] 
+py-modules = ["cli"]
+
