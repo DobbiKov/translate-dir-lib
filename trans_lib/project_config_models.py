@@ -167,6 +167,8 @@ class ProjectConfig(BaseModel):
                 return True
         
         for sub_dir_model in dir_model.dirs:
+            if not path.is_relative_to(sub_dir_model.path):
+                continue
             if self._find_file_and_apply(sub_dir_model, path, func):
                 return True
         return False
