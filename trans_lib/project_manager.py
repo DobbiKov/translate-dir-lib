@@ -9,7 +9,8 @@ from .project_config_io import (
     load_project_config,
     write_project_config,
     build_directory_tree,
-    copy_untranslatable_files_recursive
+    copy_untranslatable_files_recursive,
+    remove_files_not_in_source_dir
 )
 from .translator import translate_file_to_file_async # Using the async version
 from .helpers import find_file_upwards
@@ -55,7 +56,7 @@ class Project:
         return cls(abs_path, config)
 
     def save_config(self) -> None:
-        """Saves the current project configuration."""
+        """Saves the current project configuration (writes to the config file)."""
         try:
             write_project_config(self.config_file_path, self.config)
         except ConfigWriteError as e:
@@ -159,6 +160,7 @@ class Project:
         if not self.config.lang_dirs:
             raise SyncFilesError(NoTargetLanguagesError("Cannot sync: No target languages configured."))
 
+        self.update_project_structure()
         source_lang_dir_model = self.config.src_dir.dir
         # This path is already absolute from when it was set.
         source_root_disk_path = source_lang_dir_model.get_path() 
@@ -167,6 +169,11 @@ class Project:
             target_root_disk_path = target_lang_dir_obj.get_dir().get_path()
             print(f"Syncing untranslatable files from {source_root_disk_path.name} to {target_root_disk_path.name}...")
             try:
+                remove_files_not_in_source_dir(
+                        from_dir_root_path=source_root_disk_path,
+                        to_dir_root_path=target_root_disk_path,
+                        source_dir_structure=source_lang_dir_model 
+                )
                 copy_untranslatable_files_recursive(
                     from_dir_root_path=source_root_disk_path,
                     to_dir_root_path=target_root_disk_path,
@@ -214,6 +221,12 @@ class Project:
         if not self.config.src_dir:
             raise GetTranslatableFilesError(NoSourceLanguageError("No source language set, cannot get translatable files."))
         return self.config.get_translatable_files_paths()
+
+    def update_project_structure(self: 'Project') -> None:
+        """
+        Updates source directory structure (if for example it has been changed since the initialization of the project)
+        """
+        self.config.update_src_dir_config(build_directory_tree)
 
 
     async def translate_single_file(self, file_path_str: str, target_lang: Language) -> None:

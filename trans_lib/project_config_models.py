@@ -1,13 +1,15 @@
 from __future__ import annotations 
 
+from collections import Counter
 import os
 from pathlib import Path
 from typing import List, Optional, Any, Callable
 
 from pydantic import BaseModel, Field, model_validator
+from loguru import logger
 
 from .enums import Language
-from .errors import AddTranslatableFileError, NoSourceLanguageError, FileDoesNotExistError
+from .errors import AddTranslatableFileError, NoSourceDirError, NoSourceLanguageError, FileDoesNotExistError
 
 
 class FileModel(BaseModel):
@@ -101,6 +103,24 @@ class ProjectConfig(BaseModel):
                 return lang_dir_obj.get_dir().get_path()
         return None
 
+    def update_src_dir_config(self, build_tree_func: Callable[[Path], DirectoryModel]) -> None:
+        """
+        Updates the source directory structure in the config
+        """
+        src_lang_dir  = self.get_src_dir()
+        if src_lang_dir is None:
+            raise NoSourceDirError("The source directory isn't set")
+        dir_path = src_lang_dir.get_dir().get_path()
+        lang = src_lang_dir.get_lang()
+
+        old_dir = src_lang_dir.get_dir()
+        logger.debug("old_dir: ", old_dir)
+        new_dir = build_tree_func(dir_path)
+        logger.debug("new_dir: ", new_dir)
+        directory = compare_and_submit_dir_structures(old_dir, new_dir)
+        logger.debug("res_dir: ", directory)
+        self.src_dir = LangDir(dir=directory, language=lang)
+
     def set_src_dir_config(self, dir_path: Path, lang: Language, build_tree_func: Callable[[Path], DirectoryModel]) -> None:
         """
         Sets the source directory in the config.
@@ -142,7 +162,7 @@ class ProjectConfig(BaseModel):
         """
         for file_obj in dir_model.files:
             # Compare resolved paths for robustness
-            if file_obj.path.resolve() == path.resolve():
+            if os.path.samefile(file_obj.path.resolve(), path.resolve()):
                 func(file_obj)
                 return True
         
@@ -166,7 +186,7 @@ class ProjectConfig(BaseModel):
             file_model.translatable = translatable
         
         src_dir_model = self._get_source_directory_model_for_modification()
-        
+
         if not self._find_file_and_apply(src_dir_model, resolved_path, action):
             raise AddTranslatableFileError(FileDoesNotExistError(f"File not found in source directory: {path}"))
 
@@ -192,3 +212,37 @@ class ProjectConfig(BaseModel):
                 queue.append(sub_dir_obj)
                 
         return translatable_files
+
+
+def compare_and_submit_dir_structures(old_dir: DirectoryModel, new_dir: DirectoryModel) -> DirectoryModel:
+    """
+    Compares old directory structure and new one and returns the merge of both.
+    If it encounters a file or a directory in both structures, it keeps the one
+    from the old structure, if it encounters a directory or a file present in
+    the new structure but not in the old, it will add it to the result.
+    """
+    return _compare_and_submit_dir_structs_inner(old_dir, new_dir) 
+
+def _compare_and_submit_dir_structs_inner(old_dir: DirectoryModel, new_dir: DirectoryModel) -> DirectoryModel:
+    new_model = DirectoryModel.new_from_path(new_dir.get_path())
+
+    for new_file in new_dir.files:
+        added = False
+        for old_file in old_dir.files:
+            if new_file.path == old_file.path: # if we found a file that is in the old structure and in the new one, we keep the old one
+                new_model.files.append(old_file)
+                added = True
+        if not added: # if it is a new file, than we just add it to the result
+            new_model.files.append(new_file)
+
+    for new_subdir in new_dir.dirs:
+        added = False
+        for old_subdir in old_dir.dirs:
+            if new_subdir.path == old_subdir.path: # if we find a directory that is in the old struct and in the new one, we will analyze it recursively and add the result
+                res_subdir = _compare_and_submit_dir_structs_inner(old_subdir, new_subdir)
+                new_model.dirs.append(res_subdir)
+                added = True
+        if not added: # if it is a new directory than we just add it to the result
+            new_model.dirs.append(new_subdir)
+
+    return new_model

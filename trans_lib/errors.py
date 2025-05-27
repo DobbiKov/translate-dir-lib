@@ -77,6 +77,10 @@ class NoSourceLanguageError(ProjectError): # Used by various operations
     """Operation requires a source language to be set, but none is."""
     pass
 
+class NoSourceDirError(ProjectError): # Used by various operations
+    """Operation requires a source directory to be set, but none is."""
+    pass
+
 class LangDirExistsError(AddLanguageError):
     """The directory for the language already exists."""
     pass
