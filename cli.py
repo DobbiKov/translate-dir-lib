@@ -161,6 +161,17 @@ def list_translatable_files(ctx: typer.Context):
         typer.secho(f"Error listing translatable files: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
+@project_app.command("update")
+def update_project_structure(ctx: typer.Context):
+    """
+    Updates the config structure of the source directory (call it when you made changes in your source directory)
+    """
+    project = get_project_from_context(ctx)
+    try:
+        project.update_project_structure()
+    except errors.NoSourceDirError:
+        print("The source directory is not set")
+
 @project_app.command("info")
 def info_on_project(ctx: typer.Context):
     """

@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from typing import Callable, List, Optional
 import shutil
@@ -121,3 +122,45 @@ def copy_untranslatable_files_recursive(
             to_dir_root_path=to_dir_root_path,     
             source_dir_structure=sub_dir_model     # We explore this sub-structure
         )
+
+def remove_files_not_in_source_dir(
+    from_dir_root_path: Path, # Absolute path to the root of the source directory being copied (e.g. /path/to/project/src_en) 
+    to_dir_root_path: Path,   # Absolute path to the root of the target directory (e.g. /path/to/project/target_fr)
+    source_dir_structure: DirectoryModel # The DirectoryModel of the from_dir (relative paths within this structure)
+) -> None:
+    """
+    Verifies and removes all the files and directories in the target directory that are not in the source directory.
+    - from_dir_root_path: The actual disk path of the source directory (e.g., project_root/src_dir_name).
+    - to_dir_root_path: The actual disk path of the target directory (e.g., project_root/target_dir_name).
+    - source_dir_structure: The DirectoryModel representing the 'from_dir_root_path'.
+                            Paths within this model are absolute but need to be made relative
+                            to from_dir_root_path to map to to_dir_root_path.
+    """
+    to_dir_root_path.mkdir(parents=True, exist_ok=True)
+
+    # getting the files and the directories of the current directory of the source dir
+    files = [file.get_name() for file in source_dir_structure.get_files()]
+    dirs = [dir.get_dir_name() for dir in source_dir_structure.get_dirs()]
+
+    # iterating over the files and dirs of the target directory
+    for entry in to_dir_root_path.iterdir():
+        try:
+            entry_name = entry.name 
+            if entry.is_dir() and entry_name not in dirs:
+                if entry.is_symlink():
+                    os.remove(entry)
+                else:
+                    shutil.rmtree(entry)
+            elif entry.is_dir(): # so it is indeed in dirs list
+                for sub_dir in source_dir_structure.get_dirs(): # now continue the process of removal in this sub directory
+                    if sub_dir.get_dir_name() == entry_name:
+                        remove_files_not_in_source_dir(from_dir_root_path.joinpath(entry), to_dir_root_path.joinpath(entry), sub_dir)
+                        break
+            elif entry.is_file() and entry_name not in files:
+                os.remove(entry)
+        except OSError: 
+            # TODO: decide how to handle
+            # print(f"Warning: Could not access {entry}, skipping.") 
+            # continue
+            raise
+            
