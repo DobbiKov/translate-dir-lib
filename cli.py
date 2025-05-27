@@ -160,6 +160,34 @@ def list_translatable_files(ctx: typer.Context):
         typer.secho(f"Error listing translatable files: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
+@project_app.command("info")
+def info_on_project(ctx: typer.Context):
+    """
+    Provides an info about the project
+    """
+    project = get_project_from_context(ctx)
+    print("Project Information:");
+    print("\tProject Name: {}", project.config.get_name())
+    print("\tRoot Path: {}", project.root_path)
+
+    src_dir = project.config.get_src_dir()
+    if src_dir is None:
+        print("\tSource directory: Is not set")
+    else:
+        src_dir_name = src_dir.get_dir().get_dir_name()
+        src_dir_lang = src_dir.get_lang()
+        print("\tSource language: {}", src_dir_name)
+        print("\tSource directory: {}", src_dir_lang)
+
+    target_langs = project._get_target_languages()
+    if len( target_langs ) == 0:
+        print("\tTarget langauges: There is no target languages")
+    else:
+        print("Target languages:")
+        for lang in target_langs:
+            tgt_dir = project.config.get_target_dir_path_by_lang(lang)
+            print("\t\tLanguage: {:<10} | Directory: {}", lang, tgt_dir)
+
 
 # --- Translation Commands ---
 translate_app = typer.Typer(name="translate", help="Translate files.", no_args_is_help=True)
