@@ -1,4 +1,5 @@
 import asyncio
+import os
 from pathlib import Path
 from typing import List, Optional
 
@@ -167,8 +168,8 @@ def info_on_project(ctx: typer.Context):
     """
     project = get_project_from_context(ctx)
     print("Project Information:");
-    print("\tProject Name: {}", project.config.get_name())
-    print("\tRoot Path: {}", project.root_path)
+    print("\tProject Name: {}".format(project.config.get_name()) )
+    print("\tRoot Path: {}".format(project.root_path))
 
     src_dir = project.config.get_src_dir()
     if src_dir is None:
@@ -176,8 +177,8 @@ def info_on_project(ctx: typer.Context):
     else:
         src_dir_name = src_dir.get_dir().get_dir_name()
         src_dir_lang = src_dir.get_lang()
-        print("\tSource language: {}", src_dir_name)
-        print("\tSource directory: {}", src_dir_lang)
+        print("\tSource language: {}".format(src_dir_lang))
+        print("\tSource directory: {}".format(src_dir_name))
 
     target_langs = project._get_target_languages()
     if len( target_langs ) == 0:
@@ -186,7 +187,8 @@ def info_on_project(ctx: typer.Context):
         print("Target languages:")
         for lang in target_langs:
             tgt_dir = project.config.get_target_dir_path_by_lang(lang)
-            print("\t\tLanguage: {:<10} | Directory: {}", lang, tgt_dir)
+            tgt_dir_name = None if tgt_dir is None else tgt_dir.name
+            print("\tLanguage: {:<10} | Directory: {}".format(lang, tgt_dir_name))
 
 
 # --- Translation Commands ---

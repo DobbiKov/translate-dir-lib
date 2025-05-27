@@ -40,7 +40,7 @@ class DirectoryModel(BaseModel):
 
     @classmethod
     def new_from_path(cls, path: Path) -> DirectoryModel:
-        name = os.path.dirname( path.name )
+        name = path.name
         return cls(name=name, path=path, dirs=[], files=[])
 
     def get_dir_name(self) -> str:
