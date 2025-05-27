@@ -15,5 +15,5 @@ dependencies = [
 translate-dir = "cli:app"
 
 [tool.setuptools] 
-py-modules = ["cli"]
+py-modules = ["cli", "trans_lib"]
 
