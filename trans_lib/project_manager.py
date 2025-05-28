@@ -3,6 +3,8 @@ import shutil
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from loguru import logger
+
 from .enums import Language
 from .project_config_models import ProjectConfig, LangDir, DirectoryModel
 from .project_config_io import (
@@ -12,7 +14,7 @@ from .project_config_io import (
     copy_untranslatable_files_recursive,
     remove_files_not_in_source_dir
 )
-from .translator import translate_file_to_file_async # Using the async version
+from .doc_translator import translate_file_to_file_async # Using the async version
 from .helpers import find_file_upwards
 from .errors import (
     InitProjectError, InvalidPathError, ProjectAlreadyInitializedError, WriteConfigError as ConfigWriteError,
@@ -267,6 +269,7 @@ class Project:
         
         print(f"Translating {file_path.name} to {target_lang.value} -> {target_file_path}...")
         try:
+            logger.debug("im here")
             await translate_file_to_file_async(file_path, target_file_path, target_lang)
             await asyncio.sleep(INTER_FILE_TRANSLATION_DELAY_SECONDS)
         except TranslationProcessError as e:

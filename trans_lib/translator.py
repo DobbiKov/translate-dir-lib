@@ -42,6 +42,8 @@ def _prepare_prompt_for_language(prompt_template: str, target_language: Language
     """Replaces the language placeholder in the prompt."""
     return prompt_template.replace("[TARGET_LANGUAGE]", str(target_language))
 
+def _paste_vocabulary_into_prompt(prompt_template: str, vocabulary: str) -> str:
+    return prompt_template.replace("[CUSTOM_VOCABULARY]", str(vocabulary))
 
 async def _ask_gemini_model(full_prompt_message: str, model_name: str = "gemini-2.0-flash") -> str:
     """
@@ -75,17 +77,24 @@ async def _ask_gemini_model(full_prompt_message: str, model_name: str = "gemini-
         print(f"Error communicating with Gemini API: {e}")
         raise TranslationProcessError(f"Gemini API call failed: {e}", original_exception=e)
 
+def finalize_prompt(prompt: str, contents_to_translate: str) -> str:
+   return f"{prompt}\n<document>\n{contents_to_translate}\n</document>"
 
-async def translate_chunk_async(text_chunk: str, target_language: Language) -> str:
-    """Translates a single chunk of text asynchronously."""
-    prompt_for_lang = _prepare_prompt_for_language(def_prompt_template, target_language)
-    
-    final_message_to_model = f"{prompt_for_lang}\n<document>\n{text_chunk}\n</document>"
+async def translate_chunk_with_prompt(prompt: str, chunk: str) -> str:
+    """
+    Translates the given chunk of text using the given prompt
+    """
+    final_message_to_model = finalize_prompt(prompt, chunk)
     
     translated_response_text = await _ask_gemini_model(final_message_to_model)
     
     return extract_translated_from_response(translated_response_text)
 
+async def translate_chunk_async(text_chunk: str, target_language: Language) -> str:
+    """Translates a single chunk of text asynchronously."""
+    prompt_for_lang = _prepare_prompt_for_language(def_prompt_template, target_language)
+    
+    return await translate_chunk_with_prompt(prompt_for_lang, text_chunk)
 
 async def translate_contents_async(contents: str, target_language: Language, lines_per_chunk: int = 50) -> str:
     """
@@ -119,22 +128,3 @@ async def translate_contents_async(contents: str, target_language: Language, lin
     return "".join(translated_chunks)
 
 
-async def translate_file_async(source_path: Path, target_language: Language) -> str:
-    """Reads a file, translates its content asynchronously, and returns the translated content."""
-    file_contents = read_string_from_file(source_path)
-    return await translate_contents_async(file_contents, target_language)
-
-
-async def translate_file_to_file_async(
-    source_path: Path,
-    target_path: Path,
-    target_language: Language
-) -> None:
-    """Translates a file and writes the result to another file asynchronously."""
-    translated_content = await translate_file_async(source_path, target_language)
-    
-    try:
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_text(translated_content, encoding="utf-8")
-    except IOError as e:
-        raise TranslationProcessError(f"Failed to write translated file {target_path}: {e}", original_exception=e)
