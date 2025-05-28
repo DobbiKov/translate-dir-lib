@@ -1,6 +1,9 @@
 import os
+import yaml
 from pathlib import Path
 from typing import List, Optional, Iterable
+
+from trans_lib.enums import DocumentType
 
 def find_file_upwards(start_path: Path, file_name: str) -> Optional[Path]:
     """
@@ -121,3 +124,80 @@ def read_string_from_file(path: Path) -> str:
         raise
     except Exception as e:
         raise IOError(f"Could not read file {path}: {e}") from e
+
+def has_jupytext_header_in_file(file_path: Path) -> bool:
+    """
+    Checks if a given .md file explicitly contains a Jupytext YAML header
+    that identifies it as a Jupytext notebook representation.
+    This method tries to read the header directly to avoid influence from
+    global Jupytext configurations.
+
+    Args:
+        file_path (str): The path to the .md file.
+
+    Returns:
+        bool: True if the .md file has a YAML header with
+              'jupytext.text_representation' defined, False otherwise.
+    """
+    if not os.path.isfile(file_path):
+        return False
+
+    header_content = []
+    in_yaml_header = False
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for i, line in enumerate(f):
+                # Standard YAML header is --- on first line, then content, then ---
+                if i == 0 and line.strip() == '---':
+                    in_yaml_header = True
+                    continue # Skip the first '---'
+                
+                if in_yaml_header:
+                    if line.strip() == '---': # End of YAML block
+                        break
+                    header_content.append(line)
+                    if i > 30: # Don't read too much if header is malformed or very long
+                        # print(f"Warning: YAML header in '{file_path}' seems very long, stopping parse.")
+                        return False # Or indicate a malformed header
+                else:
+                    # If the first line wasn't '---', there's no standard YAML header we're looking for.
+                    break 
+            
+            if not in_yaml_header or not header_content:
+                return False # No YAML header found or it was empty
+
+            header_yaml_str = "".join(header_content)
+            
+            try:
+                metadata = yaml.safe_load(header_yaml_str)
+                if isinstance(metadata, dict) and \
+                   'jupytext' in metadata and \
+                   isinstance(metadata.get('jupytext'), dict) and \
+                   'text_representation' in metadata.get('jupytext', {}):
+                    # Further check if text_representation itself is a dict and has expected keys
+                    tr = metadata['jupytext']['text_representation']
+                    if isinstance(tr, dict) and 'extension' in tr and 'format_name' in tr:
+                        return True
+                return False
+            except yaml.YAMLError:
+                # print(f"Warning: Could not parse YAML header in '{file_path}'.")
+                return False # Malformed YAML
+
+    except Exception as e:
+        # print(f"Error reading or processing file '{file_path}': {e}")
+        return False
+
+def is_jupyter_markdown(path: Path) -> bool:
+    return has_jupytext_header_in_file(path)
+
+def analyze_document_type(path: Path) -> DocumentType:
+    extension = path.suffix.lstrip('.')
+    if extension == "tex":
+        return DocumentType.LaTeX
+    if extension == "ipynb":
+        return DocumentType.JupyterNotebook
+    if extension == "md": # analyze if it is a jupyter or a usual markdown
+        if is_jupyter_markdown(path):
+            return DocumentType.JupyterNotebook
+        return DocumentType.Markdown
+    return DocumentType.Other

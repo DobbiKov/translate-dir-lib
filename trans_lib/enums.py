@@ -36,3 +36,12 @@ class Language(str, enum.Enum):
 
 
 CLI_LANGUAGE_CHOICES: List[str] = [lang.value for lang in Language]
+
+class DocumentType(str, enum.Enum):
+    """
+    Enumeration for the document types
+    """
+    JupyterNotebook = "jupyter"
+    Markdown = "markdown"
+    LaTeX = "latex"
+    Other = "other"
