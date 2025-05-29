@@ -229,6 +229,7 @@ class Project:
         Updates source directory structure (if for example it has been changed since the initialization of the project)
         """
         self.config.update_src_dir_config(build_directory_tree)
+        self.save_config()
 
 
     async def translate_single_file(self, file_path_str: str, target_lang: Language) -> None:
