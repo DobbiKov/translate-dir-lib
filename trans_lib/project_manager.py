@@ -16,6 +16,7 @@ from .project_config_io import (
 )
 from .doc_translator import translate_file_to_file_async # Using the async version
 from .helpers import find_file_upwards
+from .constants import CONFIG_FILENAME
 from .errors import (
     InitProjectError, InvalidPathError, ProjectAlreadyInitializedError, WriteConfigError as ConfigWriteError,
     LoadProjectError, NoConfigFoundError, LoadConfigError as ConfigLoadError,
@@ -28,8 +29,6 @@ from .errors import (
     TranslationProcessError
 )
 
-CONFIG_FILENAME = "trans_conf.json"
-INTER_FILE_TRANSLATION_DELAY_SECONDS = 5 
 
 
 class Project:
@@ -271,9 +270,7 @@ class Project:
         
         print(f"Translating {file_path.name} to {target_lang.value} -> {target_file_path}...")
         try:
-            logger.debug("im here")
             await translate_file_to_file_async(self.root_path, file_path, source_language, target_file_path, target_lang)
-            await asyncio.sleep(INTER_FILE_TRANSLATION_DELAY_SECONDS)
         except TranslationProcessError as e:
             raise TranslateFileError(f"Translation process failed for {file_path.name}: {e}", e)
         except IOError as e: # From file writing in translate_file_to_file_async

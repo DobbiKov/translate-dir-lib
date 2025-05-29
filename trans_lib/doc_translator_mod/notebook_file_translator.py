@@ -26,7 +26,6 @@ async def translate_jupyter_cell_async(root_path: Path, cell: dict, source_langu
     cell["metadata"].setdefault("tags", [])
     cell["metadata"]["tags"].append("needs_review")
     cell["metadata"]["src_checksum"] = checksum
-    await sleep(5)
     match cell_type:
         case "code":
             cell["source"] = await translate_code_cell_async(root_path, src_txt, source_language, target_language)

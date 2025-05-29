@@ -5,9 +5,8 @@ from typing import Iterable
 
 from trans_lib.enums import Language
 from trans_lib.helpers import calculate_checksum, ensure_dir_exists, read_string_from_file
+from trans_lib.constants import DB_DIR_NAME, CORRESPONDENCE_DB_NAME
 
-DB_DIR_NAME = "trans_git_db"
-CORRESPONDENCE_DB_NAME = "correspondence_db.csv"
 
 def ensure_db_dir(root_path: Path) -> None:
     db_full_dir_path = root_path.joinpath(DB_DIR_NAME)
@@ -21,9 +20,6 @@ def ensure_lang_dirs(root_path: Path, langs: Iterable[Language]) -> None:
         ensure_dir_exists(lang_full_path)
 
 
-# TODO: add to the correspondence db
-
-
 def add_contents_to_db(root_path: Path, contents: str, lang: Language) -> str:
     """
     Adds the given contents to the database of checksum contents to the appropriate language directory and returns the contents checksum
@@ -33,6 +29,9 @@ def add_contents_to_db(root_path: Path, contents: str, lang: Language) -> str:
     lang_dir_full_path = root_path.joinpath(DB_DIR_NAME).joinpath(str(lang))
     checksum = calculate_checksum(contents)
     file_path = lang_dir_full_path.joinpath(checksum)
+    if os.path.exists(file_path): # if the checksum file already exists, then no need to write it
+        return checksum
+
     with open(file_path, "w") as f:
         f.write(contents)
     return checksum
