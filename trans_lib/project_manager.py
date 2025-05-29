@@ -30,6 +30,7 @@ from .errors import (
 )
 
 
+# TODO: add refine translation command
 
 class Project:
     """Manages a translation project."""
