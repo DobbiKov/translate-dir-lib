@@ -93,7 +93,9 @@ def ensure_correspondence_db(root_path: Path) -> None:
     if os.path.exists(file_path):
         return
     with open(file_path, 'w') as csvfile:
-        csvfile.write("")
+        writer = csv.DictWriter(csvfile, fieldnames=[])
+
+        writer.writeheader()
 
 def add_lang_to_db_data(fields: list[str], data_list: list[dict], lang: Language) -> tuple[list[str], list[dict]]:
     """
@@ -179,7 +181,7 @@ def set_checksum_pair_to_correspondence_db(root_path: Path, src_checksum: str, s
         return None
 
     db_data = read_correspondence_db(root_path)
-    if db_data is None: # if the db doesn't exist, then do nothing
+    if db_data is None: # if the db doesn't exist, then create it
         ensure_correspondence_db(root_path)
 
     (fields, data_list) = ([], [])
