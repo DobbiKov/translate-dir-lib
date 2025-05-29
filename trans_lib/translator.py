@@ -6,6 +6,8 @@ from typing import Optional
 from google import genai
 from google.genai import types as g_types
 
+from .constants import INTER_FILE_TRANSLATION_DELAY_SECONDS, DEFAULT_PROMPT_PATH
+
 from .enums import Language
 from .helpers import divide_into_chunks, extract_translated_from_response, read_string_from_file
 from .errors import TranslationProcessError
@@ -23,7 +25,6 @@ except Exception as e:
     # This might happen if os.getenv itself fails or configure has issues not related to API key.
 
 
-DEFAULT_PROMPT_PATH = Path("/Users/dobbikov/Desktop/stage/prompts/prompt4") # Make this configurable
 
 def get_default_prompt_text() -> str:
     """Reads the default prompt text from the configured path."""
@@ -64,6 +65,7 @@ async def _ask_gemini_model(full_prompt_message: str, model_name: str = "gemini-
 
         # print(f"DEBUG: Sending to Gemini: {full_prompt_message[:200]}...") # Log request start
 
+        await asyncio.sleep(INTER_FILE_TRANSLATION_DELAY_SECONDS)
         response = client.models.generate_content(
                 model=model_name,
                 contents=contents
@@ -89,6 +91,7 @@ async def translate_chunk_with_prompt(prompt: str, chunk: str) -> str:
     translated_response_text = await _ask_gemini_model(final_message_to_model)
     
     return extract_translated_from_response(translated_response_text)
+
 
 async def translate_chunk_async(text_chunk: str, target_language: Language) -> str:
     """Translates a single chunk of text asynchronously."""
@@ -123,7 +126,6 @@ async def translate_contents_async(contents: str, target_language: Language, lin
         
         if i < len(chunks) - 1: # If not the last chunk
             print(f"Translated chunk {i+1}/{len(chunks)}. Waiting for {INTER_CHUNK_DELAY_SECONDS}s...")
-            await asyncio.sleep(INTER_CHUNK_DELAY_SECONDS)
             
     return "".join(translated_chunks)
 

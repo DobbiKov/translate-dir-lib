@@ -16,6 +16,7 @@ from .project_config_io import (
 )
 from .doc_translator import translate_file_to_file_async # Using the async version
 from .helpers import find_file_upwards
+from .constants import CONFIG_FILENAME
 from .errors import (
     InitProjectError, InvalidPathError, ProjectAlreadyInitializedError, WriteConfigError as ConfigWriteError,
     LoadProjectError, NoConfigFoundError, LoadConfigError as ConfigLoadError,
@@ -28,8 +29,6 @@ from .errors import (
     TranslationProcessError
 )
 
-CONFIG_FILENAME = "trans_conf.json"
-INTER_FILE_TRANSLATION_DELAY_SECONDS = 5 
 
 
 class Project:
@@ -229,6 +228,7 @@ class Project:
         Updates source directory structure (if for example it has been changed since the initialization of the project)
         """
         self.config.update_src_dir_config(build_directory_tree)
+        self.save_config()
 
 
     async def translate_single_file(self, file_path_str: str, target_lang: Language) -> None:
@@ -238,7 +238,8 @@ class Project:
         except FileNotFoundError:
             raise TranslateFileError(FileDoesNotExistError(f"File {file_path_str} not found."))
 
-        if not self._get_source_language():
+        source_language = self._get_source_language()
+        if source_language is None:
             raise TranslateFileError(NoSourceLanguageError("Cannot translate: No source language set."))
         if target_lang not in self._get_target_languages():
             raise TranslateFileError(TargetLanguageNotInProjectError(f"Cannot translate: Target language {target_lang} not in project."))
@@ -269,9 +270,7 @@ class Project:
         
         print(f"Translating {file_path.name} to {target_lang.value} -> {target_file_path}...")
         try:
-            logger.debug("im here")
-            await translate_file_to_file_async(file_path, target_file_path, target_lang)
-            await asyncio.sleep(INTER_FILE_TRANSLATION_DELAY_SECONDS)
+            await translate_file_to_file_async(self.root_path, file_path, source_language, target_file_path, target_lang)
         except TranslationProcessError as e:
             raise TranslateFileError(f"Translation process failed for {file_path.name}: {e}", e)
         except IOError as e: # From file writing in translate_file_to_file_async

@@ -2,8 +2,23 @@ import os
 import yaml
 from pathlib import Path
 from typing import List, Optional, Iterable
+import hashlib
 
 from trans_lib.enums import DocumentType
+
+def calculate_checksum(contents: str) -> str:
+    """
+    Returns a checksum of the provided contents
+    """
+    return hashlib.sha256(contents.encode('utf-8')).hexdigest()
+
+def ensure_dir_exists(path: Path) -> None:
+    if not os.path.exists(path):
+        os.mkdir(path)
+        return
+    if not path.is_dir():
+        os.mkdir(path)
+        return
 
 def find_file_upwards(start_path: Path, file_name: str) -> Optional[Path]:
     """

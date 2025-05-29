@@ -114,11 +114,8 @@ class ProjectConfig(BaseModel):
         lang = src_lang_dir.get_lang()
 
         old_dir = src_lang_dir.get_dir()
-        logger.debug("old_dir: ", old_dir)
         new_dir = build_tree_func(dir_path)
-        logger.debug("new_dir: ", new_dir)
         directory = compare_and_submit_dir_structures(old_dir, new_dir)
-        logger.debug("res_dir: ", directory)
         self.src_dir = LangDir(dir=directory, language=lang)
 
     def set_src_dir_config(self, dir_path: Path, lang: Language, build_tree_func: Callable[[Path], DirectoryModel]) -> None:
