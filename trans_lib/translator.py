@@ -6,6 +6,8 @@ from typing import Optional
 from google import genai
 from google.genai import types as g_types
 
+from trans_lib.trans_db import add_contents
+
 from .enums import Language
 from .helpers import divide_into_chunks, extract_translated_from_response, read_string_from_file
 from .errors import TranslationProcessError
@@ -89,6 +91,19 @@ async def translate_chunk_with_prompt(prompt: str, chunk: str) -> str:
     translated_response_text = await _ask_gemini_model(final_message_to_model)
     
     return extract_translated_from_response(translated_response_text)
+
+async def translate_chunk_or_retrieve_from_db_async(text_chunk: str, target_language: Language) -> str:
+    """
+    Verifies if provided chunk of text exists in the translation database. If
+    it exists, looks for the translation in the DB, if it exists, returns the
+    translation, if it doesn't translates it using an LLM.
+    """
+    # TODO: verify that it doesn't exist in the db
+    translated = await translate_chunk_async(text_chunk, target_language)
+
+    # TODO: save to translation db
+    # add_contents() 
+    return translated
 
 async def translate_chunk_async(text_chunk: str, target_language: Language) -> str:
     """Translates a single chunk of text asynchronously."""

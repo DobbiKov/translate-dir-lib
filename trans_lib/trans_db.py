@@ -18,7 +18,11 @@ def ensure_lang_dirs(root_path: Path, langs: Iterable[Language]) -> None:
         lang_full_path = db_full_dir_path.joinpath(lang_str)
         ensure_dir_exists(lang_full_path)
 
-def add_contents(root_path: Path, contents: str, lang: Language) -> str:
+
+# TODO: add to the correspondence db
+
+
+def add_contents_to_db(root_path: Path, contents: str, lang: Language) -> str:
     """
     Adds the given contents to the database of checksum contents to the appropriate language directory and returns the contents checksum
     """

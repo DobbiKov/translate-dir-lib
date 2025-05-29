@@ -13,9 +13,10 @@ def calculate_checksum(contents: str) -> str:
     return hashlib.sha256(contents.encode('utf-8')).hexdigest()
 
 def ensure_dir_exists(path: Path) -> None:
-    if not path.is_dir():
-        return
     if not os.path.exists(path):
+        os.mkdir(path)
+        return
+    if not path.is_dir():
         os.mkdir(path)
         return
 

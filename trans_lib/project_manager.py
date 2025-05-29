@@ -239,7 +239,8 @@ class Project:
         except FileNotFoundError:
             raise TranslateFileError(FileDoesNotExistError(f"File {file_path_str} not found."))
 
-        if not self._get_source_language():
+        source_language = self._get_source_language()
+        if source_language is None:
             raise TranslateFileError(NoSourceLanguageError("Cannot translate: No source language set."))
         if target_lang not in self._get_target_languages():
             raise TranslateFileError(TargetLanguageNotInProjectError(f"Cannot translate: Target language {target_lang} not in project."))
@@ -271,7 +272,7 @@ class Project:
         print(f"Translating {file_path.name} to {target_lang.value} -> {target_file_path}...")
         try:
             logger.debug("im here")
-            await translate_file_to_file_async(file_path, target_file_path, target_lang)
+            await translate_file_to_file_async(self.root_path, file_path, source_language, target_file_path, target_lang)
             await asyncio.sleep(INTER_FILE_TRANSLATION_DELAY_SECONDS)
         except TranslationProcessError as e:
             raise TranslateFileError(f"Translation process failed for {file_path.name}: {e}", e)
