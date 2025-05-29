@@ -15,7 +15,9 @@ async def translate_file_async(source_path: Path, target_language: Language) -> 
 
 
 async def translate_file_to_file_async(
+    root_path: Path,
     source_path: Path,
+    source_language: Language,
     target_path: Path,
     target_language: Language
 ) -> None:
@@ -25,8 +27,10 @@ async def translate_file_to_file_async(
     try:
         if doc_type == DocumentType.Markdown or doc_type == DocumentType.JupyterNotebook:
             print("translate in this wat")
-            await translate_notebook_async(source_path, target_path, target_language)
+            await translate_notebook_async(root_path, source_path, source_language, target_path, target_language)
         else:
+            # TODO: proper chunking
+            # TODO: DB saving
             translated_content = await translate_file_async(source_path, target_language)
             target_path.parent.mkdir(parents=True, exist_ok=True)
             target_path.write_text(translated_content, encoding="utf-8")
