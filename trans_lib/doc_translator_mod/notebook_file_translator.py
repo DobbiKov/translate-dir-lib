@@ -10,43 +10,20 @@ from loguru import logger
 
 async def translate_notebook_async(source_file_path: Path, target_file_path: Path, target_language: Language) -> None:
     nb = jupytext.read(source_file_path)
-    tgt_nb = None
-    if os.path.exists(target_file_path):
-        tgt_nb = jupytext.read(target_file_path)
     # TODO: read target file
     for i in range(len(nb.cells)):
-        tgt_cell = None
-        id_to_find = nb.cells[i].get("id")
-        logger.debug(f"Trying to find {id_to_find}")
-        if tgt_nb is not None and id_to_find is not None: # if target notebook exists and the current cell and its id exists
-            for cell in tgt_nb.cells: 
-                print("", cell.get("id"))
-                if cell.get("id") == id_to_find:
-                    logger.debug(f"Found {id_to_find}")
-                    tgt_cell = cell
-                    break
-        # WARNING: temp none, change
-        nb.cells[i] = await translate_jupyter_cell_async(nb.cells[i], tgt_cell, target_language) 
+        nb.cells[i] = await translate_jupyter_cell_async(nb.cells[i], target_language) 
     jupytext.write(nb, target_file_path)
 
-async def translate_jupyter_cell_async(cell: dict, tgt_cell: dict | None, target_language: Language) -> dict:
+async def translate_jupyter_cell_async(cell: dict, target_language: Language) -> dict:
     src_txt = cell["source"]
     cell_type = cell["cell_type"]
     checksum = hashlib.md5(src_txt.encode()).hexdigest()
+    # TODO: verify that current checksum isn't in the database
 
-    if tgt_cell is not None:
-        temp_metadata = tgt_cell["metadata"] or {}
-        tgt_checksum = temp_metadata.get("checksum")
-        if tgt_checksum is not None:
-            if tgt_checksum == checksum: # if checksums are equals, then the translated 
-                logger.debug("this one is translated, won't translate this one")
-                return cell
-        
-    
-    logger.debug("this one is not translated, start translation")
     cell["metadata"].setdefault("tags", [])
     cell["metadata"]["tags"].append("needs_review")
-    cell["metadata"]["checksum"] = checksum
+    cell["metadata"]["src_checksum"] = checksum
     await sleep(5)
     match cell_type:
         case "code":
