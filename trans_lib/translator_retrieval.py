@@ -10,9 +10,10 @@ async def translate_chunk_or_retrieve_from_db_async(root_path: Path, text_chunk:
     it exists, looks for the translation in the DB, if it exists, returns the
     translation, if it doesn't translates it using an LLM.
     """
-    prompt_for_lang = _prepare_prompt_for_language(prompt_placeholder, target_language)
 
     # TODO: verify that it doesn't exist in the db
+
+    prompt_for_lang = _prepare_prompt_for_language(prompt_placeholder, target_language)
     translated = await translate_chunk_with_prompt(prompt_for_lang, text_chunk)
 
     # TODO: save to translation db
