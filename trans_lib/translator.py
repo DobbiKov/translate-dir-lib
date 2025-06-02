@@ -46,7 +46,7 @@ def _prepare_prompt_for_language(prompt_template: str, target_language: Language
 def _paste_vocabulary_into_prompt(prompt_template: str, vocabulary: str) -> str:
     return prompt_template.replace("[CUSTOM_VOCABULARY]", str(vocabulary))
 
-async def _ask_gemini_model(full_prompt_message: str, model_name: str = "gemini-2.0-flash") -> str:
+async def _ask_gemini_model(full_prompt_message: str, model_name: str = "gemini-2.5-flash-preview-05-20") -> str:
     """
     Asks the Gemini model for a translation.
     The default model_name is "gemini-2.0-flash"

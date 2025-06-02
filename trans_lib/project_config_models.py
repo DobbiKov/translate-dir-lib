@@ -190,12 +190,12 @@ class ProjectConfig(BaseModel):
             raise AddTranslatableFileError(FileDoesNotExistError(f"File not found in source directory: {path}"))
 
 
-    def get_translatable_files_paths(self) -> List[Path]:
-        """Gets a list of paths for all translatable files in the source directory."""
+    def get_translatable_files(self) -> List[FileModel]:
+        """Gets a list of all the translatable files in the source directory."""
         if not self.src_dir:
             return [] 
 
-        translatable_files: List[Path] = []
+        translatable_files: List[FileModel] = []
         
         from collections import deque 
         
@@ -206,11 +206,16 @@ class ProjectConfig(BaseModel):
             current_dir = queue.popleft()
             for file_obj in current_dir.files:
                 if file_obj.is_translatable():
-                    translatable_files.append(file_obj.path)
+                    translatable_files.append(file_obj)
             for sub_dir_obj in current_dir.dirs:
                 queue.append(sub_dir_obj)
                 
         return translatable_files
+
+    def get_translatable_files_paths(self) -> List[Path]:
+        """Gets a list of paths for all translatable files in the source directory."""
+        translatable_file = self.get_translatable_files() 
+        return [file.get_path() for file in translatable_file]
 
 
 def compare_and_submit_dir_structures(old_dir: DirectoryModel, new_dir: DirectoryModel) -> DirectoryModel:
