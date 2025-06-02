@@ -186,6 +186,18 @@ def find_correspondent_checksum(root_path: Path, src_checksum: str, src_lang: La
 
     return None
 
+def do_translation_correspond_to_source(root_path: Path, src_checksum: str, src_lang: Language, tgt_checksum: str, tgt_lang: Language) -> bool:
+    """
+    Returns true if two given checksums of two different languages correspond (i.e the one is a translation of the other) and False otherwise
+    """
+    if tgt_lang == src_lang:
+        return False
+    true_tgt_checksum = find_correspondent_checksum(root_path, src_checksum, src_lang, tgt_lang)
+    if true_tgt_checksum is None:
+        return False
+
+    return true_tgt_checksum == tgt_checksum
+
 def set_checksum_pair_to_correspondence_db(root_path: Path, src_checksum: str, src_lang: Language, tgt_checksum: str, tgt_lang: Language) -> None:
     if src_lang == tgt_lang:
         return None
