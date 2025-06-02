@@ -16,12 +16,17 @@ async def translate_chunk_or_retrieve_from_db_async(root_path: Path, text_chunk:
     # TODO: verify that it doesn't exist in the db
     src_checksum = calculate_checksum(text_chunk)
     tgt_checksum = find_correspondent_checksum(root_path, src_checksum, source_language, target_language)
+    if src_checksum == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855":
+        logger.info(f"src: {src_checksum} | {tgt_checksum}")
     translated = "" 
+    found_in_db = False
+
     if tgt_checksum is not None: # if we found existing pair, try to extract translated contents
         logger.debug("Found the translation in the database")
+        found_in_db = True
         translated = read_contents_by_checksum_with_lang(root_path, tgt_checksum, target_language)
 
-    if ( translated == "" and text_chunk != "") or translated == None: # if the translation is empty, then we haven't found it and we should translate it
+    if ( translated == "" and not found_in_db) or translated == None: # if the translation is empty, then we haven't found it and we should translate it
         logger.debug("Didn't find the translation in the database, translate using LLM")
         prompt_for_lang = _prepare_prompt_for_language(prompt_placeholder, target_language)
         translated = await translate_chunk_with_prompt(prompt_for_lang, text_chunk)

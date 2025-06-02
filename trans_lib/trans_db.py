@@ -38,7 +38,7 @@ def add_contents_to_db(root_path: Path, contents: str, lang: Language) -> str:
 
 def read_contents_by_checksum_with_lang(root_path: Path, checksum: str, lang: Language) -> str | None:
     """
-    Looks for a file with the given checksum in the directory of the given lanaguage and returns its contents if it finds such file and None if it doesn't
+    Looks for a file with the given checksum in the directory of the given language and returns its contents if it finds such file and None if it doesn't
 
     Note: better performance then a usual [read_contents_by_checksum]
     """
@@ -153,7 +153,18 @@ def remove_language_from_correspondence_db(root_path: Path, lang: Language) -> N
 
 def find_correspondent_checksum(root_path: Path, src_checksum: str, src_lang: Language, tgt_lang: Language) -> str | None:
     """
-    Looks for the correspondent checksum of a particular language to the given checksum (of the given language) the checksum if finds it, None otherwise
+    Looks for the correspondent checksum of a particular language to the given checksum (of the given language) returns the checksum if finds it, None otherwise
+
+    Example:
+        eng_checksum | fr_checksum
+        aaa          | aca
+        baa          | aba
+
+    ```py
+    find_correspondent_checksum(., "aaa", English, French) # returns "aca"
+    find_correspondent_checksum(., "aba", French, English) # returns "baa"
+    find_correspondent_checksum(., "ccc", French, English) # returns None
+    ```
     """
     if src_lang == tgt_lang:
         return None
@@ -174,6 +185,25 @@ def find_correspondent_checksum(root_path: Path, src_checksum: str, src_lang: La
             return tgt_checksum
 
     return None
+
+def do_translation_checksum_correspond_to_source(root_path: Path, src_checksum: str, src_lang: Language, tgt_checksum: str, tgt_lang: Language) -> bool:
+    """
+    Returns true if two given checksums of two different languages correspond (i.e the one is a translation of the other) and False otherwise
+    """
+    if tgt_lang == src_lang:
+        return False
+    true_tgt_checksum = find_correspondent_checksum(root_path, src_checksum, src_lang, tgt_lang)
+    if true_tgt_checksum is None:
+        return False
+
+    return true_tgt_checksum == tgt_checksum
+
+def do_translation_correspond_to_source(root_path: Path, src_checksum: str, src_lang: Language, tgt_contents: str, tgt_lang: Language) -> bool:
+    """
+    Returns true if the given translation corresponds to the given source checksum and false otherwise
+    """
+    tgt_checksum = calculate_checksum(tgt_contents)
+    return do_translation_checksum_correspond_to_source(root_path, src_checksum, src_lang, tgt_checksum, tgt_lang)
 
 def set_checksum_pair_to_correspondence_db(root_path: Path, src_checksum: str, src_lang: Language, tgt_checksum: str, tgt_lang: Language) -> None:
     if src_lang == tgt_lang:

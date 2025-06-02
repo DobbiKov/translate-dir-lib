@@ -139,3 +139,29 @@ class TranslationProcessError(TranslateFileError):
     def __init__(self, message: str, original_exception: Optional[Exception] = None):
         super().__init__(message)
         self.original_exception = original_exception
+       
+class CorrectTranslationError(ProjectError):
+    """
+    Errors when correcting translation
+    """
+    pass
+
+class CorrectingTranslationError(CorrectTranslationError):
+    """
+    Correcting translation error
+    """
+    def __init__(self, message: str, original_exception: Optional[Exception] = None):
+        super().__init__(message)
+        self.original_exception = original_exception
+
+class ChecksumNotFoundError(CorrectTranslationError):
+    """
+    Checksum not found in the database
+    """
+    pass
+
+class NoSourceFileError(CorrectTranslationError):
+    """
+    No source file for the given translated file
+    """
+    pass

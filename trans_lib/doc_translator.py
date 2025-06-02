@@ -1,3 +1,4 @@
+from loguru import logger
 from .enums import DocumentType, Language
 from .translator import translate_contents_async
 from .helpers import read_string_from_file, analyze_document_type
@@ -23,10 +24,10 @@ async def translate_file_to_file_async(
 ) -> None:
     """Translates a file and writes the result to another file asynchronously."""
     doc_type = analyze_document_type(source_path)
-    print(doc_type)
+    logger.trace(doc_type)
     try:
         if doc_type == DocumentType.Markdown or doc_type == DocumentType.JupyterNotebook:
-            print("translate in this wat")
+            logger.trace("translate in this wat")
             await translate_notebook_async(root_path, source_path, source_language, target_path, target_language)
         else:
             # TODO: proper chunking
