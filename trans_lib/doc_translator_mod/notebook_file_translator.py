@@ -4,7 +4,7 @@ from pathlib import Path
 
 from trans_lib.translator_retrieval import translate_chunk_or_retrieve_from_db_async
 from ..enums import Language
-from ..helpers import read_string_from_file
+from ..helpers import calculate_checksum, read_string_from_file
 from ..translator import _prepare_prompt_for_language, _ask_gemini_model, translate_chunk_with_prompt
 import jupytext
 import hashlib
@@ -20,8 +20,7 @@ async def translate_notebook_async(root_path: Path, source_file_path: Path, sour
 async def translate_jupyter_cell_async(root_path: Path, cell: dict, source_language: Language, target_language: Language) -> dict:
     src_txt = cell["source"]
     cell_type = cell["cell_type"]
-    checksum = hashlib.md5(src_txt.encode()).hexdigest()
-    # TODO: verify that current checksum isn't in the database
+    checksum = calculate_checksum(src_txt)
 
     cell["metadata"].setdefault("tags", [])
     cell["metadata"]["tags"].append("needs_review")
