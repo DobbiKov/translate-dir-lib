@@ -38,7 +38,7 @@ def add_contents_to_db(root_path: Path, contents: str, lang: Language) -> str:
 
 def read_contents_by_checksum_with_lang(root_path: Path, checksum: str, lang: Language) -> str | None:
     """
-    Looks for a file with the given checksum in the directory of the given lanaguage and returns its contents if it finds such file and None if it doesn't
+    Looks for a file with the given checksum in the directory of the given language and returns its contents if it finds such file and None if it doesn't
 
     Note: better performance then a usual [read_contents_by_checksum]
     """

@@ -139,3 +139,11 @@ class TranslationProcessError(TranslateFileError):
     def __init__(self, message: str, original_exception: Optional[Exception] = None):
         super().__init__(message)
         self.original_exception = original_exception
+       
+class CorrectTranslationError(Exception):
+    """
+    Errors when correcting translation
+    """
+    pass
+class ChecksumNotFoundError(CorrectTranslationError):
+    pass
