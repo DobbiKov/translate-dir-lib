@@ -9,7 +9,7 @@ from trans_lib.trans_db import add_contents_to_db, do_translation_correspond_to_
 
 def correct_chunk_translation(root_path: Path, src_checksum: str, src_lang: Language, new_translation: str, tgt_lang: Language) -> None:
     """
-    Corrects the translation pair by changing the target language translation result to the new given translation
+    Corrects the translation pair (in the correspondence database) by changing the target language translation result to the new given translation
     """
     _src_contents = read_contents_by_checksum_with_lang(root_path, src_checksum, src_lang)
     if _src_contents is None:
