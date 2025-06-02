@@ -145,7 +145,7 @@ def list_translatable_files(ctx: typer.Context):
     """Lists all files marked as translatable in the source directory."""
     project = get_project_from_context(ctx)
     try:
-        files = project.get_translatable_files()
+        files = project.get_translatable_file_pathes()
         if not files:
             typer.secho("No translatable files found.", fg=typer.colors.YELLOW)
             return
@@ -206,6 +206,7 @@ def info_on_project(ctx: typer.Context):
 translate_app = typer.Typer(name="translate", help="Translate files.", no_args_is_help=True)
 project_app.add_typer(translate_app) # Sub-command of project
 
+
 async def _translate_file_command(project: Project, file_path_str: str, lang: Language):
     try:
         await project.translate_single_file(file_path_str, lang)
@@ -247,6 +248,45 @@ def translate_all_cli(
     """Translates all translatable files to the specified language."""
     project = get_project_from_context(ctx)
     asyncio.run(_translate_all_command(project, lang))
+
+
+# ============ correct app =============
+correct_app = typer.Typer(name="correct", help="Correct translation.", no_args_is_help=True)
+project_app.add_typer(correct_app) # Sub-command of project
+
+@correct_app.command("file")
+def correct_file_cli(
+    ctx: typer.Context,
+    file_path: Annotated[str, typer.Argument(help="Path to the file to correct translation in.")],
+):
+    """Corrects the translation of a single specified file."""
+    project = get_project_from_context(ctx)
+    try:
+        project.correct_translation_single_file(file_path)
+        typer.secho(f"Verifying the contents to translate in the {file_path} file.", fg=typer.colors.GREEN)
+    except errors.CorrectTranslationError as e: # Should be caught by individual file errors mostly
+        typer.secho(f"Error during 'correct file' for {file_path}: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    except Exception as e:
+        typer.secho(f"An unexpected error occurred during 'correct file': {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+@correct_app.command("all")
+def correct_all_cli(
+    ctx: typer.Context,
+    lang: Annotated[Language, typer.Argument(help="Target language for correction.", case_sensitive=False)]
+):
+    """Corrects the translation of all the files of the specified language."""
+    project = get_project_from_context(ctx)
+    try:
+        project.correct_translation_for_lang(lang)
+        typer.secho(f"All files processed for correcting language {lang.value}.", fg=typer.colors.GREEN)
+    except errors.CorrectTranslationError as e: # Should be caught by individual file errors mostly
+        typer.secho(f"Error during 'correct all' for {lang.value}: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    except Exception as e:
+        typer.secho(f"An unexpected error occurred during 'correct all': {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
 
 
 # --- Main execution for CLI ---

@@ -203,7 +203,7 @@ def do_translation_correspond_to_source(root_path: Path, src_checksum: str, src_
     Returns true if the given translation corresponds to the given source checksum and false otherwise
     """
     tgt_checksum = calculate_checksum(tgt_contents)
-    return do_translation_checksum_correspond_to_source(root_path, src_checksum, src_lang, tgt_contents, tgt_lang)
+    return do_translation_checksum_correspond_to_source(root_path, src_checksum, src_lang, tgt_checksum, tgt_lang)
 
 def set_checksum_pair_to_correspondence_db(root_path: Path, src_checksum: str, src_lang: Language, tgt_checksum: str, tgt_lang: Language) -> None:
     if src_lang == tgt_lang:
