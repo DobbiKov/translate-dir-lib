@@ -153,7 +153,18 @@ def remove_language_from_correspondence_db(root_path: Path, lang: Language) -> N
 
 def find_correspondent_checksum(root_path: Path, src_checksum: str, src_lang: Language, tgt_lang: Language) -> str | None:
     """
-    Looks for the correspondent checksum of a particular language to the given checksum (of the given language) the checksum if finds it, None otherwise
+    Looks for the correspondent checksum of a particular language to the given checksum (of the given language) returns the checksum if finds it, None otherwise
+
+    Example:
+        eng_checksum | fr_checksum
+        aaa          | aca
+        baa          | aba
+
+    ```py
+    find_correspondent_checksum(., "aaa", English, French) # returns "aca"
+    find_correspondent_checksum(., "aba", French, English) # returns "baa"
+    find_correspondent_checksum(., "ccc", French, English) # returns None
+    ```
     """
     if src_lang == tgt_lang:
         return None
