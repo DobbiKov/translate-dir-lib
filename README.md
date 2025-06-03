@@ -13,3 +13,8 @@ A tool to translate directory contents to a variety of languages.
 ```sh
 uv tool install .
 ```
+
+To install the tool so that the changes are always tracked
+```sh
+uv pip install -e .
+```
