@@ -11,6 +11,7 @@ from .constants import INTER_FILE_TRANSLATION_DELAY_SECONDS, DEFAULT_PROMPT_PATH
 from .enums import Language
 from .helpers import divide_into_chunks, extract_translated_from_response, read_string_from_file
 from .errors import TranslationProcessError
+import requests
 
 
 # TODO:
@@ -78,6 +79,16 @@ async def _ask_gemini_model(full_prompt_message: str, model_name: str = "gemini-
     except Exception as e:
         print(f"Error communicating with Gemini API: {e}")
         raise TranslationProcessError(f"Gemini API call failed: {e}", original_exception=e)
+
+async def _ask_aristote(full_prompt_message: str) -> str:
+    aristote_API_ENDPOINT = "https://aristote-dispatcher.mydocker-run-vd.centralesupelec.fr/v1/chat/completions"
+    model = "casperhansen/llama-3.3-70b-instruct-awq" # Nom du modèle à utiliser
+    data = {
+    "model": model, 
+    "messages": [{"role": "user", "content":full_prompt_message}],  #remplir content avec votre message
+    }
+    response = requests.post(aristote_API_ENDPOINT, json=data)
+    return response.json().get("choices")[0].get("message").get("content")
 
 def finalize_prompt(prompt: str, contents_to_translate: str) -> str:
    return f"{prompt}\n<document>\n{contents_to_translate}\n</document>"
