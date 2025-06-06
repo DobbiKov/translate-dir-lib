@@ -1,6 +1,7 @@
 import re
 from pylatexenc.latexwalker import LatexWalker, LatexCharsNode, LatexMacroNode, LatexGroupNode, LatexEnvironmentNode, LatexCommentNode, LatexMathNode, LatexSpecialsNode
 from typing import Any, Optional
+from pathlib import Path
 
 def _get_node_full_span(node: Any, original_latex_string: str) -> tuple[int, int]:
     """
@@ -194,3 +195,75 @@ def split_latex_document_into_chunks(latex_document_string: str) -> list[dict[st
 
 
     return all_chunks
+
+
+# reading chunks
+def _parse_metadata_block(block_str: str) -> dict[str, str]:
+    """Parses a LaTeX comment metadata block string into a dictionary."""
+    metadata = {}
+    lines = block_str.splitlines()
+    for line in lines:
+        line = line.strip()
+        if line.startswith('%'):
+            line = line[1:].strip() # Remove the comment char
+            if line.startswith('--- CHUNK_METADATA_START ---') or \
+               line.startswith('--- CHUNK_METADATA_END ---'):
+                continue # Skip the delimiters
+            
+            if ':' in line:
+                key, value = line.split(':', 1) # Split only on first column
+                metadata[key.strip()] = value.strip()
+    return metadata
+
+def read_chunks_with_metadata_from_latex(
+    filepath: Path 
+) -> list[dict]:
+    """
+    Reads a LaTeX file containing metadata blocks and splits it into chunks.
+    Returns a list of dictionaries, each with 'source' and 'metadata' keys.
+    """
+    with open(filepath, 'r', encoding='utf-8') as f:
+        full_content = f.read()
+
+    chunks_data: list[dict] = []
+    
+    METADATA_BLOCK_REGEX = re.compile(
+        r'(?s)(% --- CHUNK_METADATA_START ---\n.*?\n% --- CHUNK_METADATA_END ---\n)'
+    )
+
+    parts = METADATA_BLOCK_REGEX.split(full_content)
+
+    current_chunk_content = ""
+    current_metadata: dict[str, str] = {}
+
+    start_index = 0
+    if not parts[0].strip():
+        start_index = 1
+        # If the file starts with metadata, parts[1] will be the first metadata block
+        if len(parts) > 1:
+            current_metadata = _parse_metadata_block(parts[1])
+            start_index = 2 # Start processing content from here
+
+    for i in range(start_index, len(parts)):
+        part = parts[i]
+        
+        if i % 2 == 1: # This is a metadata block (odd index)
+            # Store the previous chunk's data if we had content
+            if current_chunk_content.strip():
+                chunks_data.append({
+                    "source": current_chunk_content.strip(),
+                    **current_metadata # Unpack current_metadata into the dict
+                })
+            current_metadata = _parse_metadata_block(part)
+            current_chunk_content = "" # Reset content for the new chunk
+        else: # This is a content block (even index)
+            current_chunk_content += part
+
+    # Add the very last chunk's data if there's any accumulated content
+    if current_chunk_content.strip():
+        chunks_data.append({
+            "source": current_chunk_content.strip(),
+            **current_metadata
+        })
+
+    return chunks_data
