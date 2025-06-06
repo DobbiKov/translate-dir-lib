@@ -87,5 +87,3 @@ async def translate_any_chunk_async(root_path: Path, contents: str, source_langu
     prompt = get_latex_prompt_text()
     return await translate_chunk_or_retrieve_from_db_async(root_path, contents, source_language, target_language, prompt)
 
-
-
