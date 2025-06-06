@@ -212,6 +212,7 @@ class Project:
         
         if not self.config.src_dir:
              raise AddTranslatableFileError(NoSourceLanguageError("Cannot modify file: No source directory set."))
+        self.update_project_structure()
 
         # The logic to find and modify the file model is in ProjectConfig
         try:
@@ -227,12 +228,14 @@ class Project:
         """Returns a list of absolute paths to translatable files in the source directory."""
         if not self.config.src_dir:
             raise GetTranslatableFilesError(NoSourceLanguageError("No source language set, cannot get translatable files."))
+        self.update_project_structure()
         return self.config.get_translatable_files_paths()
 
     def get_translatable_files(self) -> List[FileModel]:
         """Returns a list of translatable files in the source directory."""
         if not self.config.src_dir:
             raise GetTranslatableFilesError(NoSourceLanguageError("No source language set, cannot get translatable files."))
+        self.update_project_structure()
         return self.config.get_translatable_files()
 
     def update_project_structure(self: 'Project') -> None:
@@ -442,7 +445,6 @@ def load_project(path_str: str) -> Project:
         config_model = load_project_config(config_file_path)
         project = Project(project_root, config_model)
         print(f"Project '{project.config.name}' loaded from {project_root}")
-        project.update_project_structure()
         return project
     except ConfigLoadError as e:
         raise LoadProjectError(f"Failed to load project configuration: {e}", e)

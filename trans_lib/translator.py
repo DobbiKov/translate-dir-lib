@@ -99,7 +99,7 @@ async def translate_chunk_with_prompt(prompt: str, chunk: str) -> str:
     """
     final_message_to_model = finalize_prompt(prompt, chunk)
     
-    translated_response_text = await _ask_gemini_model(final_message_to_model)
+    translated_response_text = await _ask_gemini_model(final_message_to_model, "gemini-2.0-flash")
     
     return extract_translated_from_response(translated_response_text)
 
