@@ -6,6 +6,7 @@ from trans_lib.translator_retrieval import translate_chunk_or_retrieve_from_db_a
 from ..enums import Language
 from ..helpers import calculate_checksum, read_string_from_file
 from ..translator import _prepare_prompt_for_language, _ask_gemini_model, translate_chunk_with_prompt
+from ..constants import MARKDOWN_PROMPT_PATH, CODE_PROMPT_PATH
 import jupytext
 import hashlib
 from loguru import logger
@@ -33,8 +34,6 @@ async def translate_jupyter_cell_async(root_path: Path, cell: dict, source_langu
 
     return cell
 
-MARKDOWN_PROMPT_PATH = Path("/Users/dobbikov/Desktop/stage/prompts/doc_specific/markdown_prompt")
-CODE_PROMPT_PATH = Path("/Users/dobbikov/Desktop/stage/prompts/doc_specific/code_prompt")
 
 def get_markdown_prompt_text() -> str:
     """Reads the markdown prompt text from the configured path."""
