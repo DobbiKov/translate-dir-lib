@@ -5,6 +5,7 @@ from .helpers import read_string_from_file, analyze_document_type
 from .errors import TranslationProcessError
 from .doc_translator_mod.notebook_file_translator import translate_notebook_async
 from pathlib import Path
+from .doc_translator_mod import latex_file_translator
 
 async def translate_file_async(source_path: Path, target_language: Language) -> str:
     """Reads a file, translates its content asynchronously, and returns the translated content."""
@@ -29,6 +30,9 @@ async def translate_file_to_file_async(
         if doc_type == DocumentType.Markdown or doc_type == DocumentType.JupyterNotebook:
             logger.trace("translate in this wat")
             await translate_notebook_async(root_path, source_path, source_language, target_path, target_language)
+        elif doc_type == DocumentType.LaTeX:
+            logger.trace("translate latex")
+            await latex_file_translator.translate_file_async(root_path, source_path, source_language, target_path, target_language)
         else:
             # TODO: proper chunking
             # TODO: DB saving

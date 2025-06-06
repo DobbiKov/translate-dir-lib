@@ -10,6 +10,7 @@ dependencies = [
     "jupytext>=1.17.1",
     "loguru>=0.7.3",
     "pydantic>=2.11.5",
+    "pylatexenc>=2.10",
     "typer>=0.16.0",
     "types-pyyaml>=6.0.12.20250516",
 ]

@@ -442,6 +442,7 @@ def load_project(path_str: str) -> Project:
         config_model = load_project_config(config_file_path)
         project = Project(project_root, config_model)
         print(f"Project '{project.config.name}' loaded from {project_root}")
+        project.update_project_structure()
         return project
     except ConfigLoadError as e:
         raise LoadProjectError(f"Failed to load project configuration: {e}", e)
