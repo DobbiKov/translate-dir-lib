@@ -2,16 +2,15 @@ from asyncio import sleep
 import os
 from pathlib import Path
 
+from trans_lib.doc_translator_mod.latex_chunker import split_latex_document_into_chunks
 from trans_lib.translator_retrieval import translate_chunk_or_retrieve_from_db_async
 from ..enums import Language
 from ..helpers import calculate_checksum, read_string_from_file
 from ..translator import _prepare_prompt_for_language, _ask_gemini_model, translate_chunk_with_prompt
 from ..constants import LATEX_PROMPT_PATH
-from pylatexenc.latexwalker import LatexWalker, LatexCharsNode, LatexMacroNode, LatexGroupNode, LatexEnvironmentNode
 import hashlib
 from loguru import logger
 
-ChunkData = dict[str, any]
 
 def _format_metadata_block(metadata: dict[str, str]) -> str:
     """Formats a dictionary into a LaTeX comment metadata block."""
@@ -35,13 +34,13 @@ def get_latex_cells(source_file_path: Path) -> list[dict]:
     latex_document_string = ""
     with open(source_file_path, "r") as f:
         latex_document_string = f.read()
-    w = LatexWalker(latex_document_string)
-    (nodelist, _, _) = w.get_latex_nodes(pos=0)
+
+    chunk_list = split_latex_document_into_chunks(latex_document_string)
 
     cells = []
     # dividing into cells
-    for node in nodelist:
-        contents = node.latex_verbatim()
+    for chunk in chunk_list:
+        contents = chunk["content"]
         cell = {
                 "metadata": {},
                 "source": contents
