@@ -14,7 +14,8 @@ def _get_node_full_span(node: Any, original_latex_string: str) -> tuple[int, int
     if isinstance(node, LatexMacroNode):
         if node.nodeargd is not None and node.nodeargd.argnlist:
             last_arg_node = node.nodeargd.argnlist[-1]
-            end_pos = last_arg_node.pos + last_arg_node.len
+            if last_arg_node is not None:
+                end_pos = last_arg_node.pos + last_arg_node.len
     
     # Ensure the calculated end_pos doesn't exceed the document length
     end_pos = min(end_pos, len(original_latex_string))
