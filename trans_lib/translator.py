@@ -6,6 +6,8 @@ from typing import Optional
 from google import genai
 from google.genai import types as g_types
 
+from trans_lib.vocab_list import VocabList
+
 from .constants import INTER_FILE_TRANSLATION_DELAY_SECONDS, DEFAULT_PROMPT_PATH
 
 from .enums import Language
@@ -43,6 +45,13 @@ def_prompt_template = get_default_prompt_text()
 def _prepare_prompt_for_language(prompt_template: str, target_language: Language) -> str:
     """Replaces the language placeholder in the prompt."""
     return prompt_template.replace("[TARGET_LANGUAGE]", str(target_language))
+
+def _prepare_prompt_for_vocab_list(prompt: str, vocab_list: VocabList | None) -> str:
+    """Replaces the language placeholder in the prompt."""
+    str_to_put = ""
+    if vocab_list is not None:
+        str_to_put = vocab_list.compile_into_llm_vocab_list()
+    return _paste_vocabulary_into_prompt(prompt, str_to_put)
 
 def _paste_vocabulary_into_prompt(prompt_template: str, vocabulary: str) -> str:
     return prompt_template.replace("[CUSTOM_VOCABULARY]", str(vocabulary))
@@ -104,13 +113,14 @@ async def translate_chunk_with_prompt(prompt: str, chunk: str) -> str:
     return extract_translated_from_response(translated_response_text)
 
 
-async def translate_chunk_async(text_chunk: str, target_language: Language) -> str:
+async def translate_chunk_async(text_chunk: str, target_language: Language, vocab_list: VocabList | None) -> str:
     """Translates a single chunk of text asynchronously."""
     prompt_for_lang = _prepare_prompt_for_language(def_prompt_template, target_language)
+    prompt_for_lang = _prepare_prompt_for_vocab_list(prompt_for_lang, vocab_list)
     
     return await translate_chunk_with_prompt(prompt_for_lang, text_chunk)
 
-async def translate_contents_async(contents: str, target_language: Language, lines_per_chunk: int = 50) -> str:
+async def translate_contents_async(contents: str, target_language: Language, lines_per_chunk: int = 50, vocab_list: VocabList | None = None) -> str:
     """
     Translates the given string contents asynchronously, handling chunking.
     Includes a delay between chunk translations for rate limiting.
@@ -132,7 +142,7 @@ async def translate_contents_async(contents: str, target_language: Language, lin
             translated_chunks.append(chunk) # Preserve empty lines if they form a chunk
             continue
 
-        translated_chunk = await translate_chunk_async(chunk, target_language)
+        translated_chunk = await translate_chunk_async(chunk, target_language, vocab_list)
         translated_chunks.append(translated_chunk)
         
         if i < len(chunks) - 1: # If not the last chunk
