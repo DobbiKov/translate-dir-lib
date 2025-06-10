@@ -1,5 +1,6 @@
 from loguru import logger
 
+from trans_lib import vocab_list
 from trans_lib.vocab_list import VocabList
 from .enums import DocumentType, Language
 from .translator import translate_contents_async
@@ -9,10 +10,10 @@ from .doc_translator_mod.notebook_file_translator import translate_notebook_asyn
 from pathlib import Path
 from .doc_translator_mod import latex_file_translator
 
-async def translate_file_async(source_path: Path, target_language: Language) -> str:
+async def translate_file_async(source_path: Path, target_language: Language, vocab_list: VocabList | None) -> str:
     """Reads a file, translates its content asynchronously, and returns the translated content."""
     file_contents = read_string_from_file(source_path)
-    return await translate_contents_async(file_contents, target_language)
+    return await translate_contents_async(file_contents, target_language, 50, vocab_list)
 
 
 async def translate_file_to_file_async(

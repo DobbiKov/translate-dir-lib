@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple
 from loguru import logger
 
 from trans_lib.doc_corrector import correct_file_translation
+from trans_lib.vocab_list import VocabList
 
 from .enums import Language
 from .project_config_models import FileModel, ProjectConfig, LangDir, DirectoryModel
@@ -341,7 +342,7 @@ class Project:
 
         self._correct_translation_file(file_path, target_lang)
 
-    async def translate_single_file(self, file_path_str: str, target_lang: Language) -> None:
+    async def translate_single_file(self, file_path_str: str, target_lang: Language, vocab_list: VocabList | None) -> None:
         """Translates a single specified file to the target language."""
         try:
             file_path = Path(file_path_str).resolve(strict=True)
@@ -387,7 +388,7 @@ class Project:
             raise TranslateFileError(f"IO error during translation of {file_path.name}: {e}", e)
 
 
-    async def translate_all_for_language(self, target_lang: Language) -> None:
+    async def translate_all_for_language(self, target_lang: Language, vocab_list: VocabList | None) -> None:
         """Translates all translatable files to the specified target language."""
         translatable_files = self.get_translatable_file_pathes()
         if not translatable_files:
@@ -398,7 +399,7 @@ class Project:
         for i, file_path in enumerate(translatable_files):
             print(f"--- File {i+1}/{len(translatable_files)} ---")
             try:
-                await self.translate_single_file(str(file_path), target_lang)
+                await self.translate_single_file(str(file_path), target_lang, vocab_list)
             except TranslateFileError as e:
                 print(f"ERROR translating {file_path.name}: {e}. Skipping this file.")
             # The sleep is now inside translate_single_file, after each successful API call.
