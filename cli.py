@@ -1,5 +1,6 @@
 import asyncio
 import os
+import csv
 from pathlib import Path
 from typing import List, Optional
 
@@ -8,7 +9,8 @@ from typing_extensions import Annotated # For Typer < 0.7 or for more complex an
 
 from trans_lib.enums import Language, CLI_LANGUAGE_CHOICES
 from trans_lib.project_manager import Project, init_project, load_project
-from trans_lib import errors # Import the errors module
+from trans_lib import errors
+from trans_lib.vocab_list import VocabList, vocab_list_from_vocab_db # Import the errors module
 
 # Create the Typer app
 app = typer.Typer(
@@ -206,10 +208,18 @@ def info_on_project(ctx: typer.Context):
 translate_app = typer.Typer(name="translate", help="Translate files.", no_args_is_help=True)
 project_app.add_typer(translate_app) # Sub-command of project
 
+def _read_vocab_from_file(path: Path) -> list[dict]:
+    with open(path, "r") as f:
+        reader = csv.DictReader(f)
+        return list(reader)
 
-async def _translate_file_command(project: Project, file_path_str: str, lang: Language):
+async def _translate_file_command(project: Project, file_path_str: str, lang: Language, vocab: Path | None):
     try:
-        await project.translate_single_file(file_path_str, lang)
+        vocabulary = None
+        if vocab != None:
+            vocabulary = vocab_list_from_vocab_db(_read_vocab_from_file(vocab), project.get_source_langugage(), lang)
+
+        await project.translate_single_file(file_path_str, lang, vocabulary) # WARNING: remove None
         typer.secho(f"File '{file_path_str}' translated to {lang.value} successfully.", fg=typer.colors.GREEN)
     except errors.TranslateFileError as e:
         typer.secho(f"Error translating file '{file_path_str}': {e}", fg=typer.colors.RED, err=True)
@@ -222,16 +232,21 @@ async def _translate_file_command(project: Project, file_path_str: str, lang: La
 def translate_file_cli(
     ctx: typer.Context,
     file_path: Annotated[str, typer.Argument(help="Path to the translatable file.")],
-    lang: Annotated[Language, typer.Argument(help="Target language for translation.", case_sensitive=False)]
+    lang: Annotated[Language, typer.Argument(help="Target language for translation.", case_sensitive=False)],
+    vocabulary: Annotated[Path | None, typer.Option(help="A path to the csv file with the vocabulary.", case_sensitive=False)] = None
 ):
     """Translates a single specified translatable file."""
     project = get_project_from_context(ctx)
-    asyncio.run(_translate_file_command(project, file_path, lang))
+    asyncio.run(_translate_file_command(project, file_path, lang, vocabulary))
 
 
-async def _translate_all_command(project: Project, lang: Language):
+async def _translate_all_command(project: Project, lang: Language, vocab: Path | None):
     try:
-        await project.translate_all_for_language(lang)
+        vocabulary = None
+        if vocab != None:
+            vocabulary = vocab_list_from_vocab_db(_read_vocab_from_file(vocab), project.get_source_langugage(), lang)
+
+        await project.translate_all_for_language(lang, vocabulary) # WARNING: remove None
         typer.secho(f"All translatable files processed for language {lang.value}.", fg=typer.colors.GREEN)
     except errors.TranslateFileError as e: # Should be caught by individual file errors mostly
         typer.secho(f"Error during 'translate all' for {lang.value}: {e}", fg=typer.colors.RED, err=True)
@@ -243,11 +258,12 @@ async def _translate_all_command(project: Project, lang: Language):
 @translate_app.command("all")
 def translate_all_cli(
     ctx: typer.Context,
-    lang: Annotated[Language, typer.Argument(help="Target language for translation.", case_sensitive=False)]
+    lang: Annotated[Language, typer.Argument(help="Target language for translation.", case_sensitive=False)],
+    vocabulary: Annotated[Path | None, typer.Option(help="A path to the csv file with the vocabulary.", case_sensitive=False)] = None
 ):
     """Translates all translatable files to the specified language."""
     project = get_project_from_context(ctx)
-    asyncio.run(_translate_all_command(project, lang))
+    asyncio.run(_translate_all_command(project, lang, vocabulary))
 
 
 # ============ correct app =============

@@ -1,3 +1,4 @@
+from loguru import logger
 from trans_lib.enums import Language
 
 
@@ -33,7 +34,6 @@ def vocab_list_from_vocab_db(db: list[dict], source_lang: Language, target_lang:
         ]
     """
     if len(db) == 0:
-        print(len(db))
         return VocabList([], [])
     if str(source_lang) not in list(db[0].keys()) or str(target_lang) not in list(db[0].keys()):
         print("No source or target language provided in the vocabulary list!")
@@ -41,7 +41,7 @@ def vocab_list_from_vocab_db(db: list[dict], source_lang: Language, target_lang:
     source_terms = []
     target_terms = []
     for elem in db:
-        print(elem)
+        logger.trace(f"{elem}")
         source_terms.append(elem[str(source_lang)])
         target_terms.append(elem[str(target_lang)])
 

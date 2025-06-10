@@ -78,6 +78,15 @@ class Project:
 
     def _get_target_languages(self) -> List[Language]:
         return [ld.language for ld in self.config.lang_dirs]
+    
+    def get_source_langugage(self) -> Language:
+        """
+        Returns a source language of the project if such is set, otherwise raises an exception.
+        """
+        res = self._get_source_language()
+        if res is None:
+            raise NoSourceLanguageError
+        return res
 
     def set_source_directory(self, dir_name: str, lang: Language) -> None:
         """Sets the source directory for translations."""
@@ -381,7 +390,7 @@ class Project:
         
         print(f"Translating {file_path.name} to {target_lang.value} -> {target_file_path}...")
         try:
-            await translate_file_to_file_async(self.root_path, file_path, source_language, target_file_path, target_lang)
+            await translate_file_to_file_async(self.root_path, file_path, source_language, target_file_path, target_lang, vocab_list)
         except TranslationProcessError as e:
             raise TranslateFileError(f"Translation process failed for {file_path.name}: {e}", e)
         except IOError as e: # From file writing in translate_file_to_file_async
