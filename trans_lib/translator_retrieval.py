@@ -39,6 +39,7 @@ async def translate_chunk_or_retrieve_from_db_async(root_path: Path, text_chunk:
         logger.debug("Didn't find the translation in the database, translate using LLM")
         prompt_for_lang = _prepare_prompt_for_language(prompt_placeholder, target_language)
         prompt_for_lang = _prepare_prompt_for_vocab_list(prompt_for_lang, vocab_list)
+        logger.debug(f"Prompt: {prompt_for_lang}")
         translated = await translate_chunk_with_prompt(prompt_for_lang, text_chunk)
 
         src_checksum = add_contents_to_db(root_path, text_chunk, source_language) 
