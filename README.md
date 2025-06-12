@@ -1,6 +1,9 @@
 # Translate dir
 A tool to translate directory contents to a variety of languages.
-This library is currently under the active development, this README and the documentation will be written later.
+
+This repository contains two related projects:
+- translation library
+- the CLI implementation of the library
 
 ## Installation
 1. Clone the repo: `git clone https://github.com/DobbiKov/translate-dir-lib`
