@@ -443,6 +443,7 @@ def init_project(project_name: str, root_dir_str: str) -> Project:
 
 def load_project(path_str: str) -> Project:
     """Loads an existing project from the given path (can be project root or any child path)."""
+    print("HUY")
     start_path = Path(path_str).resolve()
     
     config_file_path = find_file_upwards(start_path, CONFIG_FILENAME)
