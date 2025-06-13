@@ -423,8 +423,11 @@ class Project:
         curr_root = Path(os.path.realpath(self.root_path))
         old_root = self.config.get_root_path()
 
+        print("we're here")
         if curr_root != old_root:
+            logger.debug("Config root path doesn't correspond to the corrent one!")
             self.config.rearrange_project(curr_root, old_root) 
+            self.save_config()
 
 # --- Module-level functions for project init and load ---
 
