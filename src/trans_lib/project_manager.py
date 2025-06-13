@@ -1,4 +1,5 @@
 import asyncio
+import os
 import shutil
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -57,7 +58,7 @@ class Project:
     def _create_new_for_init(cls, project_name: str, project_root_path: Path) -> 'Project':
         """Creates a new Project instance with a new config, for internal use by init_project."""
         abs_path = project_root_path.resolve()
-        config = ProjectConfig.new(project_name=project_name)
+        config = ProjectConfig.new(project_name=project_name, root_path=project_root_path)
         return cls(abs_path, config)
 
     def save_config(self) -> None:
@@ -414,6 +415,19 @@ class Project:
             # The sleep is now inside translate_single_file, after each successful API call.
         print(f"Finished translation to {target_lang.value}.")
 
+    def _verify_project_placement(self) -> None:
+        """
+        Verifies that the project hasn't been moved to another directory, if it has, then all the paths are corrected.
+        """
+        pass
+        curr_root = Path(os.path.realpath(self.root_path))
+        old_root = self.config.get_root_path()
+
+        print("we're here")
+        if curr_root != old_root:
+            logger.debug("Config root path doesn't correspond to the corrent one!")
+            self.config.rearrange_project(curr_root, old_root) 
+            self.save_config()
 
 # --- Module-level functions for project init and load ---
 
@@ -455,6 +469,7 @@ def load_project(path_str: str) -> Project:
     try:
         config_model = load_project_config(config_file_path)
         project = Project(project_root, config_model)
+        project._verify_project_placement()
         print(f"Project '{project.config.name}' loaded from {project_root}")
         return project
     except ConfigLoadError as e:

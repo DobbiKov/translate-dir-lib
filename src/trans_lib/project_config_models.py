@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 import os
 from pathlib import Path
+from shutil import copy
 from typing import List, Optional, Any, Callable
 
 from pydantic import BaseModel, Field, model_validator
@@ -78,13 +79,17 @@ class ProjectConfig(BaseModel):
     name: str
     lang_dirs: List[LangDir] = Field(default_factory=list)
     src_dir: Optional[LangDir] = None
+    root_path: Path = Path()
 
     @classmethod
-    def new(cls, project_name: str) -> ProjectConfig:
-        return cls(name=project_name, lang_dirs=[], src_dir=None)
+    def new(cls, project_name: str, root_path: Path) -> ProjectConfig:
+        return cls(name=project_name, lang_dirs=[], src_dir=None, root_path=root_path)
 
     def get_name(self) -> str:
         return self.name
+
+    def get_root_path(self) -> Path:
+        return self.root_path
 
     def get_src_dir(self) -> Optional[LangDir]:
         return self.src_dir
@@ -117,6 +122,45 @@ class ProjectConfig(BaseModel):
         new_dir = build_tree_func(dir_path)
         directory = compare_and_submit_dir_structures(old_dir, new_dir)
         self.src_dir = LangDir(dir=directory, language=lang)
+
+    def rearrange_project(self, curr_root: Path, old_root: Path) -> None:
+        """
+        Rewrite all the paths accordingly to the new root path.
+        This method is called when the project directory has been moved.
+        """
+        def _update_paths_recursive(dir_model: DirectoryModel, new_root: Path, previous_root: Path):
+            """Helper function to recursively update paths in a DirectoryModel."""
+            # Update the directory's own path
+            try:
+                relative_dir_path = dir_model.path.relative_to(previous_root)
+                dir_model.path = new_root / relative_dir_path
+            except ValueError:
+                logger.warning(f"Path {dir_model.path} is not within the old project root {previous_root}. Skipping update for this item.")
+
+            # Update paths for all files in this directory
+            for file_model in dir_model.files:
+                try:
+                    relative_file_path = file_model.path.relative_to(previous_root)
+                    file_model.path = new_root / relative_file_path
+                except ValueError:
+                    logger.warning(f"Path {file_model.path} is not within the old project root {previous_root}. Skipping update for this file.")
+
+            # Recurse into subdirectories
+            for sub_dir_model in dir_model.dirs:
+                _update_paths_recursive(sub_dir_model, new_root, previous_root)
+
+        # Update the project's own root_path
+        self.root_path = curr_root
+
+        # Update the source directory, if it exists
+        if self.src_dir:
+            _update_paths_recursive(self.src_dir.dir, curr_root, old_root)
+
+        # Update all target language directories
+        for lang_dir in self.lang_dirs:
+            _update_paths_recursive(lang_dir.dir, curr_root, old_root)
+
+
 
     def set_src_dir_config(self, dir_path: Path, lang: Language, build_tree_func: Callable[[Path], DirectoryModel]) -> None:
         """
