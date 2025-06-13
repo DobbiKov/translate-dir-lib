@@ -1,5 +1,20 @@
 # The profound explanation of the tool
 
+## Table of Contents
+- [Main Unit: Project](#main-unit-project)
+- [Project initialization and required settings](#project-initialization-and-required-settings)
+- [Two types of files](#two-types-of-files)
+- [Syncing vs Translating](#syncing-vs-translating)
+    - [Syncing](#syncing)
+    - [Translating](#translating)
+    - [Difference](#difference) 
+- [Translation algorithm](#translation-algorithm)
+- [Correcting](#correcting)
+- [Translation Database](#translation-database)
+    - [Structure](#strucute)
+    - [Text to checksum DB](#text-to-checksum-db)
+    - [Correspondence DB](#correspondence-db)
+
 ## Main Unit: Project
 The main unit of the library is called **project**. The project contains all
 the information about your file structure, languages and translation database.
@@ -109,7 +124,7 @@ Example: The addition of the French language in the project named
 
 This directory will have the copy of the source directory with translated files.
 
-### Important note
+### Important notes
 - The source directory can be reset, i.e you can set another directory as a source one.
 - The target languages can be removed.
 
@@ -122,7 +137,7 @@ You can mark any file in the source directory as *translatable*, then such file
 won't be copied by `sync` command and will be able to be translated using the
 appropriate command.
 
-## Syncing vs Translation
+## Syncing vs Translating
 ### Syncing
 When `sync` command is used, all the *untranslatable* files from the source
 directory are copied to the target language directories. An example of such
@@ -135,15 +150,15 @@ any additional actions required.
 
 > Note: the `sync` command doesn't copy the files that are marked as *translatable*.
 
-### Translation
-Translation reads the files in the source directory that are marked as
+### Translating
+Translating reads the files in the source directory that are marked as
 *translatable*, translates them and writes to the appropriate target language
 directories. During the translation process, the files that are _not_ marked as
 _translatable_ won't be copied to the target directories.
 
 ### Difference
 The syncing _copies_ only the _untranslatable_ files and doesn't touch
-_translatable_ ones. Translation translates the files and put them into
+_translatable_ ones. Translating translates the files and put them into
 appropriate directories.
 
 ## Translation algorithm
@@ -160,7 +175,7 @@ Such metadata may be:
 - _needs\_review_ tag that alerts the user that a particular chunk has been
   translated by machine but wasn't verified by human.
 
-## Correction
+## Correcting
 After the translation a user may want to correct or edit the translated files.
 These changes are logically should be saved in order to not lose those changes.
 Thus, when the correction command is called, it reads each translated chunk in
@@ -174,7 +189,7 @@ retranslation of the chunks that have already been translated previously and
 track changes and edits in the source project and the translated versions of
 it.
 
-## Structure
+### Structure
 The database is presented in the `trans_git_db` directory that is stored in the
 root directory of the project. This folder has the next structure:
 
