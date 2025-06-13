@@ -1,4 +1,5 @@
 # The profound explanation of the tool
+This page contains the profound overview and explanation of the architecture, algorithms and ideology of the library and explain all its features.
 
 ## Table of Contents
 - [Main Unit: Project](#main-unit-project)
