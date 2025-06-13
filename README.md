@@ -12,6 +12,8 @@ the translation process and compiling of the translated version of the documents
 - [x] File translation
 - [x] Translation correction
 
+The profound explanation of the logic and algorithms of the tool can be found [here](./docs/tool-profound-explanation.md)
+
 ## Installation
 ### For using the library
 1. Clone the repo: `git clone https://github.com/DobbiKov/translate-dir-lib`
