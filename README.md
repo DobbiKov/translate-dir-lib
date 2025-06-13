@@ -15,13 +15,13 @@ the translation process and compiling of the translated version of the documents
 The profound explanation of the logic and algorithms of the tool can be found [here](./docs/tool-profound-explanation.md)
 
 ## Installation
-### For using the library
+### For in-project library usage
 1. Clone the repo: `git clone https://github.com/DobbiKov/translate-dir-lib`
 2. Enter to your project where you want to use this library (`cd <your_project_path>`)
 3. Install the library as a dependency using `pip`: `pip install <path_to_the_library_directory>`
 4. Enjoy!
 
-### For the library development uses
+### For the library development and contribution uses
 1. Ensure you have [uv](https://docs.astral.sh/uv/#__tabbed_1_1) tool installed
    (visit their site for the installation guide)
 2. Clone the repo: `git clone https://github.com/DobbiKov/translate-dir-lib`
