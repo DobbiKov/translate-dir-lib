@@ -181,6 +181,10 @@ vocabulary list. That list contains pairs of a word or phrase on a source
 language and it's translation on the target one. That vocabulary that is passed
 to the LLM in order to improve it's translation quality.
 
+Current version of the library uses `gemini-2.0-flash` Google's model that
+requires `GOOGLE_API_KEY` to be set as an environment variable. The information
+about how to obtain such key can be found [here](https://aistudio.google.com/app/apikey).
+
 ## Correcting
 After the translation a user may want to correct or edit the translated files.
 These changes are logically should be saved in order to not lose those changes.
