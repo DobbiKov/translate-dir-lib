@@ -138,9 +138,20 @@ class Project:
                 raise AddLanguageError(InvalidPathError(f"The provided path {tgt_dir} must be a path to a directory!"))
 
             resolved_lang_dir_path = tgt_dir.resolve()
-            self.config.add_lang_dir_config(resolved_lang_dir_path, lang, build_directory_tree)
-            self.save_config()
-            return resolved_lang_dir_path
+
+            if not resolved_lang_dir_path.is_relative_to(self.root_path):
+                raise AddLanguageError(InvalidPathError(f"{tgt_dir} must be inside the project root"))
+
+            try:
+                self.config.add_lang_dir_config(resolved_lang_dir_path, lang, build_directory_tree)
+                self.save_config()
+                return resolved_lang_dir_path
+            except IOError as e:
+                # Clean up created directory if subsequent steps fail?
+                # For now, let it be and raise error.
+                raise AddLanguageError(f"Error on saving config for language {lang}: {e}", e)
+            except Exception as e:
+                 raise AddLanguageError(f"Unexpected error adding language {lang} and setting directory {tgt_dir}: {e}", e)
         else:
             lang_dir_name = f"{self.config.name}{lang.get_dir_suffix()}"
             lang_dir_path = self.root_path / lang_dir_name
