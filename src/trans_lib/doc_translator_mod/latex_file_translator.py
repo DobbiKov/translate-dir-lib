@@ -9,7 +9,6 @@ from trans_lib.vocab_list import VocabList
 from ..enums import Language
 from ..helpers import calculate_checksum, read_string_from_file
 from ..translator import _prepare_prompt_for_language, _ask_gemini_model, translate_chunk_with_prompt
-from ..constants import LATEX_PROMPT_PATH
 import hashlib
 from loguru import logger
 
@@ -77,13 +76,8 @@ async def translate_chunk_async(root_path: Path, cell: dict, source_language: La
    return cell
 
 def get_latex_prompt_text() -> str:
-    """Reads latex prompt text from the configured path."""
-    try:
-        return prompt4
-    except Exception as e:
-        print(f"Warning: Could not load default prompt from {LATEX_PROMPT_PATH}: {e}. Using a fallback.")
-        # Fallback prompt to avoid complete failure if file is missing
-        return "Translate the following document to [TARGET_LANGUAGE]. Maintain the original structure and formatting as much as possible. Only output the translated document text inside <output> tags.\nDocument text:\n"
+    """Returns the default prompt for translating LaTeX documents"""
+    return prompt4
 
 async def translate_any_chunk_async(root_path: Path, contents: str, source_language: Language, target_language: Language, vocab_list: VocabList | None) -> str:
     prompt = get_latex_prompt_text()

@@ -8,7 +8,8 @@ from google.genai import types as g_types
 
 from trans_lib.vocab_list import VocabList
 
-from .constants import INTER_FILE_TRANSLATION_DELAY_SECONDS, DEFAULT_PROMPT_PATH
+from .constants import INTER_FILE_TRANSLATION_DELAY_SECONDS 
+from .prompts import prompt4
 
 from .enums import Language
 from .helpers import divide_into_chunks, extract_translated_from_response, read_string_from_file
@@ -30,13 +31,8 @@ except Exception as e:
 
 
 def get_default_prompt_text() -> str:
-    """Reads the default prompt text from the configured path."""
-    try:
-        return read_string_from_file(DEFAULT_PROMPT_PATH)
-    except Exception as e:
-        print(f"Warning: Could not load default prompt from {DEFAULT_PROMPT_PATH}: {e}. Using a fallback.")
-        # Fallback prompt to avoid complete failure if file is missing
-        return "Translate the following document to [TARGET_LANGUAGE]. Maintain the original structure and formatting as much as possible. Only output the translated document text inside <output> tags.\nDocument text:\n"
+    """Returns the default prompt"""
+    return prompt4
 
 
 def_prompt_template = get_default_prompt_text()
