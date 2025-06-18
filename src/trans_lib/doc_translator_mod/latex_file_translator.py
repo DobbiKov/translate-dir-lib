@@ -1,4 +1,5 @@
 from asyncio import sleep
+from ..prompts import prompt4
 import os
 from pathlib import Path
 
@@ -78,7 +79,7 @@ async def translate_chunk_async(root_path: Path, cell: dict, source_language: La
 def get_latex_prompt_text() -> str:
     """Reads latex prompt text from the configured path."""
     try:
-        return read_string_from_file(LATEX_PROMPT_PATH)
+        return prompt4
     except Exception as e:
         print(f"Warning: Could not load default prompt from {LATEX_PROMPT_PATH}: {e}. Using a fallback.")
         # Fallback prompt to avoid complete failure if file is missing

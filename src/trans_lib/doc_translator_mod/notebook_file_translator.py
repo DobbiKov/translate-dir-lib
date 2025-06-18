@@ -1,5 +1,6 @@
 from asyncio import sleep
 import os
+from ..prompts import prompt_jupyter_code, prompt_jupyter_md 
 from pathlib import Path
 
 from trans_lib import vocab_list
@@ -40,7 +41,7 @@ async def translate_jupyter_cell_async(root_path: Path, cell: dict, source_langu
 def get_markdown_prompt_text() -> str:
     """Reads the markdown prompt text from the configured path."""
     try:
-        return read_string_from_file(MARKDOWN_PROMPT_PATH)
+        return prompt_jupyter_md
     except Exception as e:
         print(f"Warning: Could not load default prompt from {MARKDOWN_PROMPT_PATH}: {e}. Using a fallback.")
         # Fallback prompt to avoid complete failure if file is missing
@@ -49,7 +50,7 @@ def get_markdown_prompt_text() -> str:
 def get_code_prompt_text() -> str:
     """Reads the code prompt text from the configured path."""
     try:
-        return read_string_from_file(CODE_PROMPT_PATH)
+        return prompt_jupyter_code
     except Exception as e:
         print(f"Warning: Could not load default prompt from {CODE_PROMPT_PATH}: {e}. Using a fallback.")
         # Fallback prompt to avoid complete failure if file is missing
