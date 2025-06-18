@@ -1,5 +1,6 @@
 import asyncio
 import os
+from os.path import isdir
 import shutil
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -114,8 +115,13 @@ class Project:
              raise SetSourceDirError(AnalyzeDirError(f"Unexpected error setting source directory: {e}", e))
 
 
-    def add_target_language(self, lang: Language) -> Path:
-        """Adds a target language and creates its directory. Returns path to new lang dir."""
+    def add_target_language(self, lang: Language, tgt_dir: Path | None = None) -> Path:
+        """
+        Adds a target language to the project.
+
+        If a directory path is provided, it will be used as the target language's directory.
+        If no directory is provided, a new one will be created automatically, and its full path will be returned.
+        """
         src_lang = self._get_source_language()
         if not src_lang:
             raise AddLanguageError(NoSourceLanguageError("Cannot add target language: No source language set."))
@@ -125,24 +131,35 @@ class Project:
         if lang in self._get_target_languages():
             raise AddLanguageError(LangAlreadyInProjectError("Cannot add language: It's already a target language."))
 
-        lang_dir_name = f"{self.config.name}{lang.get_dir_suffix()}"
-        lang_dir_path = self.root_path / lang_dir_name
-        
-        if lang_dir_path.exists():
-            raise AddLanguageError(LangDirExistsError(f"Directory {lang_dir_path} for language {lang} already exists."))
+        if tgt_dir is not None:
+            if not tgt_dir.exists():
+                raise AddLanguageError(InvalidPathError(f"The provided directory {tgt_dir} does not exist!"))
+            if not os.path.isdir(tgt_dir):
+                raise AddLanguageError(InvalidPathError(f"The provided path {tgt_dir} must be a path to a directory!"))
 
-        try:
-            lang_dir_path.mkdir(parents=True) # Create the directory
-            resolved_lang_dir_path = lang_dir_path.resolve()
+            resolved_lang_dir_path = tgt_dir.resolve()
             self.config.add_lang_dir_config(resolved_lang_dir_path, lang, build_directory_tree)
             self.save_config()
             return resolved_lang_dir_path
-        except IOError as e:
-            # Clean up created directory if subsequent steps fail?
-            # For now, let it be and raise error.
-            raise AddLanguageError(f"IO error creating directory or saving config for language {lang}: {e}", e)
-        except Exception as e:
-             raise AddLanguageError(f"Unexpected error adding language {lang}: {e}", e)
+        else:
+            lang_dir_name = f"{self.config.name}{lang.get_dir_suffix()}"
+            lang_dir_path = self.root_path / lang_dir_name
+            
+            if lang_dir_path.exists():
+                raise AddLanguageError(LangDirExistsError(f"Directory {lang_dir_path} for language {lang} already exists."))
+
+            try:
+                lang_dir_path.mkdir(parents=True) # Create the directory
+                resolved_lang_dir_path = lang_dir_path.resolve()
+                self.config.add_lang_dir_config(resolved_lang_dir_path, lang, build_directory_tree)
+                self.save_config()
+                return resolved_lang_dir_path
+            except IOError as e:
+                # Clean up created directory if subsequent steps fail?
+                # For now, let it be and raise error.
+                raise AddLanguageError(f"IO error creating directory or saving config for language {lang}: {e}", e)
+            except Exception as e:
+                 raise AddLanguageError(f"Unexpected error adding language {lang}: {e}", e)
 
     def remove_target_language(self, lang: Language) -> None:
         """Removes a target language and its directory."""
