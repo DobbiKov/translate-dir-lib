@@ -20,8 +20,8 @@ from .project_config_io import (
     remove_files_not_in_source_dir
 )
 from .doc_translator import translate_file_to_file_async # Using the async version
-from .helpers import find_file_upwards
-from .constants import CONFIG_FILENAME
+from .helpers import find_dir_upwards, find_file_upwards
+from .constants import APP_NAME, CONF_DIR, CONFIG_FILENAME
 from .errors import (
     CorrectTranslationError, CorrectingTranslationError, InitProjectError, InvalidPathError, NoSourceFileError, ProjectAlreadyInitializedError, WriteConfigError as ConfigWriteError,
     LoadProjectError, NoConfigFoundError, LoadConfigError as ConfigLoadError,
@@ -53,7 +53,11 @@ class Project:
 
     @property
     def config_file_path(self) -> Path:
-        return self.root_path / CONFIG_FILENAME
+        return self.root_path / CONF_DIR / CONFIG_FILENAME
+
+    @property
+    def config_dir_path(self) -> Path:
+        return self.root_path / CONF_DIR
 
     @classmethod
     def _create_new_for_init(cls, project_name: str, project_root_path: Path) -> 'Project':
@@ -65,6 +69,7 @@ class Project:
     def save_config(self) -> None:
         """Saves the current project configuration (writes to the config file)."""
         try:
+            os.makedirs(self.config_dir_path, exist_ok=True)
             write_project_config(self.config_file_path, self.config)
         except ConfigWriteError as e:
             # Wrap in a more specific error if needed, or re-raise
@@ -458,7 +463,6 @@ class Project:
             self.save_config()
 
 # --- Module-level functions for project init and load ---
-
 def init_project(project_name: str, root_dir_str: str) -> Project:
     """Initializes a new project configuration in the specified directory."""
     root_path = Path(root_dir_str)
@@ -466,7 +470,7 @@ def init_project(project_name: str, root_dir_str: str) -> Project:
         raise InitProjectError(InvalidPathError(f"Invalid path: {root_dir_str} is not an existing directory."))
     
     abs_root_path = root_path.resolve()
-    config_file = abs_root_path / CONFIG_FILENAME
+    config_file = abs_root_path / CONF_DIR / CONFIG_FILENAME
     
     if config_file.exists():
         raise InitProjectError(ProjectAlreadyInitializedError(f"Project already initialized at {abs_root_path} ({CONFIG_FILENAME} exists)."))
@@ -485,14 +489,15 @@ def init_project(project_name: str, root_dir_str: str) -> Project:
 
 def load_project(path_str: str) -> Project:
     """Loads an existing project from the given path (can be project root or any child path)."""
-    print("HUY")
     start_path = Path(path_str).resolve()
     
-    config_file_path = find_file_upwards(start_path, CONFIG_FILENAME)
-    if not config_file_path:
-        raise LoadProjectError(NoConfigFoundError(f"No '{CONFIG_FILENAME}' found in or above {start_path}."))
+    config_dir_path = find_dir_upwards(start_path, CONF_DIR)
+    if not config_dir_path:
+        raise LoadProjectError(NoConfigFoundError(f"No '{CONF_DIR}' found in or above {start_path}."))
 
-    project_root = config_file_path.parent
+    project_root = config_dir_path.parent
+
+    config_file_path = config_dir_path / CONFIG_FILENAME
     
     try:
         config_model = load_project_config(config_file_path)

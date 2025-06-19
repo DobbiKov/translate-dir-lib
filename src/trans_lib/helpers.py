@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List, Optional, Iterable
 import hashlib
 
+from trans_lib.constants import CONF_DIR
 from trans_lib.enums import DocumentType
 
 def calculate_checksum(contents: str) -> str:
@@ -19,6 +20,26 @@ def ensure_dir_exists(path: Path) -> None:
     if not path.is_dir():
         os.mkdir(path)
         return
+
+def find_dir_upwards(start_path: Path, dir_name: str) -> Optional[Path]:
+    """
+    Search the given directory and each parent directory for `dir_name`.
+    Returns the full path to the first match, or `None` if nothing is found.
+    """
+    current_dir = start_path.resolve()
+    if not current_dir.is_dir():
+        current_dir = current_dir.parent
+
+    while current_dir:
+        candidate = current_dir / dir_name
+        if candidate.is_dir():
+            return candidate
+        
+        if current_dir == current_dir.parent:  # Reached filesystem root
+            break
+        current_dir = current_dir.parent
+    
+    return None
 
 def find_file_upwards(start_path: Path, file_name: str) -> Optional[Path]:
     """
@@ -216,3 +237,6 @@ def analyze_document_type(path: Path) -> DocumentType:
             return DocumentType.JupyterNotebook
         return DocumentType.Markdown
     return DocumentType.Other
+
+def get_config_dir_from_root(root_path: Path) -> Path:
+    return root_path / CONF_DIR
