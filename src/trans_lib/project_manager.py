@@ -479,7 +479,7 @@ def init_project(project_name: str, root_dir_str: str) -> Project:
         # Create a Project instance with an empty config, then save it.
         project = Project._create_new_for_init(project_name, abs_root_path)
         project.save_config() # This writes the initial trans_conf.json
-        print(f"Project '{project_name}' initialized at {abs_root_path}")
+        print(f"{CONF_DIR} directory has been successfully created!")
         return project
     except ConfigWriteError as e:
         raise InitProjectError(f"Failed to write initial config file: {e}", e)
