@@ -1,4 +1,3 @@
-from pathlib import Path
 
 CONFIG_FILENAME = "trans_conf.json"
 INTER_FILE_TRANSLATION_DELAY_SECONDS = 5 

@@ -1,6 +1,7 @@
 import os
 import yaml
 from pathlib import Path
+import shutil
 from typing import List, Optional, Iterable
 import hashlib
 
@@ -219,7 +220,7 @@ def has_jupytext_header_in_file(file_path: Path) -> bool:
                 # print(f"Warning: Could not parse YAML header in '{file_path}'.")
                 return False # Malformed YAML
 
-    except Exception as e:
+    except Exception:
         # print(f"Error reading or processing file '{file_path}': {e}")
         return False
 
@@ -240,3 +241,71 @@ def analyze_document_type(path: Path) -> DocumentType:
 
 def get_config_dir_from_root(root_path: Path) -> Path:
     return root_path / CONF_DIR
+
+def copy_tree_contents(
+    src: Path,
+    dst: Path,
+    *,
+    ignore: Iterable[Path] = (),
+    follow_symlinks: bool = False,
+) -> None:
+    """
+    Recursively copy the *contents* of *src* into *dst*, skipping anything listed
+    in *ignore* (files **or** directories at any depth).
+
+    Parameters
+    ----------
+    src : Path
+        Directory whose contents will be copied.
+    dst : Path
+        Target directory. It is created if necessary.
+    ignore : Iterable[Path], default ()
+        Paths to exclude. Each entry may be absolute or relative to *src*.
+        Ignoring a directory automatically excludes its whole sub-tree.
+    follow_symlinks : bool, default False
+        Whether to dereference symlinks.  If False, links themselves are copied.
+    """
+    src, dst = Path(src), Path(dst)
+
+    if not src.is_dir():
+        raise ValueError(f"{src!s} is not an existing directory")
+
+    ignore_set: set[Path] = set()
+    for p in ignore:
+        if not p.exists():
+            continue
+
+        p_res = p.resolve()
+        if not p_res.is_relative_to(src):
+            continue
+        ignore_set.add(p_res)
+
+    def _skip(path: Path) -> bool:
+        """Return True if *path* or any parent is to be ignored."""
+        path = path.resolve()
+        return any(parent in ignore_set for parent in (path, *path.parents))
+
+    dst.mkdir(parents=True, exist_ok=True)
+
+    for dirpath, dirnames, filenames in os.walk(src, followlinks=follow_symlinks):
+        current_dir = Path(dirpath)
+
+        if _skip(current_dir):
+            dirnames[:] = []        
+            continue
+
+        rel_dir = current_dir.relative_to(src)
+        target_dir = dst / rel_dir
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        dirnames[:] = [d for d in dirnames if not _skip(current_dir / d)]
+
+        for fname in filenames:
+            src_file = current_dir / fname
+            if _skip(src_file):
+                continue
+            shutil.copy2(
+                src_file,
+                target_dir / fname,
+                follow_symlinks=follow_symlinks,
+            )
