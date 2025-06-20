@@ -1,6 +1,5 @@
 from loguru import logger
 
-from trans_lib import vocab_list
 from trans_lib.vocab_list import VocabList
 from .enums import DocumentType, Language
 from .translator import translate_contents_async

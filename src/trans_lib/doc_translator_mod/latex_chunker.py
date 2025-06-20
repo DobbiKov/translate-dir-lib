@@ -1,5 +1,5 @@
 import re
-from pylatexenc.latexwalker import LatexWalker, LatexCharsNode, LatexMacroNode, LatexGroupNode, LatexEnvironmentNode, LatexCommentNode, LatexMathNode, LatexSpecialsNode
+from pylatexenc.latexwalker import LatexWalker, LatexMacroNode, LatexEnvironmentNode
 from typing import Any, Optional
 from pathlib import Path
 
@@ -32,9 +32,9 @@ def _chunk_nodelist(
     Recursively chunks a given pylatexenc nodelist, respecting full spans of
     environments and macros with arguments.
     `base_start_offset` is the starting character offset of the segment of the original
-    string that this nodelist represents (e.g., the content inside \begin{document}).
+    string that this nodelist represents (e.g., the content inside \\begin{document}).
     `end_offset_limit` is the character offset where this nodelist's content ends
-    (e.g., just before \end{document} macro).
+    (e.g., just before \\end{document} macro).
     """
     chunks_raw: list[str] = []
     current_chunk_start_pos = base_start_offset
@@ -70,7 +70,8 @@ def _chunk_nodelist(
                 between_nodes = []
                 
             chunk_content = original_latex_string[node_full_span_start:node_full_span_end].strip()
-            if chunk_content: chunks_raw.append(chunk_content)
+            if chunk_content: 
+                chunks_raw.append(chunk_content)
             current_chunk_start_pos = node_full_span_end
             i += 1
             
@@ -80,7 +81,8 @@ def _chunk_nodelist(
                 between_nodes = []
                 
             chunk_content = original_latex_string[node_full_span_start:node_full_span_end].strip()
-            if chunk_content: chunks_raw.append(chunk_content)
+            if chunk_content: 
+                chunks_raw.append(chunk_content)
             current_chunk_start_pos = node_full_span_end
             i += 1
 

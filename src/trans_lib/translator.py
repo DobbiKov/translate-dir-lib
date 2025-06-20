@@ -1,7 +1,5 @@
 import asyncio
 import os
-from pathlib import Path
-from typing import Optional
 
 from google import genai
 from google.genai import types as g_types
@@ -12,7 +10,7 @@ from .constants import INTER_FILE_TRANSLATION_DELAY_SECONDS
 from .prompts import prompt4
 
 from .enums import Language
-from .helpers import divide_into_chunks, extract_translated_from_response, read_string_from_file
+from .helpers import divide_into_chunks, extract_translated_from_response
 from .errors import TranslationProcessError
 import requests
 

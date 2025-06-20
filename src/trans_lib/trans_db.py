@@ -4,29 +4,32 @@ from pathlib import Path
 from typing import Iterable
 
 from trans_lib.enums import Language
-from trans_lib.helpers import calculate_checksum, ensure_dir_exists, read_string_from_file
+from trans_lib.helpers import calculate_checksum, ensure_dir_exists, get_config_dir_from_root, read_string_from_file
 from trans_lib.constants import DB_DIR_NAME, CORRESPONDENCE_DB_NAME
 
 
-def ensure_db_dir(root_path: Path) -> None:
-    db_full_dir_path = root_path.joinpath(DB_DIR_NAME)
+def ensure_db_dir(root_path: Path) -> Path:
+    db_full_dir_path = get_config_dir_from_root(root_path).joinpath(DB_DIR_NAME)
     ensure_dir_exists(db_full_dir_path)
+    return db_full_dir_path
 
-def ensure_lang_dirs(root_path: Path, langs: Iterable[Language]) -> None:
-    db_full_dir_path = root_path.joinpath(DB_DIR_NAME)
+def ensure_lang_dirs(root_path: Path, langs: Iterable[Language]) -> list[Path]:
+    db_full_dir_path = get_config_dir_from_root(root_path).joinpath(DB_DIR_NAME)
+    res = []
     for lang in langs:
         lang_str = str(lang)
         lang_full_path = db_full_dir_path.joinpath(lang_str)
         ensure_dir_exists(lang_full_path)
-
+        res.append(lang_full_path)
+    return res
 
 def add_contents_to_db(root_path: Path, contents: str, lang: Language) -> str:
     """
     Adds the given contents to the database of checksum contents to the appropriate language directory and returns the contents checksum
     """
     ensure_db_dir(root_path)
-    ensure_lang_dirs(root_path, [lang])
-    lang_dir_full_path = root_path.joinpath(DB_DIR_NAME).joinpath(str(lang))
+    
+    lang_dir_full_path = ensure_lang_dirs(root_path, [lang])[0]
     checksum = calculate_checksum(contents)
     file_path = lang_dir_full_path.joinpath(checksum)
     if os.path.exists(file_path): # if the checksum file already exists, then no need to write it
@@ -43,7 +46,7 @@ def read_contents_by_checksum_with_lang(root_path: Path, checksum: str, lang: La
     Note: better performance then a usual [read_contents_by_checksum]
     """
     ensure_db_dir(root_path)
-    lang_dir_full_path = root_path.joinpath(DB_DIR_NAME).joinpath(str(lang))
+    lang_dir_full_path = ensure_lang_dirs(root_path, [lang])[0]
     return _read_contents_by_checksum_in_dir(checksum, lang_dir_full_path)
 
 def _read_contents_by_checksum_in_dir(checksum: str, dir: Path) -> str | None:
@@ -61,8 +64,7 @@ def read_contents_by_checksum(root_path: Path, checksum: str) -> str | None:
     """
     Iterates through all the files in all the lang directories and searches for the checksum and returns the contents if it finds such file and None if it doesn't
     """
-    ensure_db_dir(root_path)
-    db_dir_path = root_path.joinpath(DB_DIR_NAME)
+    db_dir_path = ensure_db_dir(root_path)
     if not os.path.exists(db_dir_path):
         return None
 
@@ -82,7 +84,7 @@ def get_correspondence_db_path(root_path: Path) -> Path:
     """
     Returns a full path to the correspondence db file.
     """
-    db_dir_path = root_path.joinpath(DB_DIR_NAME)
+    db_dir_path = ensure_db_dir(root_path)
     file_path = db_dir_path.joinpath(CORRESPONDENCE_DB_NAME)
     return file_path
 

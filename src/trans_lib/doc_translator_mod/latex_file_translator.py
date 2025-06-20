@@ -1,15 +1,11 @@
-from asyncio import sleep
 from ..prompts import prompt4
-import os
 from pathlib import Path
 
 from trans_lib.doc_translator_mod.latex_chunker import split_latex_document_into_chunks
 from trans_lib.translator_retrieval import translate_chunk_or_retrieve_from_db_async
 from trans_lib.vocab_list import VocabList
 from ..enums import Language
-from ..helpers import calculate_checksum, read_string_from_file
-from ..translator import _prepare_prompt_for_language, _ask_gemini_model, translate_chunk_with_prompt
-import hashlib
+from ..helpers import calculate_checksum
 from loguru import logger
 
 
