@@ -242,7 +242,14 @@ def reconstruct_from_xml(translated_xml: str, placeholders: dict) -> str:
                 reconstructed_parts.append(original_content)
             else:
                 # This could happen if the translator deleted a <PH> tag.
-                logging.warning(f"Placeholder ID '{ph_id}' found in XML but not in the map. It will be skipped.")
+                try:
+                    orig = element.get('original') # if the id isn't found in the PH's db, we get the source from the 'original' attribute
+                    if orig is None:
+                        logging.warning(f"Placeholder ID '{ph_id}' found in XML but not in the map. It will be skipped.")
+                    else:
+                        reconstructed_parts.append(orig)
+                except Exception as e:
+                    logging.warning(f"Placeholder ID '{ph_id}' found in XML but not in the map. It will be skipped.")
         else:
             logging.warning(f"Unexpected tag <{element.tag}> found inside <TEXT>. It will be ignored.")
 
