@@ -1,8 +1,9 @@
 import json
 import os
 from pathlib import Path
-from typing import Callable, List, Optional
 import shutil
+
+from trans_lib.helpers import copy_tree_contents
 
 from .project_config_models import DirectoryModel, FileModel, ProjectConfig
 from .errors import LoadConfigError, WriteConfigError, CopyFileDirError
@@ -70,7 +71,7 @@ def load_project_config(config_file_path: Path) -> ProjectConfig:
 def copy_untranslatable_files_recursive(
     from_dir_root_path: Path, # Absolute path to the root of the source directory being copied (e.g. /path/to/project/src_en)
     to_dir_root_path: Path,   # Absolute path to the root of the target directory (e.g. /path/to/project/target_fr)
-    source_dir_structure: DirectoryModel # The DirectoryModel of the from_dir (relative paths within this structure)
+    translatable_files: list[Path] # The DirectoryModel of the from_dir (relative paths within this structure)
 ) -> None:
     """
     Recursively copies untranslatable files from a source structure to a target directory.
@@ -83,46 +84,12 @@ def copy_untranslatable_files_recursive(
     # Ensure target root exists
     to_dir_root_path.mkdir(parents=True, exist_ok=True)
 
-    for file_model in source_dir_structure.get_files():
-        if file_model.is_translatable():
-            continue
-        target_file_abs_path = None
-        try:
-            # file_model.path is absolute. We need path relative to from_dir_root_path
-            # Example: file_model.path = /abs/path/to/project/src_en/subdir/file.txt
-            #          from_dir_root_path = /abs/path/to/project/src_en
-            #          relative_path = subdir/file.txt
-            relative_path = file_model.path.relative_to(from_dir_root_path)
-            
-            source_file_abs_path = file_model.path # This is already absolute and resolved
-            target_file_abs_path = to_dir_root_path / relative_path
-            
-            target_file_abs_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source_file_abs_path, target_file_abs_path) # copy2 preserves metadata
-        except ValueError as e: # relative_to fails if not a subpath
-            raise CopyFileDirError(f"File path {file_model.path} not relative to source root {from_dir_root_path}: {e}", original_exception=e)
-        except IOError as e:
-            raise CopyFileDirError(f"IO error copying {file_model.path} to {target_file_abs_path}: {e}", original_exception=e)
+    try:
+        copy_tree_contents(from_dir_root_path, to_dir_root_path, ignore=translatable_files)
+    except IOError as e:
+        raise CopyFileDirError("Couldn't open all the files!", original_exception=e)
 
-    for sub_dir_model in source_dir_structure.get_dirs():
-        # sub_dir_model.path is absolute.
-        # Example: sub_dir_model.path = /abs/path/to/project/src_en/subdir
-        #          from_dir_root_path = /abs/path/to/project/src_en
-        #          relative_sub_dir_path = subdir
-        try:
-            relative_sub_dir_path = sub_dir_model.path.relative_to(from_dir_root_path)
-        except ValueError as e:
-             raise CopyFileDirError(f"Sub-directory path {sub_dir_model.path} not relative to source root {from_dir_root_path}: {e}", original_exception=e)
-
-        new_target_sub_dir_path = to_dir_root_path / relative_sub_dir_path
-        new_target_sub_dir_path.mkdir(parents=True, exist_ok=True) # Ensure target subdir exists
-        
-        copy_untranslatable_files_recursive(
-            from_dir_root_path=from_dir_root_path, 
-            to_dir_root_path=to_dir_root_path,     
-            source_dir_structure=sub_dir_model     # We explore this sub-structure
-        )
-
+# WARNING: unused code
 def remove_files_not_in_source_dir(
     from_dir_root_path: Path, # Absolute path to the root of the source directory being copied (e.g. /path/to/project/src_en) 
     to_dir_root_path: Path,   # Absolute path to the root of the target directory (e.g. /path/to/project/target_fr)

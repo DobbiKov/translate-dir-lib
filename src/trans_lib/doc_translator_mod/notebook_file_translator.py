@@ -1,18 +1,11 @@
-from asyncio import sleep
-import os
 from ..prompts import prompt_jupyter_code, prompt_jupyter_md 
 from pathlib import Path
 
-from trans_lib import vocab_list
 from trans_lib.translator_retrieval import translate_chunk_or_retrieve_from_db_async
 from trans_lib.vocab_list import VocabList
 from ..enums import Language
-from ..helpers import calculate_checksum, read_string_from_file
-from ..translator import _prepare_prompt_for_language, _ask_gemini_model, translate_chunk_with_prompt
-from ..constants import MARKDOWN_PROMPT_PATH, CODE_PROMPT_PATH
+from ..helpers import calculate_checksum
 import jupytext
-import hashlib
-from loguru import logger
 
 async def translate_notebook_async(root_path: Path, source_file_path: Path, source_language: Language, target_file_path: Path, target_language: Language, vocab_list: VocabList | None) -> None:
     nb = jupytext.read(source_file_path)
@@ -39,22 +32,12 @@ async def translate_jupyter_cell_async(root_path: Path, cell: dict, source_langu
 
 
 def get_markdown_prompt_text() -> str:
-    """Reads the markdown prompt text from the configured path."""
-    try:
-        return prompt_jupyter_md
-    except Exception as e:
-        print(f"Warning: Could not load default prompt from {MARKDOWN_PROMPT_PATH}: {e}. Using a fallback.")
-        # Fallback prompt to avoid complete failure if file is missing
-        return "Translate the following document to [TARGET_LANGUAGE]. Maintain the original structure and formatting as much as possible. Only output the translated document text inside <output> tags.\nDocument text:\n"
+    """Returns the default prompt for translating markdown prompt of the jupyter notebook"""
+    return prompt_jupyter_md
 
 def get_code_prompt_text() -> str:
-    """Reads the code prompt text from the configured path."""
-    try:
-        return prompt_jupyter_code
-    except Exception as e:
-        print(f"Warning: Could not load default prompt from {CODE_PROMPT_PATH}: {e}. Using a fallback.")
-        # Fallback prompt to avoid complete failure if file is missing
-        return "Translate the following document to [TARGET_LANGUAGE]. Maintain the original structure and formatting as much as possible. Only output the translated document text inside <output> tags.\nDocument text:\n"
+    """Returns the default prompt for translating code part of the jupyter notebook"""
+    return prompt_jupyter_code
 
 async def translate_markdown_cell_async(root_path: Path, contents: str, source_language: Language, target_language: Language, vocab_list: VocabList | None) -> str:
     prompt = get_markdown_prompt_text()
