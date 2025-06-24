@@ -22,9 +22,9 @@ the information about your file structure, languages and translation database.
 
 The project behaves similarly to the git. There's always a root directory that
 you must be in, where you'll initialize the translation project. The directory
-contains project's config, translation database and the files that are
-"tracked", in our case the files that are synced and translated across the
-languages.
+contains project's config in the _dot_ directory dedicated to this tool,
+translation database and the files that are "tracked", in our case the files
+that are synced and translated across the languages.
 
 > Note: don't confuse your writing project, for example: LaTeX project and
 > translation project. Your "writing project's" root directory must be placed
@@ -71,9 +71,10 @@ analysis_translation_proj/
 │   │   └── ...
 │   └── bib/
 │       └── bib.tex
-├── trans_conf.json
-├── trans_git_db/
-    └── ...
+├── .trans_git/
+    ├── trans_conf.json
+    └── trans_git_db/
+        └── ...
 ```
 
 And after translation into Ukrainian:
@@ -95,17 +96,18 @@ analysis_translation_proj/
 │   │   └── ...
 │   └── bib/
 │       └── bib.tex
-├── trans_conf.json
-├── trans_git_db/
-    └── ...
+├── .trans_git/
+    ├── trans_conf.json
+    └── trans_git_db/
+        └── ...
 ```
 
 ## Project initialization and required settings
-When you initialize a project the `trans_conf.json` config file is created that stores:
+When you initialize a project the `.trans_git` directory is created that stores `trans_conf.json` config. This config stores:
 - project's name
 - source and target languages
 - directories that correspond to the source and target languages
-- the files structure 
+- files that must be translated
 - and additional settings 
 
 However, when you initialize a project, you define your intentions but it is
