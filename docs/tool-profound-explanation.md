@@ -71,7 +71,7 @@ analysis_translation_proj/
 │   │   └── ...
 │   └── bib/
 │       └── bib.tex
-├── trans_git_db/
+├── .trans_git/
     ├── trans_conf.json
     └── trans_git_db/
         └── ...
@@ -96,7 +96,7 @@ analysis_translation_proj/
 │   │   └── ...
 │   └── bib/
 │       └── bib.tex
-├── trans_git_db/
+├── .trans_git/
     ├── trans_conf.json
     └── trans_git_db/
         └── ...
