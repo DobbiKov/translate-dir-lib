@@ -1,7 +1,7 @@
 import logging
 import re
 from pylatexenc.latexwalker import (LatexWalker, LatexCharsNode, LatexMacroNode,
-                                  LatexEnvironmentNode, LatexMathNode, LatexGroupNode)
+                                    LatexEnvironmentNode, LatexMathNode, LatexGroupNode)
 
 import xml.etree.ElementTree as ET
 from itertools import groupby
@@ -18,6 +18,11 @@ class LatexParser:
         # Configuration attributes
         self.placeholder_commands = {'ref', 'cite', 'label', 'includegraphics', 'input', 'include', 'frac', 'sqrt', 'path', 'url', 'href', 'footnote', '\\'}
         self.placeholder_envs = {'verbatim', 'Verbatim', 'lstlisting'}
+        self.math_envs = {
+                'equation', 'equation*', 'align', 'align*', 'aligned', 'gather', 'gather*', 
+                'gathered', 'flalign', 'flalign*', 'alignat', 'alignat*', 'multline', 'multline*',
+                'displaymath', 'math'
+                }
         self.math_text_macros = {'text', 'mathrm'}
 
         if len(placeholder_commands) != 0:
@@ -26,8 +31,8 @@ class LatexParser:
             self.placeholder_envs.update(placeholder_envs)
         if len(placeholders_with_text) != 0:
             self.math_text_macros.update(placeholders_with_text)
-            
-        
+
+
         # State attributes
         self.segments = []
         self.latex_content = ""
@@ -58,7 +63,7 @@ class LatexParser:
     def _walk_text_nodes(self, nodelist):
         """Recursively processes nodes in 'text' mode."""
         if nodelist is None: return
-            
+
         for node in nodelist:
             if node.isNodeType(LatexCharsNode):
                 self._process_chars_node(node)
@@ -94,7 +99,10 @@ class LatexParser:
                     begin_placeholder = self.latex_content[node.pos:content_start_pos]
                     self._add_placeholder(begin_placeholder)
 
-                    self._walk_text_nodes(node.nodelist)
+                    if envname in self.math_envs:
+                        self._walk_math_nodes(node.nodelist) 
+                    else:
+                        self._walk_text_nodes(node.nodelist)
 
                     end_placeholder = self.latex_content[content_end_pos:(node.pos + node.len)]
                     self._add_placeholder(end_placeholder)
@@ -146,14 +154,14 @@ def create_translation_xml(segments, output_dir: Path = Path("")):
             # For placeholders, we join the content of all consecutive items.
             merged_content = "".join(content_parts)
             if merged_content: # Only add if there's content
-                 merged_segments.append(('placeholder', merged_content))
+                merged_segments.append(('placeholder', merged_content))
 
 
     # -- Step 2: Build the Mixed-Content XML --
     root = ET.Element('document')
     # All content will go inside a single <TEXT> tag
     text_container = ET.SubElement(root, 'TEXT')
-    
+
     placeholders = {}
     ph_id = 1
     last_element = None # Keep track of the last <PH> element added
@@ -166,12 +174,12 @@ def create_translation_xml(segments, output_dir: Path = Path("")):
             else:
                 # If it's the first piece of text, it becomes the .text of the container.
                 text_container.text = (text_container.text or '') + content
-        
+
         elif seg_type == 'placeholder':
             # Create the placeholder element
             current_ph_id = str(ph_id)
             ph_elem = ET.SubElement(text_container, 'PH', id=current_ph_id, original=content)
-            
+
             placeholders[current_ph_id] = content
             ph_id += 1
             last_element = ph_elem # This is now the most recent element
@@ -179,16 +187,16 @@ def create_translation_xml(segments, output_dir: Path = Path("")):
     # -- Step 3: Finalize and Save --
     # Use method='xml' and short_empty_elements=True for self-closing tags like <PH ... />
     xml_string = ET.tostring(root, encoding='unicode', method='xml', short_empty_elements=True)
-    
+
     # Ensure the output directory exists
     # output_dir.mkdir(parents=True, exist_ok=True)
 
     return xml_string, placeholders
-    
-    # # Save placeholders for reconstruction
+
+# # Save placeholders for reconstruction
     # with open(output_dir / 'placeholders.json', 'w', encoding='utf-8') as f:
     #     json.dump(placeholders, f, indent=2, ensure_ascii=False)
-        
+
     # return xml_string, placeholders
 
 def latex_to_xml(source: str) -> tuple[str, dict]:
