@@ -144,12 +144,8 @@ class Project:
                 raise AddLanguageError(InvalidPathError(f"{tgt_dir} must be inside the project root"))
 
             try:
-<<<<<<< dev
                 self.config.remove_lang_config(lang)
                 self.config.add_lang_dir_config(resolved_lang_dir_path, lang)
-=======
-                self.config.add_lang_dir_config(resolved_lang_dir_path, lang, build_directory_tree)
->>>>>>> xml-tag-translation
                 self.save_config()
                 return resolved_lang_dir_path
             except IOError as e:
@@ -159,12 +155,9 @@ class Project:
             except Exception as e:
                  raise AddLanguageError(f"Unexpected error adding language {lang} and setting directory {tgt_dir}: {e}", e)
         else:
-<<<<<<< dev
             if lang in self._get_target_languages():
                 raise AddLanguageError(LangAlreadyInProjectError("Cannot add language: It's already a target language."))
 
-=======
->>>>>>> xml-tag-translation
             lang_dir_name = f"{self.config.name}{lang.get_dir_suffix()}"
             lang_dir_path = self.root_path / lang_dir_name
             
@@ -174,11 +167,7 @@ class Project:
             try:
                 lang_dir_path.mkdir(parents=True) # Create the directory
                 resolved_lang_dir_path = lang_dir_path.resolve()
-<<<<<<< dev
                 self.config.add_lang_dir_config(resolved_lang_dir_path, lang)
-=======
-                self.config.add_lang_dir_config(resolved_lang_dir_path, lang, build_directory_tree)
->>>>>>> xml-tag-translation
                 self.save_config()
                 return resolved_lang_dir_path
             except IOError as e:
