@@ -473,7 +473,7 @@ Instructions:
     - Do not remove, modify any <PH/> tags or their attributes.
     - Use the original attribute of each <PH/> tag to understand the context and grammar. This will help you make correct translation decisions (e.g., for plurality, case, or syntax), but you must not change or translate the contents of the <PH> tags themselves.
     - Treat each <TEXT> block as a complete sentence or paragraph. You may reorder words, adjust structure, and apply natural grammar in the target language — as long as all <PH> tags remain in place and unchanged.
-    - Your response must contain only the translated XML — return the modified <TEXT> block with embedded <PH> tags and nothing else (no explanations, no markdown, no prefix/suffix text).
+    - Your response must contain only the translated XML — return the modified <TEXT> block with embedded <PH> tags and nothing else (no explanations, no markdown, no prefix/suffix text) in the <output> tag the output format will be provided below.
     - All <PH> tags must be self-closing and written in the form: 
         <PH id="..." original="..."/>
     - Do not produce </PH> closing tags, and do not place content inside <PH> elements. Any other structure is invalid and will break XML parsing.
@@ -485,14 +485,16 @@ Instructions:
             ```
             Output:
             ```
-            <document><TEXT>Кіт спить на стільці.</TEXT><document>
+            <output><document><TEXT>Кіт спить на стільці.</TEXT><document></output>
             ```
 Output Format:
+<output>
 <document>
 <TEXT>
   ...translated text and inline <PH id="..." original="..."/> tags (if such presented in the input)...
 </TEXT>
 </document>
+</output>
 
 Don't cover the output in any Markdown or XML environments like (```) etc. 
 
