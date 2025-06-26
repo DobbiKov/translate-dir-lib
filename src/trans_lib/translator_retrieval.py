@@ -5,6 +5,8 @@ from pathlib import Path
 from trans_lib.enums import DocumentType, Language
 from trans_lib.translator import def_prompt_template, translate_chunk_with_prompt, _prepare_prompt_for_language, _prepare_prompt_for_vocab_list
 from trans_lib.vocab_list import VocabList
+from trans_lib.xml_manipulator_mod.mod import chunk_to_xml, reconstruct_from_xml
+from trans_lib.prompts import xml_translation_prompt
 
 def is_whitespace(text: str) -> bool:
     return not text or text.isspace()
@@ -36,12 +38,21 @@ async def translate_chunk_or_retrieve_from_db_async(root_path: Path, text_chunk:
         set_checksum_pair_to_correspondence_db(root_path, src_checksum, source_language, tgt_checksum, target_language)
 
     if ( translated == "" and not found_in_db) or translated is None: # if the translation is empty, then we haven't found it and we should translate it
-        logger.debug("Didn't find the translation in the database, translate using LLM")
-        prompt_for_lang = _prepare_prompt_for_language(prompt_placeholder, target_language)
-        prompt_for_lang = _prepare_prompt_for_vocab_list(prompt_for_lang, vocab_list)
-        logger.debug(f"Prompt: {prompt_for_lang}")
-        translated = await translate_chunk_with_prompt(prompt_for_lang, text_chunk)
+        translated = ""
+        match doc_type:
+            case DocumentType.LaTeX:
+                xml_text = chunk_to_xml(text_chunk, doc_type)
+                prompt_for_lang = xml_translation_prompt
+                prompt_for_lang = _prepare_prompt_for_language(prompt_for_lang, target_language, source_language)
+                xml_translated = await translate_chunk_with_prompt(prompt_for_lang, xml_text, True)
+                translated = reconstruct_from_xml(xml_translated)
+            case _:
+                logger.debug("Didn't find the translation in the database, translate using LLM")
+                prompt_for_lang = _prepare_prompt_for_language(prompt_placeholder, target_language)
+                prompt_for_lang = _prepare_prompt_for_vocab_list(prompt_for_lang, vocab_list)
+                translated = await translate_chunk_with_prompt(prompt_for_lang, text_chunk)
 
+        # always be here
         src_checksum = add_contents_to_db(root_path, text_chunk, source_language) 
         tgt_checksum = add_contents_to_db(root_path, translated, target_language) 
         set_checksum_pair_to_correspondence_db(root_path, src_checksum, source_language, tgt_checksum, target_language)
