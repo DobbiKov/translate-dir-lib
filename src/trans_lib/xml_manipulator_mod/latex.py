@@ -42,6 +42,10 @@ class LatexParser:
         self.latex_content = latex_content
         lw = LatexWalker(latex_content)
         nodelist, _, _ = lw.get_latex_nodes()
+
+        if r'\end{document}' in latex_content and r'\begin{document}' not in latex_content:
+            return [('placeholder', latex_content)]
+
         self._walk_text_nodes(nodelist)
         # list[tuple[txt, txt]] the list of tuples (type: placeholder or text, contents)
         return self.segments
