@@ -82,6 +82,8 @@ class LatexParser:
                     self._add_placeholder(f"\\{node.macroname}{node.macro_post_space}")
                     if node.nodeargs:
                         for arg_node in node.nodeargs:
+                            if arg_node is None:
+                                continue
                             self._walk_text_nodes([arg_node])
             elif node.isNodeType(LatexEnvironmentNode):
                 envname = node.environmentname
