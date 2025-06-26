@@ -1,17 +1,11 @@
-from asyncio import sleep
-import os
 from ..prompts import prompt_jupyter_code, prompt_jupyter_md 
 from pathlib import Path
 
-from trans_lib import vocab_list
 from trans_lib.translator_retrieval import translate_chunk_or_retrieve_from_db_async
 from trans_lib.vocab_list import VocabList
 from ..enums import Language
-from ..helpers import calculate_checksum, read_string_from_file
-from ..translator import _prepare_prompt_for_language, _ask_gemini_model, translate_chunk_with_prompt
+from ..helpers import calculate_checksum
 import jupytext
-import hashlib
-from loguru import logger
 
 async def translate_notebook_async(root_path: Path, source_file_path: Path, source_language: Language, target_file_path: Path, target_language: Language, vocab_list: VocabList | None) -> None:
     nb = jupytext.read(source_file_path)
