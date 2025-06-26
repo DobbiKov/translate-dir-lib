@@ -4,7 +4,7 @@ from pathlib import Path
 from trans_lib.doc_translator_mod.latex_chunker import split_latex_document_into_chunks
 from trans_lib.translator_retrieval import translate_chunk_or_retrieve_from_db_async
 from trans_lib.vocab_list import VocabList
-from ..enums import Language
+from ..enums import DocumentType, Language
 <<<<<<< dev
 from ..helpers import calculate_checksum
 =======
@@ -83,5 +83,5 @@ def get_latex_prompt_text() -> str:
 
 async def translate_any_chunk_async(root_path: Path, contents: str, source_language: Language, target_language: Language, vocab_list: VocabList | None) -> str:
     prompt = get_latex_prompt_text()
-    return await translate_chunk_or_retrieve_from_db_async(root_path, contents, source_language, target_language, prompt, vocab_list)
+    return await translate_chunk_or_retrieve_from_db_async(root_path, contents, source_language, target_language, prompt, vocab_list, DocumentType.LaTeX)
 

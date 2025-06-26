@@ -2,14 +2,14 @@ from loguru import logger
 from trans_lib.helpers import calculate_checksum
 from trans_lib.trans_db import add_contents_to_db, find_correspondent_checksum, read_contents_by_checksum_with_lang, set_checksum_pair_to_correspondence_db
 from pathlib import Path
-from trans_lib.enums import Language
+from trans_lib.enums import DocumentType, Language
 from trans_lib.translator import def_prompt_template, translate_chunk_with_prompt, _prepare_prompt_for_language, _prepare_prompt_for_vocab_list
 from trans_lib.vocab_list import VocabList
 
 def is_whitespace(text: str) -> bool:
     return not text or text.isspace()
 
-async def translate_chunk_or_retrieve_from_db_async(root_path: Path, text_chunk: str, source_language: Language, target_language: Language, prompt_placeholder: str = def_prompt_template, vocab_list: VocabList | None = None) -> str:
+async def translate_chunk_or_retrieve_from_db_async(root_path: Path, text_chunk: str, source_language: Language, target_language: Language, prompt_placeholder: str = def_prompt_template, vocab_list: VocabList | None = None, doc_type: DocumentType = DocumentType.Other) -> str:
     """
     Verifies if provided chunk of text exists in the translation database. If
     it exists, looks for the translation in the DB, if it exists, returns the
