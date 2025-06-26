@@ -5,13 +5,7 @@ from trans_lib.doc_translator_mod.latex_chunker import split_latex_document_into
 from trans_lib.translator_retrieval import translate_chunk_or_retrieve_from_db_async
 from trans_lib.vocab_list import VocabList
 from ..enums import DocumentType, Language
-<<<<<<< dev
 from ..helpers import calculate_checksum
-=======
-from ..helpers import calculate_checksum, read_string_from_file
-from ..translator import _prepare_prompt_for_language, _ask_gemini_model, translate_chunk_with_prompt
-import hashlib
->>>>>>> xml-tag-translation
 from loguru import logger
 
 
