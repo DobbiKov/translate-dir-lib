@@ -6,6 +6,7 @@ from typing import List, Optional
 
 from loguru import logger
 
+from trans_lib import diff
 from trans_lib.doc_corrector import correct_file_translation
 from trans_lib.vocab_list import VocabList
 
@@ -436,6 +437,12 @@ class Project:
             self.config.rearrange_project(curr_root, old_root) 
             self.save_config()
 
+# TODO: remove this, as it is diff, it must be implemented in the translation, after XML tagging
+# DEBUG!
+    def diff(self, txt: str, lang: Language) -> tuple[str, float]:
+        return diff.get_best_match_from_db(self.root_path, lang, txt)
+
+
 # --- Module-level functions for project init and load ---
 def init_project(project_name: str, root_dir_str: str) -> Project:
     """Initializes a new project configuration in the specified directory."""
@@ -483,3 +490,4 @@ def load_project(path_str: str) -> Project:
         raise LoadProjectError(f"Failed to load project configuration: {e}", e)
     except Exception as e:
         raise LoadProjectError(f"An unexpected error occurred during project loading: {e}", e)
+
