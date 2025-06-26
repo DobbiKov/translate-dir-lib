@@ -23,6 +23,7 @@ class LatexParser:
                 'displaymath', 'math'
                 }
         self.math_text_macros = {'text', 'mathrm'}
+        self.definition_macros = {'newcommand', 'renewcommand', 'newenvironment', 'renewenvironment', 'def'}
 
         if len(placeholder_commands) != 0:
             self.placeholder_commands.update(placeholder_commands)
@@ -80,7 +81,9 @@ class LatexParser:
                 self._walk_text_nodes(node.nodelist)
                 self._add_placeholder('}')
             elif node.isNodeType(LatexMacroNode):
-                if node.macroname in self.placeholder_commands:
+                if node.macroname in self.definition_macros:
+                    self._process_definition_macro(node)
+                elif node.macroname in self.placeholder_commands:
                     self._add_placeholder(node.latex_verbatim())
                 else:
                     self._add_placeholder(f"\\{node.macroname}{node.macro_post_space}")
@@ -114,6 +117,47 @@ class LatexParser:
                     self._add_placeholder(end_placeholder)
             else:
                 self._add_placeholder(node.latex_verbatim())
+    def _process_definition_macro(self, node):
+        """Processes macros like \newcommand by preserving syntax args and parsing the definition."""
+        self._add_placeholder(f"\\{node.macroname}{node.macro_post_space}")
+        if not node.nodeargs: return
+
+        # The last argument is the definition body, the others are syntax.
+        syntax_args = node.nodeargs[:-1]
+        definition_arg = node.nodeargs[-1]
+
+        for arg in syntax_args:
+            if arg is None:
+                continue
+            # Preserve syntax arguments verbatim. This correctly handles {} and [].
+            self._add_placeholder(arg.latex_verbatim())
+
+        # For the definition body, parse it with the special definition walker.
+        self._add_placeholder(definition_arg.delimiters[0])
+        self._walk_definition_nodes(definition_arg.nodelist)
+        self._add_placeholder(definition_arg.delimiters[1])
+
+    def _walk_definition_nodes(self, nodelist):
+        """A special walker for inside \newcommand, etc. that recognizes '#' tokens."""
+        if nodelist is None: return
+        for node in nodelist:
+            if node.isNodeType(LatexMacroNode) and node.macroname == '#':
+                self._add_placeholder(node.latex_verbatim())
+            else:
+                # Other than '#', the content is like regular text.
+                # We can reuse the main walkers, being careful to avoid infinite recursion.
+                # A simple way is to just call the relevant processing methods directly.
+                if node.isNodeType(LatexCharsNode): self._process_chars_node(node)
+                elif node.isNodeType(LatexMathNode): self._add_placeholder(node.latex_verbatim()) # Keep math in definitions simple
+                elif node.isNodeType(LatexGroupNode):
+                    self._add_placeholder(node.delimiters[0])
+                    self._walk_definition_nodes(node.nodelist) # Recurse with this walker
+                    self._add_placeholder(node.delimiters[1])
+                elif node.isNodeType(LatexMacroNode):
+                     # Recurse using the main text walker for nested commands like \textbf
+                    self._walk_text_nodes([node])
+                else:
+                    self._add_placeholder(node.latex_verbatim())
 
     def _walk_math_nodes(self, nodelist):
         """Recursively processes nodes in 'math' mode."""
