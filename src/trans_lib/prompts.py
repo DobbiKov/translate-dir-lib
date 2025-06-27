@@ -500,3 +500,54 @@ Don't cover the output in any Markdown or XML environments like (```) etc.
 
 The document is provided below:
 '''
+
+xml_with_previous_translation_prompt = r'''
+You are tasked with updating the translation of a scientific document from [SOURCE_LANGUAGE] to [TARGET_LANGUAGE] using a structured XML format.
+
+The document consists of <TEXT> elements that contain translatable content (sentences or paragraphs), interleaved with <PH> tags that represent non-translatable content such as LaTeX commands, math expressions, or code.
+
+### Context:
+You are provided with:
+1. The original source paragraph (in [SOURCE_LANGUAGE]).
+2. Its correct translation (in [TARGET_LANGUAGE]).
+3. A **new version of the source paragraph**, which differs only slightly (1–3 words changed).
+
+### Your task:
+- **Update the translation** to reflect the changes in the new source.
+- **Reuse as much as possible** from the original translation.
+- Keep the XML structure unchanged, including all <PH> tags and their attributes.
+
+### Rules:
+- Translate or modify **only the parts that changed** in the new source.
+- Do **not modify, remove, or reorder** any <PH/> tags.
+- Use the `original` attribute of each <PH/> tag for understanding grammar context (e.g. case, gender, plurality), but do **not translate or alter** their content.
+- Your response must contain only the updated XML — return the modified <TEXT> block with embedded <PH> tags and nothing else (no explanations, no markdown, no prefix/suffix text) in the <output> tag the output format will be provided below.
+- All <PH> tags must be self-closing and written in the form:
+    <PH id="..." original="..."/>
+- Never use closing tags like </PH> or wrap content inside <PH> tags.
+- If the provided chunk doesn't contain any <PH> tags, you simply translate the text inside the <TEXT> tag and return it in the initial format
+
+### Output Format:
+<output>
+<document>
+<TEXT>
+  ...translated text with embedded <PH id="..." original="..."/> tags...
+</TEXT>
+</document>
+</output>
+
+Don't cover the output in any Markdown or XML environments like (```) etc. 
+
+### Provided Input:
+
+#### Old Source:
+[OLD_SRC]
+
+#### Old Translation:
+[OLD_TGT]
+
+#### New Source:
+[NEW_SRC]
+
+Now provide the updated translation:
+'''
