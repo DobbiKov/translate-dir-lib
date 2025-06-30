@@ -15,7 +15,7 @@ class LatexParser:
     """
     def __init__(self, placeholder_commands: list = [], placeholder_envs: list = [], placeholders_with_text: list = []):
         # Configuration attributes
-        self.placeholder_commands = {'ref', 'cite', 'label', 'includegraphics', 'input', 'include', 'frac', 'sqrt', 'path', 'url', 'href', 'footnote', '\\'}
+        self.placeholder_commands = {'ref', 'cite', 'label', 'includegraphics', 'input', 'include', 'frac', 'sqrt', 'path', 'url', 'href', '\\'}
         self.placeholder_envs = {'verbatim', 'Verbatim', 'lstlisting'}
         self.math_envs = {
                 'equation', 'equation*', 'align', 'align*', 'aligned', 'gather', 'gather*', 
