@@ -337,8 +337,14 @@ The document to be translated will be wrapped inside a <document> tag, like this
 [original Markdown cell content here]
 </document>
 
-Optionally, you may also receive a custom vocabulary dictionary wrapped in a <custom_vocabulary> tag. This dictionary contains specific terms and their preferred translations for the target domain, structured as `[SOURCE_TERM]=[TARGET_TERM]` pairs on separate lines. For terms that should not be translated, simply list them as `[TERM]=[TERM]`.
+Optionally, you may also receive a custom vocabulary dictionary enclosed
+  in a <custom_vocabulary> tag. This dictionary contains domain-specific
+  terms and their preferred translations, formatted as one
+  [SOURCE_TERM]=[TARGET_TERM] pair per line.
 
+    - To indicate that a term should remain untranslated, use the format [TERM]=[TERM].
+
+The entire dictionary is located between <custom_vocabulary> and </custom_vocabulary> tags.
 <custom_vocabulary>
 [CUSTOM_VOCABULARY]
 </custom_vocabulary>
@@ -487,6 +493,20 @@ Instructions:
             ```
             <output><document><TEXT>Кіт спить на стільці.</TEXT><document></output>
             ```
+
+    - Optionally, you may also receive a custom vocabulary dictionary enclosed
+      in a <custom_vocabulary> tag. This dictionary contains domain-specific
+      terms and their preferred translations, formatted as one
+      [SOURCE_TERM]=[TARGET_TERM] pair per line.
+
+        - To indicate that a term should remain untranslated, use the format [TERM]=[TERM].
+
+    The entire dictionary is located between <custom_vocabulary> and </custom_vocabulary> tags.
+    <custom_vocabulary>
+    [CUSTOM_VOCABULARY]
+    </custom_vocabulary>
+
+
 Output Format:
 <output>
 <document>
