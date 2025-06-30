@@ -33,6 +33,21 @@ The profound explanation of the logic and algorithms of the tool can be found [h
 
 The documentation for the library can be found [here](./docs/main.md)
 
+## 📚 Citation
+
+If you use this software in your research, please cite it as follows:
+```bib
+@software{korotenko-sci-trans-git,
+    author = {Yehor Korotenko},
+    title = {sci-trans-git},
+    year = {2025},
+    publisher = {GitHub},
+    version = {0.2.0-alpha},
+    url = {https://github.com/DobbiKov/sci-trans-git}
+    doi = {10.5281/zenodo.15775111}
+}
+```
+
 
 ## Contributing 
 The suggestions and pull requests are welcome. Visit the issues pages as well
