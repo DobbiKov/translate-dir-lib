@@ -36,6 +36,11 @@ def get_default_prompt_text() -> str:
 
 def_prompt_template = get_default_prompt_text()
 
+def _prepare_prompt_for_content_type(prompt_template: str, content_type: str) -> str:
+    """
+    Replaces the content type placeholder with the given document type
+    """
+    return prompt_template.replace("[CONTENT_TYPE]", str(content_type))
 
 def _prepare_prompt_for_language(prompt_template: str, target_language: Language, source_language: Language | None = None) -> str:
     """Replaces the language placeholder in the prompt."""

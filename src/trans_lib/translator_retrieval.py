@@ -3,7 +3,7 @@ from trans_lib.helpers import calculate_checksum
 from trans_lib.trans_db import add_contents_to_db, find_correspondent_checksum, read_contents_by_checksum_with_lang, set_checksum_pair_to_correspondence_db
 from pathlib import Path
 from trans_lib.enums import DocumentType, Language
-from trans_lib.translator import def_prompt_template, translate_chunk_with_prompt, _prepare_prompt_for_language, _prepare_prompt_for_vocab_list
+from trans_lib.translator import def_prompt_template, translate_chunk_with_prompt, _prepare_prompt_for_language, _prepare_prompt_for_vocab_list, _prepare_prompt_for_content_type
 from trans_lib.vocab_list import VocabList
 from trans_lib.xml_manipulator_mod.mod import chunk_to_xml, reconstruct_from_xml
 from trans_lib.prompts import xml_translation_prompt
@@ -18,7 +18,6 @@ async def translate_chunk_or_retrieve_from_db_async(root_path: Path, text_chunk:
     translation, if it doesn't translates it using an LLM.
     """
 
-    # TODO: verify that it doesn't exist in the db
     src_checksum = calculate_checksum(text_chunk)
     tgt_checksum = find_correspondent_checksum(root_path, src_checksum, source_language, target_language)
     if src_checksum == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855":
@@ -44,6 +43,7 @@ async def translate_chunk_or_retrieve_from_db_async(root_path: Path, text_chunk:
                 xml_text = chunk_to_xml(text_chunk, doc_type)
                 prompt_for_lang = xml_translation_prompt
                 prompt_for_lang = _prepare_prompt_for_language(prompt_for_lang, target_language, source_language)
+                prompt_for_lang = _prepare_prompt_for_content_type(prompt_for_lang, "LaTeX")
                 xml_translated = await translate_chunk_with_prompt(prompt_for_lang, xml_text, True)
                 translated = reconstruct_from_xml(xml_translated)
             case _:

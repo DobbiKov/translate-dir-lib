@@ -473,7 +473,7 @@ Nothing else.
 xml_translation_prompt = r'''
 You are tasked with translating scientific text from [SOURCE_LANGUAGE] to [TARGET_LANGUAGE] using a structured XML format.
 
-The document is composed of <TEXT> elements that contain the full translatable content (sentences or paragraphs), interleaved with <PH> tags for non-translatable content such as LaTeX commands, math expressions, or code.
+The document is composed of <TEXT> elements that contain the full translatable content (sentences or paragraphs), interleaved with <PH> tags for non-translatable content such as [CONTENT_TYPE].
 Instructions:
     - Translate only the content inside <TEXT> tags, excluding anything inside <PH> tags.
     - Do not remove, modify any <PH/> tags or their attributes.
@@ -524,7 +524,7 @@ The document is provided below:
 xml_with_previous_translation_prompt = r'''
 You are tasked with updating the translation of a scientific document from [SOURCE_LANGUAGE] to [TARGET_LANGUAGE] using a structured XML format.
 
-The document consists of <TEXT> elements that contain translatable content (sentences or paragraphs), interleaved with <PH> tags that represent non-translatable content such as LaTeX commands, math expressions, or code.
+The document consists of <TEXT> elements that contain translatable content (sentences or paragraphs), interleaved with <PH> tags that represent non-translatable content such as [CONTENT_TYPE].
 
 ### Context:
 You are provided with:
