@@ -9,8 +9,11 @@ dependencies = [
     "httpx>=0.28.1",
     "jupytext>=1.17.1",
     "loguru>=0.7.3",
+    "markdown-it-py>=3.0.0",
+    "mdit-py-plugins>=0.4.2",
+    "myst-parser>=4.0.1",
     "pydantic>=2.11.5",
-    "pylatexenc>=2.10"
+    "pylatexenc>=2.10",
 ]
 
 [tool.setuptools.packages.find]
