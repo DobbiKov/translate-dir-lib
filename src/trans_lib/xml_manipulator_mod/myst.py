@@ -4,15 +4,44 @@ from markdown_it import MarkdownIt
 from myst_parser.parsers.mdit import create_md_parser
 from markdown_it.renderer import RendererProtocol
 from markdown_it.utils import OptionsDict, OptionsType
-from typing import Sequence, MutableMapping, Any
+from typing import Callable, ClassVar, Sequence, MutableMapping, Any, TypeAlias
 from markdown_it.token import Token
 from copy import deepcopy
 from myst_parser.config.main import MdParserConfig
 
+Chunk: TypeAlias = list[tuple[str, str]]
 
+def _collect_handlers(cls):
+    cls._handlers = {}
+    for name, member in cls.__dict__.items():
+        tokens = getattr(member, "_token_types", None)
+        if tokens is not None:
+            for token in tokens:
+                cls._handlers[token] = member
+    return cls
+
+def _handler(token_type_s: str | list[str]):
+    def decorator(fn):
+        if type(token_type_s) == str:
+            fn._token_types = [token_type_s]
+        else:
+            fn._token_types = token_type_s
+        return fn
+    return decorator
+
+@_collect_handlers
 class CustomRenderer(RendererProtocol):
     __output__ = "xml"
-    def renderColonFence(self, tokens: Sequence[Token], idx: int) -> list[tuple[str, str]]:
+    _handlers = {}
+
+    def _dispatch(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        """Route *tokens[idx]* to the appropriate renderer."""
+        tok_type = tokens[idx].type
+        handler = self._handlers.get(tok_type, CustomRenderer.renderUnknown)
+        return handler(self, tokens, idx)
+
+    @_handler("colon_fence")
+    def renderColonFence(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         token = tokens[idx]
         table_type = ""
         info = token.info
@@ -34,8 +63,13 @@ class CustomRenderer(RendererProtocol):
         ] + content_parsed + [
             ('placeholder', '\n'),
             ('placeholder', ':::')
-        ]
-    def renderFieldList(self, tokens: Sequence[Token], start_idx: int, end_idx: int) -> list[tuple[str, str]]:
+        ],  idx + 1
+
+    @_handler("fieldlist_body_open")
+    def renderFieldList(self, tokens: Sequence[Token], start_idx: int) -> tuple[Chunk, int]:
+        end_idx = find_tag_id(tokens, "field_list_close", start_idx)
+        if end_idx == -1:
+            return [], start_idx + 1
         res = []
         idx = start_idx
         
@@ -55,8 +89,13 @@ class CustomRenderer(RendererProtocol):
             
             idx += 1
                 
-        return res
-    def renderMdTable(self, tokens: Sequence[Token], start_idx: int, end_idx: int) -> list[tuple[str, str]]:
+        return res, end_idx + 1
+
+    @_handler("table_open")
+    def renderMdTable(self, tokens: Sequence[Token], start_idx: int) -> tuple[Chunk, int]:
+        end_idx = find_tag_id(tokens, "table_close", start_idx) 
+        if end_idx == -1:
+            return [], start_idx + 1
         res = []
         table = interprete_table(tokens, start_idx, end_idx)
 
@@ -91,9 +130,14 @@ class CustomRenderer(RendererProtocol):
                 res.append(('text', elem))
                 res.append(('placeholder', '|'))
             res.append(('placeholder', '\n'))
-        return res   
-    def renderLink(self, tokens: Sequence[Token], start_idx: int, end_idx: int) -> list[tuple[str, str]]:
-        res = []
+        return res, end_idx + 1   
+
+    @_handler("link_open")
+    def renderLink(self, tokens: Sequence[Token], start_idx: int) -> tuple[Chunk, int]:
+        end_idx = find_tag_id(tokens, "link_close", start_idx)
+        if end_idx == -1:
+            return [], start_idx + 1
+
         idx = start_idx
 
         href = ""
@@ -113,10 +157,13 @@ class CustomRenderer(RendererProtocol):
         ] + text_tokens + [
             ('placeholder', ']'),
             ('placeholder', f'({href})')
-        ]
+        ], end_idx + 1
 
-    def renderFootnoteReference(self, tokens: Sequence[Token], start_idx: int, end_idx: int) -> list[tuple[str, str]]:
-        res = []
+    @_handler("footnote_reference_open")
+    def renderFootnoteReference(self, tokens: Sequence[Token], start_idx: int) -> tuple[Chunk, int]:
+        end_idx = find_tag_id(tokens, "footnote_reference_close", start_idx)
+        if end_idx == -1:
+            return [], start_idx + 1
         idx = start_idx
 
         label = ""
@@ -136,63 +183,76 @@ class CustomRenderer(RendererProtocol):
             ('placeholder', f'^{label}'),
             ('placeholder', ']'),
             ('placeholder', ': ')
-        ] + text_tokens
+        ] + text_tokens, end_idx + 1
+
         
-    def renderToken(self, tokens: Sequence[Token], idx: int) -> tuple[list[tuple[str, str]], int]:
+    @_handler("inline")
+    def renderInline(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         token = tokens[idx]
-        if token.type == "inline" and token.children:
-            return self.renderInline(token.children), idx + 1
-        elif token.type == "field_list_open": 
-            end_idx = find_tag_id(tokens, "field_list_close")
-            if end_idx == -1:
-                return [], idx + 1
-            return self.renderFieldList(tokens, idx, end_idx), end_idx + 1
-        elif token.type == "table_open":
-            end_idx = find_tag_id(tokens, "table_close", idx)
-            if end_idx == -1:
-                return [], idx + 1
-            return self.renderMdTable(tokens, idx, end_idx), end_idx + 1
-        elif token.type == "link_open":
-            end_idx = find_tag_id(tokens, "link_close", idx)
-            if end_idx == -1:
-                return [], idx + 1
-            return self.renderLink(tokens, idx, end_idx), end_idx + 1
-        elif token.type == "footnote_reference_open":
-            end_idx = find_tag_id(tokens, "footnote_reference_close", idx)
-            if end_idx == -1:
-                return [], idx + 1
-            return self.renderFootnoteReference(tokens, idx, end_idx), end_idx + 1
-        elif token.type == "heading_open":
-            token_markup = token.markup
-            if token_markup == "=":
-                token_markup = "#"
-            if token_markup == "-":
-                token_markup = "##"
-            return [('placeholder', token_markup + " ")], idx + 1
-        elif token.type in ["heading_close", "paragraph_close", "softbreak"]:
-            return [('placeholder', "\n")], idx + 1
-        elif token.type in ["em_open", "em_close"]:
-            return [('placeholder', "*")], idx + 1
-        elif token.type == "text":
-            return [('text', token.content)], idx + 1
-        elif token.type in ["math_inline"]:
-            return [
-                ('math', "$" + token.content + "$")
-            ], idx + 1
-        elif token.type in ["math_inline_double"]:
-            return [
-                ('math', "$$" + token.content + "$$")
-            ], idx + 1
-        elif token.type in ["amsmath"]:
-            return [('math', token.content)], idx + 1
-        elif token.type in ["footnote_ref"]:
-            return [('placeholder', "[^" + token.meta["label"] + "]")], idx + 1
-        elif token.type in ["colon_fence"]:
-            return self.renderColonFence(tokens, idx), idx + 1
-        elif token.type in ["paragraph_open"]:
+        if token.children:
+            return self.renderInlineChildren(token.children), idx + 1
+        else:
             return [], idx + 1
+    @_handler("heading_open")
+    def renderHeading(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        token_markup = token.markup
+        if token_markup == "=":
+            token_markup = "#"
+        if token_markup == "-":
+            token_markup = "##"
+        return [('placeholder', token_markup + " ")], idx + 1
+         
+    @_handler(["heading_close", "paragraph_close", "softbreak"])
+    def renderLineBrake(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        return [('placeholder', "\n")], idx + 1
+
+    @_handler(["em_open", "em_close"])
+    def renderEmphasize(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        return [('placeholder', "*")], idx + 1
+
+    @_handler("text")
+    def renderText(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [('text', token.content)], idx + 1
+
+    @_handler("math_inline")
+    def renderInlineMath(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [
+            ('math', "$" + token.content + "$")
+        ], idx + 1
+
+    @_handler("math_inline_double")
+    def renderDoubleInlineMath(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [
+            ('math', "$$" + token.content + "$$")
+        ], idx + 1
+
+    @_handler("amsmath")
+    def renderAmsmath(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [('math', token.content)], idx + 1
+
+    @_handler("footnote_ref")
+    def renderFootnoteRef(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [('placeholder', "[^" + token.meta["label"] + "]")], idx + 1
+
+    @_handler("paragraph_open")
+    def renderOpenParagraph(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [], idx + 1
+
+    def renderUnknown(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
         return [('unknown', token.content + "^^^" +token.type or f"[hank: {token.type}]")], idx + 1
-    def renderInline(self, tokens: Sequence[Token]) -> list[tuple[str, str]]:
+
+    def renderToken(self, tokens: Sequence[Token], idx: int) -> tuple[list[tuple[str, str]], int]:
+        return self._dispatch(tokens, idx)
+
+    def renderInlineChildren(self, tokens: Sequence[Token]) -> list[tuple[str, str]]:
         res = []
         idx = 0
         while idx < len(tokens):
@@ -200,11 +260,12 @@ class CustomRenderer(RendererProtocol):
             res = res + temp_res
             idx = new_idx
         return res
+
     def render(self, tokens: Sequence[Token], options: OptionsDict, env: MutableMapping[str, Any]):
         res = []
         idx = 0
         while idx < len(tokens):
-            temp_res, new_idx = self.renderToken(tokens, idx)
+            temp_res, new_idx = self._dispatch(tokens, idx)
             res = res + temp_res
             idx = new_idx
         return res
