@@ -91,69 +91,94 @@ class CustomRenderer(RendererProtocol):
                 res.append(('text', elem))
                 res.append(('placeholder', '|'))
             res.append(('placeholder', '\n'))
-        return res           
-            
-    def renderToken(self, tokens: Sequence[Token], idx: int) -> list[tuple[str, str]]:
+        return res   
+    def renderLink(self, tokens: Sequence[Token], start_idx: int, end_idx: int) -> list[tuple[str, str]]:
+        res = []
+        idx = start_idx
+
+        href = ""
+        text_tokens = []
+        
+        while idx <= end_idx:
+            token = tokens[idx]
+            if token.type == "link_open":
+                href = token.attrs['href']
+            elif token.type == "link_close":
+                pass
+            else:
+                text_tokens = text_tokens + self.renderToken(tokens, idx)[0]
+            idx += 1
+        return [
+            ('placeholder', '['),
+        ] + text_tokens + [
+            ('placeholder', ']'),
+            ('placeholder', f'({href})')
+        ]
+        
+    def renderToken(self, tokens: Sequence[Token], idx: int) -> tuple[list[tuple[str, str]], int]:
         token = tokens[idx]
-        if token.type == "heading_open":
+        if token.type == "inline" and token.children:
+            return self.renderInline(token.children), idx + 1
+        elif token.type == "field_list_open":
+            end_idx = find_tag_id(tokens, "field_list_close")
+            if end_idx == -1:
+                return [], idx + 1
+            return self.renderFieldList(tokens, idx, end_idx), end_idx + 1
+        elif token.type == "table_open":
+            end_idx = find_tag_id(tokens, "table_close", idx)
+            if end_idx == -1:
+                return [], idx + 1
+            return self.renderMdTable(tokens, idx, end_idx), end_idx + 1
+        elif token.type == "link_open":
+            end_idx = find_tag_id(tokens, "link_close", idx)
+            if end_idx == -1:
+                return [], idx + 1
+            return self.renderLink(tokens, idx, end_idx), end_idx + 1
+        elif token.type == "heading_open":
             token_markup = token.markup
             if token_markup == "=":
                 token_markup = "#"
             if token_markup == "-":
                 token_markup = "##"
-            return [('placeholder', token_markup + " ")]
+            return [('placeholder', token_markup + " ")], idx + 1
         elif token.type in ["heading_close", "paragraph_open", "paragraph_close", "softbreak"]:
-            return [('placeholder', "\n")]
+            return [('placeholder', "\n")], idx + 1
         elif token.type in ["em_open", "em_close"]:
-            return [('placeholder', "*")]
+            return [('placeholder', "*")], idx + 1
         elif token.type == "text":
-            return [('text', token.content)]
+            return [('text', token.content)], idx + 1
         elif token.type in ["math_inline"]:
             return [
                 ('math', "$" + token.content + "$")
-            ]
+            ], idx + 1
         elif token.type in ["math_inline_double"]:
             return [
                 ('math', "$$" + token.content + "$$")
-            ]
+            ], idx + 1
         elif token.type in ["amsmath"]:
-            return [('math', token.content)]
+            return [('math', token.content)], idx + 1
         elif token.type in ["footnote_ref"]:
-            return [('placeholder', "[^" + token.meta["label"] + "]")]
+            return [('placeholder', "[^" + token.meta["label"] + "]")], idx + 1
         elif token.type in ["colon_fence"]:
-            return self.renderColonFence(tokens, idx)
-        return [('unknown', token.content + "^^^" +token.type or f"[hank: {token.type}]")]
+            return self.renderColonFence(tokens, idx), idx + 1
+        return [('unknown', token.content + "^^^" +token.type or f"[hank: {token.type}]")], idx + 1
     def renderInline(self, tokens: Sequence[Token]) -> list[tuple[str, str]]:
-        res = []
-        for i in range(len(tokens)):
-            res = res + self.renderToken(tokens, i)
-        return res
-    def render(self, tokens: Sequence[Token], options: OptionsDict, env: MutableMapping[str, Any]):
         res = []
         idx = 0
         while idx < len(tokens):
-            token = tokens[idx]
-            if token.type == "inline" and token.children:
-                res = res + self.renderInline(token.children)
-                idx += 1
-            if token.type == "field_list_open":
-                end_idx = find_tag_id(tokens, "field_list_close")
-                if end_idx == -1:
-                    idx += 1
-                    continue
-                res = res + self.renderFieldList(tokens, idx, end_idx)
-                idx = end_idx + 1
-            if token.type == "table_open":
-                end_idx = find_tag_id(tokens, "table_close")
-                if end_idx == -1:
-                    idx += 1
-                    continue
-                res = res + self.renderMdTable(tokens, idx, end_idx)
-                idx = end_idx + 1
-            else:
-                res = res + self.renderToken(tokens, idx)
-                idx += 1
+            temp_res, new_idx = self.renderToken(tokens, idx)
+            res = res + temp_res
+            idx = new_idx
         return res
+    def render(self, tokens: Sequence[Token], options: OptionsDict, env: MutableMapping[str, any]):
+        res = []
+        idx = 0
+        while idx < len(tokens):
+            temp_res, new_idx = self.renderToken(tokens, idx)
+            res = res + temp_res
+            idx = new_idx
+        return res
+
 def find_tag_id(tokens: Sequence[Token], token_type: str, start_id: int = 0) -> int:
     """
     Looks for the first occurence of the token of the provided type `tag` in the provided sequence of Tokens.
