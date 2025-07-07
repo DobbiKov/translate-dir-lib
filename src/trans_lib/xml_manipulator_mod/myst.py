@@ -40,7 +40,7 @@ class CustomRenderer(RendererProtocol):
         handler = self._handlers.get(tok_type, CustomRenderer.renderUnknown)
         return handler(self, tokens, idx)
 
-    @_handler("colon_fence")
+    @_handler(["colon_fence", "fence"])
     def renderColonFence(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         token = tokens[idx]
         table_type = ""
@@ -65,7 +65,7 @@ class CustomRenderer(RendererProtocol):
             ('placeholder', ':::')
         ],  idx + 1
 
-    @_handler("fieldlist_body_open")
+    @_handler("field_list_open")
     def renderFieldList(self, tokens: Sequence[Token], start_idx: int) -> tuple[Chunk, int]:
         end_idx = find_tag_id(tokens, "field_list_close", start_idx)
         if end_idx == -1:
@@ -203,13 +203,17 @@ class CustomRenderer(RendererProtocol):
             token_markup = "##"
         return [('placeholder', token_markup + " ")], idx + 1
          
-    @_handler(["heading_close", "paragraph_close", "softbreak"])
+    @_handler(["heading_close", "paragraph_close", "softbreak", "blockquote_close", "hardbreak"])
     def renderLineBrake(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         return [('placeholder', "\n")], idx + 1
 
     @_handler(["em_open", "em_close"])
     def renderEmphasize(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         return [('placeholder', "*")], idx + 1
+
+    @_handler(["strong_open", "strong_close"])
+    def renderStrong(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        return [('placeholder', "**")], idx + 1
 
     @_handler("text")
     def renderText(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
@@ -244,7 +248,28 @@ class CustomRenderer(RendererProtocol):
     def renderOpenParagraph(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         token = tokens[idx]
         return [], idx + 1
+    @_handler("front_matter")
+    def renderFrontMatter(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [('placeholder', f"---\n{token.content}\n---\n")], idx + 1
+    @_handler("myst_target")
+    def renderMystTarget(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [('placeholder', f"({token.content})=\n")], idx + 1
+    @_handler("blockquote_open")
+    def renderQuote(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [('placeholder', "> ")], idx + 1
+    @_handler("hr")
+    def renderDelimiter(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [('placeholder', "---\n")], idx + 1
 
+    @_handler("myst_role")
+    def renderRole(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [('placeholder', f"{{{token.meta["name"]}}}`{token.content}`")], idx + 1
+        
     def renderUnknown(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         token = tokens[idx]
         return [('unknown', token.content + "^^^" +token.type or f"[hank: {token.type}]")], idx + 1
