@@ -46,6 +46,7 @@ class CustomRenderer(RendererProtocol):
         table_type = ""
         info = token.info
         content = token.content
+        markup = token.markup
 
         table_type_end = info.find("}")
         if table_type_end != -1: # if there's such } then we need to extract fence type and then the title
@@ -56,13 +57,13 @@ class CustomRenderer(RendererProtocol):
                 info = info[table_type_end+1:]
         content_parsed = parse_myst(content)
         return [
-            ('placeholder', ':::'),
+            ('placeholder', markup),
             ('placeholder', table_type),
             ('text', info),
             ('placeholder', '\n'),
         ] + content_parsed + [
             ('placeholder', '\n'),
-            ('placeholder', ':::')
+            ('placeholder', markup)
         ],  idx + 1
 
     @_handler("field_list_open")
