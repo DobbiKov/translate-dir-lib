@@ -203,7 +203,7 @@ class CustomRenderer(RendererProtocol):
             token_markup = "##"
         return [('placeholder', token_markup + " ")], idx + 1
          
-    @_handler(["heading_close", "paragraph_close", "softbreak", "blockquote_close", "hardbreak"])
+    @_handler(["heading_close", "paragraph_close", "softbreak", "blockquote_close", "hardbreak", "list_item_close"])
     def renderLineBrake(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         return [('placeholder', "\n")], idx + 1
 
@@ -269,6 +269,59 @@ class CustomRenderer(RendererProtocol):
     def renderRole(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         token = tokens[idx]
         return [('placeholder', f"{{{token.meta["name"]}}}`{token.content}`")], idx + 1
+
+    @_handler("code_inline")
+    def renderInlineCode(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [('placeholder', f"`{token.content}`")], idx + 1
+
+    @_handler("myst_block_break")
+    def renderBlockBreak(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [('placeholder', f"+++ {token.content}\n")], idx + 1
+
+
+        
+
+    @_handler("myst_line_comment")
+    def renderLineComment(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [
+            ('placeholder', '% '),
+            ('text', token.content),
+            ('placeholder', '\n')
+        ], idx + 1
+        
+    @_handler("bullet_list_open")
+    def renderBulletList(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        return self._renderBulletList(tokens, idx)
+        # return [('placeholder', f"{{{token.meta["name"]}}}`{token.content}`")], idx + 1
+
+    def _renderBulletList(self, tokens: Sequence[Token], idx: int, level: int = 0) -> tuple[Chunk, int]:
+        res = []
+        idx += 1
+        while idx < len(tokens):
+            token = tokens[idx]
+            if token.type == "bullet_list_close":
+                idx += 1
+                break
+            elif token.type == "bullet_list_open":
+                temp_res, new_idx = self._renderBulletList(tokens, idx, level+1)
+                res = res + temp_res
+                idx = new_idx
+            elif token.type == "list_item_open":
+                cont = ("\t"*level) + "- "
+                res.append(
+                    ('placeholder', cont)
+                )
+                idx += 1
+            else:
+                temp_res, new_idx = self.renderToken(tokens, idx)
+                res = res + temp_res
+                idx = new_idx
+        return res, idx
+                
+                
         
     def renderUnknown(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         token = tokens[idx]
