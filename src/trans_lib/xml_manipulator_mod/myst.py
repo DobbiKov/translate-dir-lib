@@ -384,7 +384,6 @@ def parse_myst(source: str) -> list[tuple[str, str]]:
             "replacements",
             "smartquotes",
             "substitution",
-            "tasklist"
         ]),  
         dmath_allow_labels = True,
         dmath_allow_space = True,
