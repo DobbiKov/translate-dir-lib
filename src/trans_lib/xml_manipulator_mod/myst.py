@@ -340,6 +340,13 @@ class CustomRenderer(RendererProtocol):
         return self._renderBulletList(tokens, idx)
         # return [('placeholder', f"{{{token.meta["name"]}}}`{token.content}`")], idx + 1
 
+    @_handler("html_inline")
+    def renderHtmlInline(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [
+            ('placeholder', token.content)
+        ], idx + 1
+        
     def _renderBulletList(self, tokens: Sequence[Token], idx: int, level: int = 0) -> tuple[Chunk, int]:
         res = []
         idx += 1
