@@ -55,16 +55,56 @@ class CustomRenderer(RendererProtocol):
                 info = ""
             else:
                 info = info[table_type_end+1:]
-        content_parsed = parse_myst(content)
-        return [
-            ('placeholder', markup),
-            ('placeholder', table_type),
-            ('text', info),
-            ('placeholder', '\n'),
-        ] + content_parsed + [
-            ('placeholder', '\n'),
-            ('placeholder', markup)
-        ],  idx + 1
+        match table_type:
+            case "{eval-rst}":
+                return [
+                    ('placeholder', markup),
+                    ('placeholder', table_type),
+                    ('text', info),
+                    ('placeholder', '\n'),
+                    ('placeholder', content),
+                    ('placeholder', '\n'),
+                    ('placeholder', markup)
+                ],  idx + 1
+                
+            case "{figure}" | "{image}" | "{iframe}" | "{embed}" | "{include}" | "{literalinclude}":
+                content_parsed = parse_myst(content)
+                return [
+                    ('placeholder', markup),
+                    ('placeholder', table_type),
+                    ('placeholder', info),
+                    ('placeholder', '\n'),
+                    ] + content_parsed + [
+                    ('placeholder', '\n'),
+                    ('placeholder', markup),
+                    ('placeholder', '\n'),
+                ],  idx + 1
+
+            case "math" | "amsmath": # TODO: handle math
+                return [
+                    ('placeholder', markup),
+                    ('placeholder', table_type),
+                    ('text', info),
+                    ('placeholder', '\n'),
+                    ('placeholder', content),
+                    ('placeholder', '\n'),
+                    ('placeholder', markup),
+                    ('placeholder', '\n'),
+                ],  idx + 1
+            case _:
+            # case "{attention}" | "{caution}" | "{danger}" | "{error}" | "{hint}" | "{important}" | "{note}" | "{seealso}" | "{tip}" | "{warning}" | "{admonition}" | "{versionadded}" | "{versionchanged}" | "{deprecated}":
+                content_parsed = parse_myst(content)
+                return [
+                    ('placeholder', markup),
+                    ('placeholder', table_type),
+                    ('text', info),
+                    ('placeholder', '\n'),
+                ] + content_parsed + [
+                    ('placeholder', '\n'),
+                    ('placeholder', markup),
+                    ('placeholder', '\n'),
+                ],  idx + 1
+                
 
     @_handler("field_list_open")
     def renderFieldList(self, tokens: Sequence[Token], start_idx: int) -> tuple[Chunk, int]:
@@ -87,6 +127,8 @@ class CustomRenderer(RendererProtocol):
                 line += ":"
             elif token_type == "inline":
                 line += token.content
+            elif token_type == "field_list_close":
+                res.append(('placeholder', '\n'))
             
             idx += 1
                 
