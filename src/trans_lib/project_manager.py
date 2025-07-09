@@ -6,6 +6,7 @@ from typing import List, Optional
 
 from loguru import logger
 
+from trans_lib import diff
 from trans_lib.doc_corrector import correct_file_translation
 from trans_lib.vocab_list import VocabList
 
@@ -143,12 +144,8 @@ class Project:
                 raise AddLanguageError(InvalidPathError(f"{tgt_dir} must be inside the project root"))
 
             try:
-<<<<<<< dev
                 self.config.remove_lang_config(lang)
                 self.config.add_lang_dir_config(resolved_lang_dir_path, lang)
-=======
-                self.config.add_lang_dir_config(resolved_lang_dir_path, lang, build_directory_tree)
->>>>>>> xml-tag-translation
                 self.save_config()
                 return resolved_lang_dir_path
             except IOError as e:
@@ -158,12 +155,9 @@ class Project:
             except Exception as e:
                  raise AddLanguageError(f"Unexpected error adding language {lang} and setting directory {tgt_dir}: {e}", e)
         else:
-<<<<<<< dev
             if lang in self._get_target_languages():
                 raise AddLanguageError(LangAlreadyInProjectError("Cannot add language: It's already a target language."))
 
-=======
->>>>>>> xml-tag-translation
             lang_dir_name = f"{self.config.name}{lang.get_dir_suffix()}"
             lang_dir_path = self.root_path / lang_dir_name
             
@@ -173,11 +167,7 @@ class Project:
             try:
                 lang_dir_path.mkdir(parents=True) # Create the directory
                 resolved_lang_dir_path = lang_dir_path.resolve()
-<<<<<<< dev
                 self.config.add_lang_dir_config(resolved_lang_dir_path, lang)
-=======
-                self.config.add_lang_dir_config(resolved_lang_dir_path, lang, build_directory_tree)
->>>>>>> xml-tag-translation
                 self.save_config()
                 return resolved_lang_dir_path
             except IOError as e:
@@ -436,6 +426,12 @@ class Project:
             self.config.rearrange_project(curr_root, old_root) 
             self.save_config()
 
+# TODO: remove this, as it is diff, it must be implemented in the translation, after XML tagging
+# DEBUG!
+    def diff(self, txt: str, lang: Language) -> tuple[str, float]:
+        return diff.get_best_match_from_db(self.root_path, lang, txt)
+
+
 # --- Module-level functions for project init and load ---
 def init_project(project_name: str, root_dir_str: str) -> Project:
     """Initializes a new project configuration in the specified directory."""
@@ -483,3 +479,4 @@ def load_project(path_str: str) -> Project:
         raise LoadProjectError(f"Failed to load project configuration: {e}", e)
     except Exception as e:
         raise LoadProjectError(f"An unexpected error occurred during project loading: {e}", e)
+

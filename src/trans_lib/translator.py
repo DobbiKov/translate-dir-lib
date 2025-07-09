@@ -3,6 +3,7 @@ import os
 
 from google import genai
 from google.genai import types as g_types
+from loguru import logger
 
 from trans_lib.vocab_list import VocabList
 
@@ -35,9 +36,16 @@ def get_default_prompt_text() -> str:
 
 def_prompt_template = get_default_prompt_text()
 
+def _prepare_prompt_for_content_type(prompt_template: str, content_type: str) -> str:
+    """
+    Replaces the content type placeholder with the given document type
+    """
+    return prompt_template.replace("[CONTENT_TYPE]", str(content_type))
 
-def _prepare_prompt_for_language(prompt_template: str, target_language: Language) -> str:
+def _prepare_prompt_for_language(prompt_template: str, target_language: Language, source_language: Language | None = None) -> str:
     """Replaces the language placeholder in the prompt."""
+    if source_language is not None:
+        prompt_template = prompt_template.replace("[SOURCE_LANGUAGE]", str(source_language))
     return prompt_template.replace("[TARGET_LANGUAGE]", str(target_language))
 
 def _prepare_prompt_for_vocab_list(prompt: str, vocab_list: VocabList | None) -> str:
@@ -96,13 +104,17 @@ async def _ask_aristote(full_prompt_message: str) -> str:
 def finalize_prompt(prompt: str, contents_to_translate: str) -> str:
    return f"{prompt}\n<document>\n{contents_to_translate}\n</document>"
 
-async def translate_chunk_with_prompt(prompt: str, chunk: str) -> str:
+def finalize_xml_prompt(prompt: str, contents_to_translate: str) -> str:
+   return f"{prompt}\n{contents_to_translate}\n"
+
+async def translate_chunk_with_prompt(prompt: str, chunk: str, is_xml: bool = False) -> str:
     """
     Translates the given chunk of text using the given prompt
     """
-    final_message_to_model = finalize_prompt(prompt, chunk)
+    final_message_to_model = finalize_prompt(prompt, chunk) if not is_xml else finalize_xml_prompt(prompt, chunk)
     
     translated_response_text = await _ask_gemini_model(final_message_to_model, "gemini-2.0-flash")
+    print(translated_response_text)
     
     return extract_translated_from_response(translated_response_text)
 
