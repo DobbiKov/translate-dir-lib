@@ -5,7 +5,8 @@ from pathlib import Path
 from trans_lib.enums import DocumentType, Language
 from trans_lib.translator import def_prompt_template, translate_chunk_with_prompt, _prepare_prompt_for_language, _prepare_prompt_for_vocab_list, _prepare_prompt_for_content_type
 from trans_lib.vocab_list import VocabList
-from trans_lib.xml_manipulator_mod.mod import chunk_to_xml, reconstruct_from_xml
+from trans_lib.xml_manipulator_mod.xml import reconstruct_from_xml
+from trans_lib.xml_manipulator_mod.mod import chunk_to_xml
 from trans_lib.prompts import xml_translation_prompt
 
 def is_whitespace(text: str) -> bool:

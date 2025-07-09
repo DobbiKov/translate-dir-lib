@@ -1,5 +1,3 @@
-from itertools import groupby
-from mod import create_translation_xml
 import re
 
 # Ensure you have the necessary library installed:
