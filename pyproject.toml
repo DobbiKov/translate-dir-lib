@@ -10,7 +10,8 @@ dependencies = [
     "jupytext>=1.17.1",
     "loguru>=0.7.3",
     "pydantic>=2.11.5",
-    "pylatexenc>=2.10"
+    "pylatexenc>=2.10",
+    "tree-sitter-language-pack>=0.9.0",
 ]
 
 [tool.setuptools.packages.find]
