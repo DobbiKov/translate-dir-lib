@@ -14,10 +14,7 @@ dependencies = [
     "myst-parser>=4.0.1",
     "pydantic>=2.11.5",
     "pylatexenc>=2.10",
-<<<<<<< HEAD
     "tree-sitter-language-pack>=0.9.0",
-=======
->>>>>>> bb3c616 (added dependencies for myst parsing)
 ]
 
 [tool.setuptools.packages.find]
