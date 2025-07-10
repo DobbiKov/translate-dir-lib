@@ -3,7 +3,7 @@ from pathlib import Path
 
 from trans_lib.translator_retrieval import translate_chunk_or_retrieve_from_db_async
 from trans_lib.vocab_list import VocabList
-from ..enums import DocumentType, Language
+from ..enums import ChunkType, DocumentType, Language
 from ..helpers import calculate_checksum
 import jupytext
 
@@ -41,11 +41,11 @@ def get_code_prompt_text() -> str:
 
 async def translate_markdown_cell_async(root_path: Path, contents: str, source_language: Language, target_language: Language, vocab_list: VocabList | None) -> str:
     prompt = get_markdown_prompt_text()
-    return await translate_chunk_or_retrieve_from_db_async(root_path, contents, source_language, target_language, prompt, vocab_list, DocumentType.JupyterNotebook)
+    return await translate_chunk_or_retrieve_from_db_async(root_path, contents, source_language, target_language, prompt, vocab_list, DocumentType.JupyterNotebook, ChunkType.Myst)
 
 
 async def translate_code_cell_async(root_path: Path, contents: str, source_language: Language, target_language: Language, vocab_list: VocabList | None) -> str:
     prompt = get_code_prompt_text()
-    return await translate_chunk_or_retrieve_from_db_async(root_path, contents, source_language, target_language, prompt, vocab_list, DocumentType.JupyterNotebook)
+    return await translate_chunk_or_retrieve_from_db_async(root_path, contents, source_language, target_language, prompt, vocab_list, DocumentType.JupyterNotebook, ChunkType.Code)
 
 

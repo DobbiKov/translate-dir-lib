@@ -2,10 +2,6 @@ from itertools import groupby
 import logging
 import xml.etree.ElementTree as ET
 
-from trans_lib.enums import DocumentType
-from trans_lib.xml_manipulator_mod.code import CodeParser
-from trans_lib.xml_manipulator_mod.latex import parse_latex
-
 def reconstruct_from_xml(translated_xml: str) -> str:
     """
     Rebuilds the source document from a translated XML file that uses a
@@ -130,23 +126,3 @@ def create_translation_xml(segments: list[tuple[str, str]]) -> tuple[str, dict]:
     # output_dir.mkdir(parents=True, exist_ok=True)
 
     return xml_string, placeholders
-
-def chunk_to_xml(source: str, doc_type: DocumentType) -> str:
-    """
-    Takes a chunk and the document type and returns the XML tagged version of the chunk
-    """
-    match doc_type:
-        case DocumentType.LaTeX:
-            return latex_to_xml(source)[0]
-        case _:
-            raise RuntimeError("Not implemented yet")
-
-def latex_to_xml(source: str) -> tuple[str, dict]:
-    return create_translation_xml(parse_latex(source))
-def code_to_xml(source: str, language) -> tuple[str, dict]:
-    """
-    Main function that takes a code and the language it is written in and returns an XML for translating.
-    """
-    parser = CodeParser(language=language)
-    segments = parser.parse(source)
-    return create_translation_xml(segments)
