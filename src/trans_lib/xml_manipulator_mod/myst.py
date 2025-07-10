@@ -34,6 +34,8 @@ class CustomRenderer(RendererProtocol):
     __output__ = "xml"
     _handlers = {}
 
+    # for content: cut the fields, and then parse content properly: for math and code
+
     def _dispatch(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         """Route *tokens[idx]* to the appropriate renderer."""
         tok_type = tokens[idx].type
@@ -80,7 +82,7 @@ class CustomRenderer(RendererProtocol):
                     ('placeholder', '\n'),
                 ],  idx + 1
 
-            case "math" | "amsmath": # TODO: handle math
+            case "{math}" | "{amsmath}": # TODO: handle math
                 return [
                     ('placeholder', markup),
                     ('placeholder', table_type),
@@ -91,8 +93,19 @@ class CustomRenderer(RendererProtocol):
                     ('placeholder', markup),
                     ('placeholder', '\n'),
                 ],  idx + 1
-            case _:
-            # case "{attention}" | "{caution}" | "{danger}" | "{error}" | "{hint}" | "{important}" | "{note}" | "{seealso}" | "{tip}" | "{warning}" | "{admonition}" | "{versionadded}" | "{versionchanged}" | "{deprecated}":
+            case "{code}" | "{code-block}" | "{sourcecode}" | "{code-cell}":
+                lang = info
+                return [
+                    ('placeholder', markup),
+                    ('placeholder', table_type),
+                    ('placeholder', info),
+                    ('placeholder', '\n'),
+                    ('placeholder', content), # TODO: handle code
+                    ('placeholder', '\n'),
+                    ('placeholder', markup),
+                    ('placeholder', '\n'),
+                ],  idx + 1
+            case "{attention}" | "{caution}" | "{danger}" | "{error}" | "{hint}" | "{important}" | "{note}" | "{seealso}" | "{tip}" | "{warning}" | "{admonition}" | "{versionadded}" | "{versionchanged}" | "{deprecated}" | "{aside}" | "{sidebar}" | "{topic}" | "{dropdown}" | "{tab-set}" | "{toctree}" | "{table}" | "{list-table}":
                 content_parsed = parse_myst(content)
                 return [
                     ('placeholder', markup),
@@ -100,6 +113,17 @@ class CustomRenderer(RendererProtocol):
                     ('text', info),
                     ('placeholder', '\n'),
                 ] + content_parsed + [
+                    ('placeholder', '\n'),
+                    ('placeholder', markup),
+                    ('placeholder', '\n'),
+                ],  idx + 1
+            case _:
+                return [
+                    ('placeholder', markup),
+                    ('placeholder', table_type),
+                    ('placeholder', info),
+                    ('placeholder', '\n'),
+                    ('placeholder', content), 
                     ('placeholder', '\n'),
                     ('placeholder', markup),
                     ('placeholder', '\n'),
