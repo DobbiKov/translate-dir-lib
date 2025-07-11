@@ -1,7 +1,7 @@
 from ..prompts import prompt_jupyter_code, prompt_jupyter_md 
 from pathlib import Path
 
-from trans_lib.translator_retrieval import translate_chunk_or_retrieve_from_db_async
+from trans_lib.translator_retrieval import CodeMeta, Meta, build_default_translator
 from trans_lib.vocab_list import VocabList
 from ..enums import ChunkType, DocumentType, Language
 from ..helpers import calculate_checksum
@@ -40,12 +40,14 @@ def get_code_prompt_text() -> str:
     return prompt_jupyter_code
 
 async def translate_markdown_cell_async(root_path: Path, contents: str, source_language: Language, target_language: Language, vocab_list: VocabList | None) -> str:
-    prompt = get_markdown_prompt_text()
-    return await translate_chunk_or_retrieve_from_db_async(root_path, contents, source_language, target_language, prompt, vocab_list, DocumentType.JupyterNotebook, ChunkType.Myst)
+    tr = build_default_translator(root_path)
+    meta = Meta(contents, source_language, target_language, DocumentType.JupyterNotebook, ChunkType.Code, vocab_list)
+    return await tr.translate_or_fetch(meta)
 
 
 async def translate_code_cell_async(root_path: Path, contents: str, source_language: Language, target_language: Language, vocab_list: VocabList | None) -> str:
-    prompt = get_code_prompt_text()
-    return await translate_chunk_or_retrieve_from_db_async(root_path, contents, source_language, target_language, prompt, vocab_list, DocumentType.JupyterNotebook, ChunkType.Code)
+    tr = build_default_translator(root_path)
+    meta = CodeMeta(contents, source_language, target_language, DocumentType.JupyterNotebook, ChunkType.Code, vocab_list, "python")
+    return await tr.translate_or_fetch(meta)
 
 

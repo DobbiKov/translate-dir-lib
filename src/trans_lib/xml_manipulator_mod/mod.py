@@ -13,8 +13,6 @@ def chunk_to_xml(source: str, chunk_type: ChunkType) -> str:
             return latex_to_xml(source)[0]
         case ChunkType.Myst:
             return myst_to_xml(source)[0]
-        # case ChunkType.Code: # TODO: how to pass lang?
-        #     return code_to_xml(source)[0]
         case _:
             raise RuntimeError("Not implemented yet")
 
