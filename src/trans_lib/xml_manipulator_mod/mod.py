@@ -19,7 +19,7 @@ def chunk_to_xml(source: str, chunk_type: ChunkType) -> str:
 def latex_to_xml(source: str) -> tuple[str, dict]:
     return create_translation_xml(parse_latex(source))
 
-def code_to_xml(source: str, language) -> tuple[str, dict]:
+def code_to_xml(source: str, language: str) -> tuple[str, dict]:
     """
     Main function that takes a code and the language it is written in and returns an XML for translating.
     """
