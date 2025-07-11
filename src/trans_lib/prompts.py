@@ -337,8 +337,14 @@ The document to be translated will be wrapped inside a <document> tag, like this
 [original Markdown cell content here]
 </document>
 
-Optionally, you may also receive a custom vocabulary dictionary wrapped in a <custom_vocabulary> tag. This dictionary contains specific terms and their preferred translations for the target domain, structured as `[SOURCE_TERM]=[TARGET_TERM]` pairs on separate lines. For terms that should not be translated, simply list them as `[TERM]=[TERM]`.
+Optionally, you may also receive a custom vocabulary dictionary enclosed
+  in a <custom_vocabulary> tag. This dictionary contains domain-specific
+  terms and their preferred translations, formatted as one
+  [SOURCE_TERM]=[TARGET_TERM] pair per line.
 
+    - To indicate that a term should remain untranslated, use the format [TERM]=[TERM].
+
+The entire dictionary is located between <custom_vocabulary> and </custom_vocabulary> tags.
 <custom_vocabulary>
 [CUSTOM_VOCABULARY]
 </custom_vocabulary>
@@ -462,4 +468,106 @@ Then, proceed to:
 </output>
 
 Nothing else.
+'''
+
+xml_translation_prompt = r'''
+You are tasked with translating scientific text from [SOURCE_LANGUAGE] to [TARGET_LANGUAGE] using a structured XML format.
+
+The document is composed of <TEXT> elements that contain the full translatable content (sentences or paragraphs), interleaved with <PH> tags for non-translatable content such as [CONTENT_TYPE].
+Instructions:
+    - Translate only the content inside <TEXT> tags, excluding anything inside <PH> tags.
+    - Do not remove, modify any <PH/> tags or their attributes.
+    - Use the original attribute of each <PH/> tag to understand the context and grammar. This will help you make correct translation decisions (e.g., for plurality, case, or syntax), but you must not change or translate the contents of the <PH> tags themselves.
+    - Treat each <TEXT> block as a complete sentence or paragraph. You may reorder words, adjust structure, and apply natural grammar in the target language — as long as all <PH> tags remain in place and unchanged.
+    - Your response must contain only the translated XML — return the modified <TEXT> block with embedded <PH> tags and nothing else (no explanations, no markdown, no prefix/suffix text) in the <output> tag the output format will be provided below.
+    - All <PH> tags must be self-closing and written in the form: 
+        <PH id="..." original="..."/>
+    - Do not produce </PH> closing tags, and do not place content inside <PH> elements. Any other structure is invalid and will break XML parsing.
+    - If the provided chunk doesn't contain any <PH> tags, you simply translate the text inside the <TEXT> tag and return it in the initial format.
+        Example (Spanish to Ukrainian):
+            Input:
+            ```
+            <document><TEXT>El gato duerme en la silla.</TEXT><document>
+            ```
+            Output:
+            ```
+            <output><document><TEXT>Кіт спить на стільці.</TEXT><document></output>
+            ```
+
+    - Optionally, you may also receive a custom vocabulary dictionary enclosed
+      in a <custom_vocabulary> tag. This dictionary contains domain-specific
+      terms and their preferred translations, formatted as one
+      [SOURCE_TERM]=[TARGET_TERM] pair per line.
+
+        - To indicate that a term should remain untranslated, use the format [TERM]=[TERM].
+
+    The entire dictionary is located between <custom_vocabulary> and </custom_vocabulary> tags.
+    <custom_vocabulary>
+    [CUSTOM_VOCABULARY]
+    </custom_vocabulary>
+
+
+Output Format:
+<output>
+<document>
+<TEXT>
+  ...translated text and inline <PH id="..." original="..."/> tags (if such presented in the input)...
+</TEXT>
+</document>
+</output>
+
+Don't cover the output in any Markdown or XML environments like (```) etc. 
+
+The document is provided below:
+'''
+
+xml_with_previous_translation_prompt = r'''
+You are tasked with updating the translation of a scientific document from [SOURCE_LANGUAGE] to [TARGET_LANGUAGE] using a structured XML format.
+
+The document consists of <TEXT> elements that contain translatable content (sentences or paragraphs), interleaved with <PH> tags that represent non-translatable content such as [CONTENT_TYPE].
+
+### Context:
+You are provided with:
+1. The original source paragraph (in [SOURCE_LANGUAGE]).
+2. Its correct translation (in [TARGET_LANGUAGE]).
+3. A **new version of the source paragraph**, which differs only slightly (1–3 words changed).
+
+### Your task:
+- **Update the translation** to reflect the changes in the new source.
+- **Reuse as much as possible** from the original translation.
+- Keep the XML structure unchanged, including all <PH> tags and their attributes.
+
+### Rules:
+- Translate or modify **only the parts that changed** in the new source.
+- Do **not modify, remove, or reorder** any <PH/> tags.
+- Use the `original` attribute of each <PH/> tag for understanding grammar context (e.g. case, gender, plurality), but do **not translate or alter** their content.
+- Your response must contain only the updated XML — return the modified <TEXT> block with embedded <PH> tags and nothing else (no explanations, no markdown, no prefix/suffix text) in the <output> tag the output format will be provided below.
+- All <PH> tags must be self-closing and written in the form:
+    <PH id="..." original="..."/>
+- Never use closing tags like </PH> or wrap content inside <PH> tags.
+- If the provided chunk doesn't contain any <PH> tags, you simply translate the text inside the <TEXT> tag and return it in the initial format
+
+### Output Format:
+<output>
+<document>
+<TEXT>
+  ...translated text with embedded <PH id="..." original="..."/> tags...
+</TEXT>
+</document>
+</output>
+
+Don't cover the output in any Markdown or XML environments like (```) etc. 
+
+### Provided Input:
+
+#### Old Source:
+[OLD_SRC]
+
+#### Old Translation:
+[OLD_TGT]
+
+#### New Source:
+[NEW_SRC]
+
+Now provide the updated translation:
 '''
