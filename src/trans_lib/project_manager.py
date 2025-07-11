@@ -8,6 +8,7 @@ from loguru import logger
 
 from trans_lib import diff
 from trans_lib.doc_corrector import correct_file_translation
+from trans_lib.translation_store.translation_store import TranslationStoreCsv
 from trans_lib.vocab_list import VocabList
 
 from .enums import Language
@@ -429,7 +430,7 @@ class Project:
 # TODO: remove this, as it is diff, it must be implemented in the translation, after XML tagging
 # DEBUG!
     def diff(self, txt: str, lang: Language) -> tuple[str, float]:
-        return diff.get_best_match_from_db(self.root_path, lang, txt)
+        return TranslationStoreCsv(self.root_path).get_best_match_from_db(lang, txt)
 
 
 # --- Module-level functions for project init and load ---
