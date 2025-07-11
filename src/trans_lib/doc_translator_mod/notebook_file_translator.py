@@ -47,7 +47,7 @@ async def translate_markdown_cell_async(root_path: Path, contents: str, source_l
 
 async def translate_code_cell_async(root_path: Path, contents: str, source_language: Language, target_language: Language, vocab_list: VocabList | None) -> str:
     tr = build_default_translator(root_path)
-    meta = CodeMeta(contents, source_language, target_language, DocumentType.JupyterNotebook, ChunkType.Code, vocab_list, "python")
+    meta = CodeMeta(contents, source_language, target_language, DocumentType.JupyterNotebook, ChunkType.Code, vocab_list, "python") # TODO: the language must be set accordingly to the cell
     return await tr.translate_or_fetch(meta)
 
 
