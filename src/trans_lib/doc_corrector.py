@@ -8,7 +8,7 @@ from trans_lib.doc_translator_mod.latex_chunker import read_chunks_with_metadata
 from trans_lib.enums import DocumentType, Language
 from trans_lib.errors import CorrectingTranslationError
 from trans_lib.helpers import analyze_document_type
-from trans_lib.trans_db import do_translation_correspond_to_source
+from trans_lib.translation_store.translation_store import TranslationStoreCsv
 from trans_lib.translator_corrector import correct_chunk_translation
 
 def correct_jupyter_notebook_translation(root_path: Path, tgt_path: Path, tgt_lang: Language, src_lang: Language) -> bool:
@@ -28,7 +28,7 @@ def correct_jupyter_cell(root_path: Path, cell: dict, target_language: Language,
         return False
     logger.debug("found metadata src_checksum")
 
-    if do_translation_correspond_to_source(root_path, src_checksum, source_language, tgt_txt, target_language):
+    if TranslationStoreCsv(root_path).do_translation_correspond_to_source(root_path, src_checksum, source_language, tgt_txt, target_language):
         return False
     correct_chunk_translation(root_path, src_checksum, source_language, tgt_txt, target_language)
     return True
@@ -38,7 +38,7 @@ def correct_latex_cell(root_path: Path, cell: dict, target_language: Language, s
     src_checksum = cell["src_checksum"]
     logger.debug("found metadata src_checksum")
 
-    if do_translation_correspond_to_source(root_path, src_checksum, source_language, tgt_txt, target_language):
+    if TranslationStoreCsv(root_path).do_translation_correspond_to_source(root_path, src_checksum, source_language, tgt_txt, target_language):
         return False
     correct_chunk_translation(root_path, src_checksum, source_language, tgt_txt, target_language)
     return True

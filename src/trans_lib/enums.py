@@ -45,3 +45,9 @@ class DocumentType(str, enum.Enum):
     Markdown = "markdown"
     LaTeX = "latex"
     Other = "other"
+
+class ChunkType(str, enum.Enum):
+    Myst = "myst"
+    Code = "code"
+    LaTeX = "latex"
+    Other = "other"
