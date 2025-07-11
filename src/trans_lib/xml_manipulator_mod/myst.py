@@ -34,6 +34,8 @@ class CustomRenderer(RendererProtocol):
     __output__ = "xml"
     _handlers = {}
 
+    # for content: cut the fields, and then parse content properly: for math and code
+
     def _dispatch(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         """Route *tokens[idx]* to the appropriate renderer."""
         tok_type = tokens[idx].type
@@ -55,16 +57,78 @@ class CustomRenderer(RendererProtocol):
                 info = ""
             else:
                 info = info[table_type_end+1:]
-        content_parsed = parse_myst(content)
-        return [
-            ('placeholder', markup),
-            ('placeholder', table_type),
-            ('text', info),
-            ('placeholder', '\n'),
-        ] + content_parsed + [
-            ('placeholder', '\n'),
-            ('placeholder', markup)
-        ],  idx + 1
+        match table_type:
+            case "{eval-rst}":
+                return [
+                    ('placeholder', markup),
+                    ('placeholder', table_type),
+                    ('text', info),
+                    ('placeholder', '\n'),
+                    ('placeholder', content),
+                    ('placeholder', '\n'),
+                    ('placeholder', markup)
+                ],  idx + 1
+                
+            case "{figure}" | "{image}" | "{iframe}" | "{embed}" | "{include}" | "{literalinclude}":
+                content_parsed = parse_myst(content)
+                return [
+                    ('placeholder', markup),
+                    ('placeholder', table_type),
+                    ('placeholder', info),
+                    ('placeholder', '\n'),
+                    ] + content_parsed + [
+                    ('placeholder', '\n'),
+                    ('placeholder', markup),
+                    ('placeholder', '\n'),
+                ],  idx + 1
+
+            case "{math}" | "{amsmath}": # TODO: handle math
+                return [
+                    ('placeholder', markup),
+                    ('placeholder', table_type),
+                    ('text', info),
+                    ('placeholder', '\n'),
+                    ('placeholder', content),
+                    ('placeholder', '\n'),
+                    ('placeholder', markup),
+                    ('placeholder', '\n'),
+                ],  idx + 1
+            case "{code}" | "{code-block}" | "{sourcecode}" | "{code-cell}":
+                lang = info
+                return [
+                    ('placeholder', markup),
+                    ('placeholder', table_type),
+                    ('placeholder', info),
+                    ('placeholder', '\n'),
+                    ('placeholder', content), # TODO: handle code
+                    ('placeholder', '\n'),
+                    ('placeholder', markup),
+                    ('placeholder', '\n'),
+                ],  idx + 1
+            case "{attention}" | "{caution}" | "{danger}" | "{error}" | "{hint}" | "{important}" | "{note}" | "{seealso}" | "{tip}" | "{warning}" | "{admonition}" | "{versionadded}" | "{versionchanged}" | "{deprecated}" | "{aside}" | "{sidebar}" | "{topic}" | "{dropdown}" | "{tab-set}" | "{toctree}" | "{table}" | "{list-table}":
+                content_parsed = parse_myst(content)
+                return [
+                    ('placeholder', markup),
+                    ('placeholder', table_type),
+                    ('text', info),
+                    ('placeholder', '\n'),
+                ] + content_parsed + [
+                    ('placeholder', '\n'),
+                    ('placeholder', markup),
+                    ('placeholder', '\n'),
+                ],  idx + 1
+            case _:
+                return [
+                    ('placeholder', markup),
+                    ('placeholder', table_type),
+                    ('placeholder', info),
+                    ('placeholder', '\n'),
+                    ('placeholder', content), 
+                    ('placeholder', '\n'),
+                    ('placeholder', markup),
+                    ('placeholder', '\n'),
+                ],  idx + 1
+                
 
     @_handler("field_list_open")
     def renderFieldList(self, tokens: Sequence[Token], start_idx: int) -> tuple[Chunk, int]:
@@ -87,6 +151,8 @@ class CustomRenderer(RendererProtocol):
                 line += ":"
             elif token_type == "inline":
                 line += token.content
+            elif token_type == "field_list_close":
+                res.append(('placeholder', '\n'))
             
             idx += 1
                 
@@ -298,6 +364,13 @@ class CustomRenderer(RendererProtocol):
         return self._renderBulletList(tokens, idx)
         # return [('placeholder', f"{{{token.meta["name"]}}}`{token.content}`")], idx + 1
 
+    @_handler("html_inline")
+    def renderHtmlInline(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [
+            ('placeholder', token.content)
+        ], idx + 1
+        
     def _renderBulletList(self, tokens: Sequence[Token], idx: int, level: int = 0) -> tuple[Chunk, int]:
         res = []
         idx += 1

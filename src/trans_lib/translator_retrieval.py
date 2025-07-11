@@ -18,7 +18,6 @@ from trans_lib.prompts import prompt4, prompt_jupyter_md
 def is_whitespace(text: str) -> bool:
     return not text or text.isspace()
 
-
 @dataclass
 class Meta:
     chunk: str
