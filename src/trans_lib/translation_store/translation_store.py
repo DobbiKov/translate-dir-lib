@@ -48,7 +48,10 @@ class TranslationStoreCsv(TranslationStore):
 
     def lookup(self, src_checksum: str, src_lang: Language, tgt_lang: Language) -> str | None:
         """Return the cached *target text* if the pair exists, else *None*."""
-        return find_correspondent_checksum(self.root_path, src_checksum, src_lang, tgt_lang)
+        tgt_checksum = find_correspondent_checksum(self.root_path, src_checksum, src_lang, tgt_lang)
+        if tgt_checksum is None:
+            return None
+        return read_contents_by_checksum_with_lang(self.root_path, tgt_checksum, tgt_lang)
 
     def persist_pair(
         self,
