@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import re
 from typing import Any, Callable, Coroutine
 from loguru import logger
-from trans_lib.helpers import calculate_checksum
+from trans_lib.helpers import calculate_checksum, extract_translated_from_response
 from pathlib import Path
 from trans_lib.enums import ChunkType, DocumentType, Language
 from trans_lib.translation_store.translation_store import TranslationStore, TranslationStoreCsv
@@ -37,12 +37,6 @@ class CodeMeta(Meta):
     prog_lang: str
 
 # ====================== Prompt / Strategy layer ===================== #
-
-def _extract_output(raw_response: str) -> str:
-    """Collect everything between <output> tags (can appear multiple times)."""
-    parts = re.findall(r"<output>(.*?)</output>", raw_response, flags=re.S)
-    return "\n".join(parts)
-
 
 class TranslateStrategy:
     """Callable bundle: build prompt  → ask LLM → post‑process."""
@@ -93,9 +87,10 @@ def _xml_prompt_builder(doc_type: DocumentType, chunk_type: ChunkType):
         lang = None
         if chunk_type == ChunkType.Code:
             if type(params) is CodeMeta:
+                print("da")
                 xml_chunk, _ = code_to_xml(chunk, params.prog_lang)
         else:
-            xml_chunk = chunk_to_xml(chunk, doc_type, chunk_type)
+            xml_chunk = chunk_to_xml(chunk, chunk_type)
 
         prompt = xml_translation_prompt
         prompt = _prepare_prompt_for_language(prompt, tgt, src)
@@ -104,8 +99,9 @@ def _xml_prompt_builder(doc_type: DocumentType, chunk_type: ChunkType):
                 return "LaTeX"
             if doc_type == DocumentType.JupyterNotebook and chunk_type == ChunkType.Myst:
                 return "MyST"
-            if doc_type == DocumentType.JupyterNotebook and chunk_type == ChunkType.Code:
-                return f"{lang} code"
+            if doc_type == DocumentType.JupyterNotebook and chunk_type == ChunkType.Code and type(params) is CodeMeta:
+                prog_lang = params.prog_lang
+                return f"{prog_lang} code"
             else:
                 return "any document"
         prompt = _prepare_prompt_for_content_type(prompt, get_content_type())
@@ -122,11 +118,11 @@ async def _call_model_func(text: str) -> str:
     return await _ask_gemini_model(text, model_name="gemini-2.0-flash")
 
 # ---- Strategies map ------------------------------------------------ #
-LATEX_STRATEGY   = TranslateStrategy(_xml_prompt_builder(DocumentType.LaTeX, ChunkType.LaTeX), _call_model_func, lambda r: reconstruct_from_xml(_extract_output(r)))
-MYST_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.JupyterNotebook, ChunkType.Myst), _call_model_func,  lambda r: reconstruct_from_xml(_extract_output(r)))
-PLAIN_STRATEGY   = TranslateStrategy(_plain_prompt_builder(prompt4), _call_model_func,                    _extract_output)
-CODE_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.JupyterNotebook, ChunkType.Code), _call_model_func,        _extract_output)
-MD_STRATEGY      = TranslateStrategy(_plain_prompt_builder(prompt_jupyter_md), _call_model_func,          _extract_output)
+LATEX_STRATEGY   = TranslateStrategy(_xml_prompt_builder(DocumentType.LaTeX, ChunkType.LaTeX), _call_model_func, lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
+MYST_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.JupyterNotebook, ChunkType.Myst), _call_model_func,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
+PLAIN_STRATEGY   = TranslateStrategy(_plain_prompt_builder(prompt4), _call_model_func,                    extract_translated_from_response)
+CODE_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.JupyterNotebook, ChunkType.Code), _call_model_func,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
+MD_STRATEGY      = TranslateStrategy(_plain_prompt_builder(prompt_jupyter_md), _call_model_func,          extract_translated_from_response)
 
 STRATEGY_MAP: dict[tuple[DocumentType, ChunkType], TranslateStrategy] = {
     (DocumentType.LaTeX,            ChunkType.LaTeX): LATEX_STRATEGY,
