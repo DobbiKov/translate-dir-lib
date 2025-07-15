@@ -97,7 +97,7 @@ def _xml_prompt_builder(doc_type: DocumentType, chunk_type: ChunkType):
         def get_content_type() -> str:
             if doc_type == DocumentType.LaTeX:
                 return "LaTeX"
-            if doc_type == DocumentType.JupyterNotebook and chunk_type == ChunkType.Myst:
+            if (doc_type == DocumentType.JupyterNotebook and chunk_type == ChunkType.Myst) or doc_type == DocumentType.Markdown:
                 return "MyST"
             if doc_type == DocumentType.JupyterNotebook and chunk_type == ChunkType.Code and type(params) is CodeMeta:
                 prog_lang = params.prog_lang
@@ -122,7 +122,7 @@ LATEX_STRATEGY   = TranslateStrategy(_xml_prompt_builder(DocumentType.LaTeX, Chu
 MYST_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.JupyterNotebook, ChunkType.Myst), _call_model_func,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
 PLAIN_STRATEGY   = TranslateStrategy(_plain_prompt_builder(prompt4), _call_model_func,                    extract_translated_from_response)
 CODE_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.JupyterNotebook, ChunkType.Code), _call_model_func,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
-MD_STRATEGY      = TranslateStrategy(_plain_prompt_builder(prompt_jupyter_md), _call_model_func,          extract_translated_from_response)
+MD_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.Markdown, ChunkType.Myst), _call_model_func,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
 
 STRATEGY_MAP: dict[tuple[DocumentType, ChunkType], TranslateStrategy] = {
     (DocumentType.LaTeX,            ChunkType.LaTeX): LATEX_STRATEGY,

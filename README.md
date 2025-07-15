@@ -3,6 +3,9 @@ A library to manage the translation text writing projects (e.g: LaTeX,
 Markdown, Jupyter, MyST, Typst). The library is aimed to simplify and automate
 the translation process and compiling of the translated version of the documents.
 
+**Important**
+> The library is still in an early phase of development and may have bugs and unimplemented features
+
 ## Features
 - [x] Project creation
 - [x] Source language and the source folder to translate setting
