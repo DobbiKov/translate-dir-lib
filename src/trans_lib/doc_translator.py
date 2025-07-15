@@ -1,5 +1,6 @@
 from loguru import logger
 
+from trans_lib.doc_translator_mod import myst_file_translator
 from trans_lib.vocab_list import VocabList
 from .enums import DocumentType, Language
 from .translator import translate_contents_async
@@ -32,9 +33,9 @@ async def translate_file_to_file_async(
             await translate_notebook_async(root_path, source_path, source_language, target_path, target_language, vocab_list)
         elif doc_type == DocumentType.Markdown:
             logger.debug("translate markdown")
-            logger.debug("but not implemented yet")
+            await myst_file_translator.translate_file_async(root_path, source_path, source_language, target_path, target_language, vocab_list)
         elif doc_type == DocumentType.LaTeX:
-            # logger.trace("translate latex")
+            logger.trace("translate latex")
             await latex_file_translator.translate_file_async(root_path, source_path, source_language, target_path, target_language, vocab_list)
         else: # any other type
             translated_content = await translate_file_async(source_path, target_language, vocab_list)
