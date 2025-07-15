@@ -519,6 +519,7 @@ Output Format:
 Don't cover the output in any Markdown or XML environments like (```) etc. 
 
 The document is provided below:
+[SRC]
 '''
 
 xml_with_previous_translation_prompt = r'''
@@ -567,7 +568,7 @@ Don't cover the output in any Markdown or XML environments like (```) etc.
 [OLD_TGT]
 
 #### New Source:
-[NEW_SRC]
+[SRC]
 
 Now provide the updated translation:
 '''
