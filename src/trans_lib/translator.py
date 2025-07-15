@@ -42,6 +42,10 @@ def _prepare_prompt_for_content_type(prompt_template: str, content_type: str) ->
     """
     return prompt_template.replace("[CONTENT_TYPE]", str(content_type))
 
+def _prepare_prompt_for_translation_example(prompt_template: str, src_ex: str, tgt_ex: str) -> str:
+    """Replaces the language placeholder in the prompt."""
+    return prompt_template.replace("[OLD_SRC]", src_ex).replace("[OLD_TGT]", tgt_ex)
+
 def _prepare_prompt_for_language(prompt_template: str, target_language: Language, source_language: Language | None = None) -> str:
     """Replaces the language placeholder in the prompt."""
     if source_language is not None:
@@ -105,7 +109,8 @@ def finalize_prompt(prompt: str, contents_to_translate: str) -> str:
    return f"{prompt}\n<document>\n{contents_to_translate}\n</document>"
 
 def finalize_xml_prompt(prompt: str, contents_to_translate: str) -> str:
-   return f"{prompt}\n{contents_to_translate}\n"
+   # return f"{prompt}\n{contents_to_translate}\n"
+   return prompt.replace("[SRC]", contents_to_translate)
 
 async def translate_chunk_with_prompt(prompt: str, chunk: str, is_xml: bool = False) -> str:
     """

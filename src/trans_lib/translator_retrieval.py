@@ -6,13 +6,13 @@ from trans_lib.helpers import calculate_checksum, extract_translated_from_respon
 from pathlib import Path
 from trans_lib.enums import ChunkType, DocumentType, Language
 from trans_lib.translation_store.translation_store import TranslationStore, TranslationStoreCsv
-from trans_lib.translator import def_prompt_template, finalize_prompt, finalize_xml_prompt, translate_chunk_with_prompt, _prepare_prompt_for_language, _prepare_prompt_for_vocab_list, _prepare_prompt_for_content_type
+from trans_lib.translator import def_prompt_template, finalize_prompt, finalize_xml_prompt, translate_chunk_with_prompt, _prepare_prompt_for_language, _prepare_prompt_for_vocab_list, _prepare_prompt_for_content_type, _prepare_prompt_for_translation_example
 from trans_lib.vocab_list import VocabList
 from trans_lib.xml_manipulator_mod.xml import reconstruct_from_xml
 from trans_lib.xml_manipulator_mod.mod import chunk_to_xml, code_to_xml
 from trans_lib.prompts import xml_translation_prompt
 from trans_lib.translator import _ask_gemini_model
-from trans_lib.prompts import prompt4, prompt_jupyter_md
+from trans_lib.prompts import prompt4, xml_with_previous_translation_prompt
 
 
 def is_whitespace(text: str) -> bool:
@@ -29,12 +29,24 @@ class Meta:
 
 @dataclass
 class CodeMeta(Meta):
+    chunk: str
     src_lang: Language
     tgt_lang: Language
     doc_type: DocumentType
     chunk_type: ChunkType
     vocab: VocabList | None
     prog_lang: str
+
+@dataclass
+class WithExampleMeta(Meta):
+    chunk: str
+    src_lang: Language
+    tgt_lang: Language
+    doc_type: DocumentType
+    chunk_type: ChunkType
+    vocab: VocabList | None
+    ex_src: str
+    ex_tgt: str
 
 # ====================== Prompt / Strategy layer ===================== #
 
@@ -93,11 +105,17 @@ def _xml_prompt_builder(doc_type: DocumentType, chunk_type: ChunkType):
             xml_chunk = chunk_to_xml(chunk, chunk_type)
 
         prompt = xml_translation_prompt
+        if type(params) == WithExampleMeta and chunk_type != ChunkType.Code:
+            prompt = xml_with_previous_translation_prompt
+            ex_src = chunk_to_xml(params.ex_src, chunk_type)
+            ex_tgt = chunk_to_xml(params.ex_tgt, chunk_type)
+            prompt = _prepare_prompt_for_translation_example(prompt, ex_src, ex_tgt)
+
         prompt = _prepare_prompt_for_language(prompt, tgt, src)
         def get_content_type() -> str:
             if doc_type == DocumentType.LaTeX:
                 return "LaTeX"
-            if doc_type == DocumentType.JupyterNotebook and chunk_type == ChunkType.Myst:
+            if (doc_type == DocumentType.JupyterNotebook and chunk_type == ChunkType.Myst) or doc_type == DocumentType.Markdown:
                 return "MyST"
             if doc_type == DocumentType.JupyterNotebook and chunk_type == ChunkType.Code and type(params) is CodeMeta:
                 prog_lang = params.prog_lang
@@ -122,7 +140,7 @@ LATEX_STRATEGY   = TranslateStrategy(_xml_prompt_builder(DocumentType.LaTeX, Chu
 MYST_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.JupyterNotebook, ChunkType.Myst), _call_model_func,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
 PLAIN_STRATEGY   = TranslateStrategy(_plain_prompt_builder(prompt4), _call_model_func,                    extract_translated_from_response)
 CODE_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.JupyterNotebook, ChunkType.Code), _call_model_func,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
-MD_STRATEGY      = TranslateStrategy(_plain_prompt_builder(prompt_jupyter_md), _call_model_func,          extract_translated_from_response)
+MD_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.Markdown, ChunkType.Myst), _call_model_func,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
 
 STRATEGY_MAP: dict[tuple[DocumentType, ChunkType], TranslateStrategy] = {
     (DocumentType.LaTeX,            ChunkType.LaTeX): LATEX_STRATEGY,
@@ -151,6 +169,20 @@ class ChunkTranslator:
             return cached
 
         strategy = STRATEGY_MAP[(meta.doc_type, meta.chunk_type)]
+        example = self._store.get_best_pair_example_from_db(meta.src_lang, meta.tgt_lang, meta.chunk)
+        if example is not None:
+            src_ex, tgt_ex, score = example
+            if score > 0.7:
+                meta = WithExampleMeta(
+                        meta.chunk,
+                        meta.src_lang,
+                        meta.tgt_lang,
+                        meta.doc_type,
+                        meta.chunk_type,
+                        meta.vocab,
+                        src_ex,
+                        tgt_ex
+                        )
         translated = await strategy.run(meta)
         tgt_checksum = calculate_checksum(translated)
 
