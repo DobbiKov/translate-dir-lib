@@ -96,3 +96,4 @@ def split_myst_document_into_chunks(source_text: str) -> list[dict[str, Any]]:
     Splits given MyST/Markdown document text into chunks
     """
     return _complete_section_chunks(_simple_chunks_to_section_chunks(_myst_to_simple_chunks(source_text)))
+
