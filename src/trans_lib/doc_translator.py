@@ -27,15 +27,16 @@ async def translate_file_to_file_async(
     doc_type = analyze_document_type(source_path)
     logger.trace(doc_type)
     try:
-        if doc_type == DocumentType.Markdown or doc_type == DocumentType.JupyterNotebook:
-            logger.trace("translate in this wat")
+        if doc_type == DocumentType.JupyterNotebook:
+            logger.trace("translate jupyter")
             await translate_notebook_async(root_path, source_path, source_language, target_path, target_language, vocab_list)
+        elif doc_type == DocumentType.Markdown:
+            logger.debug("translate markdown")
+            logger.debug("but not implemented yet")
         elif doc_type == DocumentType.LaTeX:
-            logger.trace("translate latex")
+            # logger.trace("translate latex")
             await latex_file_translator.translate_file_async(root_path, source_path, source_language, target_path, target_language, vocab_list)
-        else:
-            # TODO: proper chunking
-            # TODO: DB saving
+        else: # any other type
             translated_content = await translate_file_async(source_path, target_language, vocab_list)
             target_path.parent.mkdir(parents=True, exist_ok=True)
             target_path.write_text(translated_content, encoding="utf-8")
