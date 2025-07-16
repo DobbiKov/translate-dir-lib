@@ -69,7 +69,6 @@ class LatexParser:
     
     def _extract_verb_commands(self, text):
         """Extract \\verb and \\verb* commands to avoid parsing issues."""
-        import re
         verb_commands = []
         
         verb_pattern = r'\\verb\*?(.)(.*?)\1'
@@ -91,7 +90,6 @@ class LatexParser:
     
     def _extract_pipe_commands(self, text):
         """Extract unknown commands that use pipe delimiters \\command|content|."""
-        import re
         pipe_commands = []
         
         # Pattern for commands with pipe delimiters (excluding verb which is handled separately)
