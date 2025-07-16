@@ -38,7 +38,7 @@ The documentation for the library can be found [here](./docs/main.md)
 
 ## 📚 Citation
 
-If you use this software in your research, please cite it as follows:
+If you use this software in your research or writing, please cite it as follows:
 ```bib
 @software{korotenko-sci-trans-git,
     author = {Yehor Korotenko},
