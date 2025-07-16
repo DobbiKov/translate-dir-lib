@@ -18,7 +18,7 @@ class LatexParser:
         self.math_envs = {
                 'equation', 'equation*', 'align', 'align*', 'aligned', 'gather', 'gather*', 
                 'gathered', 'flalign', 'flalign*', 'alignat', 'alignat*', 'multline', 'multline*',
-                'displaymath', 'math'
+                'displaymath', 'math', 'eqnarray', 'eqnarray*'
                 }
         self.math_text_macros = {'text', 'mathrm','mathbf', 'operatorname',
                                  'mathit', 'textrm', 'textit', 'mathsf',
@@ -168,7 +168,7 @@ class LatexParser:
             elif node.isNodeType(LatexCommentNode):
                 self._add_placeholder('% ')
                 self._add_text(node.comment)
-                self._add_placeholder(node.comment_post_space)
+                self._add_placeholder(node.comment_post_space or '\n')
             elif node.isNodeType(LatexMathNode):
                 self._add_placeholder(node.delimiters[0])
                 self._walk_math_nodes(node.nodelist)
@@ -211,7 +211,15 @@ class LatexParser:
                         self._add_placeholder(node.latex_verbatim())
                         continue
 
-                    content_start_pos = node.nodelist[0].pos
+                    # find the first node that lies *after* the \begin argument list
+                    header_end_pos = self._env_header_end(node)
+
+                    first_body_node = next(
+                        (n for n in node.nodelist if n.pos >= header_end_pos),
+                        node.nodelist[0],
+                    )
+                    content_start_pos = first_body_node.pos
+
                     last_node = node.nodelist[-1]
                     content_end_pos = last_node.pos + last_node.len
 
@@ -342,6 +350,63 @@ class LatexParser:
                     break  # restart outer loop because list length changed
             if not made_changes:
                 i += 1
+    # === UTILITIES ===
+    def _env_header_end(self, env_node):
+        """
+        Return the character offset immediately after
+        \\begin{envname}[opt1][opt2]{mand}
+        by scanning the original source.  This works on *any* pylatexenc
+        version because it doesn’t rely on internal attributes.
+        """
+        s = self.latex_content
+        i = env_node.pos          # points at the backslash of \begin
+        n = len(s)
+
+        # Skip '\begin'
+        i = s.find('{', i)
+        if i == -1:
+            return env_node.pos   # malformed, fall back
+        # Skip '{envname}'
+        depth = 1
+        i += 1
+        while i < n and depth:
+            if s[i] == '{':
+                depth += 1
+            elif s[i] == '}':
+                depth -= 1
+            i += 1
+        if depth:
+            return env_node.pos   # unmatched brace – give up
+
+        # Skip whitespace
+        while i < n and s[i].isspace():
+            i += 1
+
+        # Zero or more optional [ ... ] groups
+        while i < n and s[i] == '[':
+            depth = 1
+            i += 1
+            while i < n and depth:
+                if s[i] == '[':
+                    depth += 1
+                elif s[i] == ']':
+                    depth -= 1
+                i += 1
+            while i < n and s[i].isspace():
+                i += 1
+
+        # First mandatory { ... } group
+        if i < n and s[i] == '{':
+            depth = 1
+            i += 1
+            while i < n and depth:
+                if s[i] == '{':
+                    depth += 1
+                elif s[i] == '}':
+                    depth -= 1
+                i += 1
+
+        return i  # character *after* the closing '}' of the mandatory arg
 
 def parse_latex(latex_content) -> list[tuple[str, str]]:
     """High-level function to instantiate and use the LatexParser."""
