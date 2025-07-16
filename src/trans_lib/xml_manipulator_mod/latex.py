@@ -164,7 +164,7 @@ class LatexParser:
 
         for node in nodelist:
             if node.isNodeType(LatexCharsNode):
-                self._process_chars_node(node, in_alignment=(len(env_stack)>=0) and env_stack[-1] in self.alignment_envs)
+                self._process_chars_node(node, in_alignment=(len(env_stack)>0) and env_stack[-1] in self.alignment_envs)
             elif node.isNodeType(LatexCommentNode):
                 self._add_placeholder('% ')
                 self._add_text(node.comment)
