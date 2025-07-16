@@ -20,8 +20,13 @@ class LatexParser:
                 'gathered', 'flalign', 'flalign*', 'alignat', 'alignat*', 'multline', 'multline*',
                 'displaymath', 'math'
                 }
-        self.math_text_macros = {'text', 'mathrm'}
+        self.math_text_macros = {'text', 'mathrm','mathbf', 'operatorname',
+                                 'mathit', 'textrm', 'textit', 'mathsf',
+                                 'mathtt', 'boldsymbol' }
         self.definition_macros = {'newcommand', 'renewcommand', 'newenvironment', 'renewenvironment', 'def'}
+        self.alignment_envs = {'tabular', 'tabular*', 'array', 'align', 'align*',
+                               'aligned', 'flalign', 'flalign*', 'alignat',
+                               'alignat*', 'gather', 'gather*'}
 
         # Allow customization
         if len(placeholder_commands) != 0:
@@ -66,6 +71,10 @@ class LatexParser:
         self._restore_verb_commands()
         
         return self.segments
+
+    def add_math_text_macros(self, *names: str):
+        """Register additional text‑in‑math macros at runtime."""
+        self.math_text_macros.update(names)
 
     # === PREPROCESSING METHODS ===
     def _make_placeholder(self, tag: str) -> str:
@@ -133,9 +142,13 @@ class LatexParser:
         elif content: 
             self.segments.append(('placeholder', content))
 
-    def _process_chars_node(self, node):
+    def _process_chars_node(self, node, in_alignment=False):
         """Process character nodes, handling & specially."""
-        parts = re.split(r'(&)', node.chars)
+        if in_alignment:
+            parts = re.split(r'(&)', node.chars)
+        else:
+            parts = [node.chars]  
+
         for part in parts:
             if not part: 
                 continue
@@ -144,14 +157,14 @@ class LatexParser:
             else: 
                 self._add_text(part)
 
-    def _walk_text_nodes(self, nodelist):
+    def _walk_text_nodes(self, nodelist, env_stack=[]):
         """Main node walker for text mode - handles asterisk preservation."""
         if nodelist is None: 
             return
 
         for node in nodelist:
             if node.isNodeType(LatexCharsNode):
-                self._process_chars_node(node)
+                self._process_chars_node(node, in_alignment=(len(env_stack)>=0) and env_stack[-1] in self.alignment_envs)
             elif node.isNodeType(LatexCommentNode):
                 self._add_placeholder('% ')
                 self._add_text(node.comment)
@@ -190,6 +203,7 @@ class LatexParser:
                         self._add_placeholder(full_command)
             elif node.isNodeType(LatexEnvironmentNode):
                 envname = node.environmentname
+                env_stack.append(envname)
                 if envname in self.placeholder_envs:
                     self._add_placeholder(node.latex_verbatim())
                 else:
@@ -211,6 +225,7 @@ class LatexParser:
 
                     end_placeholder = self.latex_content[content_end_pos:(node.pos + node.len)]
                     self._add_placeholder(end_placeholder)
+                env_stack.pop()
             else:
                 self._add_placeholder(node.latex_verbatim())
 
