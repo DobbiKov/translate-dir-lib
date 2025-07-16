@@ -128,8 +128,8 @@ Example: The addition of the French language in the project named
 This directory will have the copy of the source directory with translated files.
 
 ### Important notes
-- The source directory can be reset, i.e you can set another directory as a source one.
-- The target languages can be removed.
+- The source directory can be reset, i.e you can set another directory as a source one using the same `set-source command`.
+- The target languages can be removed using `remove-target` command (in CLI), or `remove_target_language` method in the library.
 
 ## Two types of files
 All the files in the source directory are considered as *untranslatable* by
