@@ -1,4 +1,4 @@
-import re
+import re, uuid
 from pylatexenc.latexwalker import (LatexCommentNode, LatexWalker, LatexCharsNode, LatexMacroNode,
                                     LatexEnvironmentNode, LatexMathNode, LatexGroupNode)
 
@@ -34,6 +34,8 @@ class LatexParser:
         # State attributes
         self.segments = []
         self.latex_content = ""
+        self._verb_map: dict[str, str] = {}
+        self._pipe_map: dict[str, str] = {}
 
     def parse(self, latex_content) -> list[tuple[str, str]]:
         """
@@ -60,12 +62,19 @@ class LatexParser:
         self._walk_text_nodes(nodelist)
         
         # Restore in reverse order (pipe commands first, then verb commands)
-        self._restore_pipe_commands(pipe_info)
-        self._restore_verb_commands(verb_info)
+        self._restore_pipe_commands()
+        self._restore_verb_commands()
         
         return self.segments
 
     # === PREPROCESSING METHODS ===
+    def _make_placeholder(self, tag: str) -> str:
+        """
+        Return a collision‑proof placeholder string such as
+        '<<VERB_9f56c1a379c84c7c8e27d120f2f6e5d9>>'.
+        Using UUIDs guarantees the token will never exist in real LaTeX source.
+        """
+        return f"<<{tag}_{uuid.uuid4().hex}>>"
     
     def _extract_verb_commands(self, text):
         """Extract \\verb and \\verb* commands to avoid parsing issues."""
@@ -74,12 +83,9 @@ class LatexParser:
         verb_pattern = r'\\verb\*?(.)(.*?)\1'
         
         def collect_verb(match):
-            verb_commands.append({
-                'original': match.group(0),
-                'start': match.start(),
-                'end': match.end()
-            })
-            return f"VERBCMD{len(verb_commands)-1}VERBCMD"
+            placeholder = self._make_placeholder("VERB")
+            self._verb_map[placeholder] = match.group(0)
+            return placeholder
         
         processed_text = re.sub(verb_pattern, collect_verb, text)
         
@@ -93,7 +99,7 @@ class LatexParser:
         pipe_commands = []
         
         # Pattern for commands with pipe delimiters (excluding verb which is handled separately)
-        pipe_pattern = r'\\([a-zA-Z]+)(\*?)\|([^|]*)\|'
+        pipe_pattern = r'\\([a-zA-Z]+)(\*?)\|([\s\S]*?)\|'
         
         def collect_pipe(match):
             command_name = match.group(1)
@@ -104,17 +110,11 @@ class LatexParser:
             if command_name.lower() == 'verb':
                 return match.group(0)
             
-            pipe_commands.append({
-                'original': match.group(0),
-                'command': command_name,
-                'star': star,
-                'content': content,
-                'start': match.start(),
-                'end': match.end()
-            })
-            return f"PIPECMD{len(pipe_commands)-1}PIPECMD"
+            placeholder = self._make_placeholder("PIPE")
+            self._pipe_map[placeholder] = match.group(0)
+            return placeholder
         
-        processed_text = re.sub(pipe_pattern, collect_pipe, text)
+        processed_text = re.sub(pipe_pattern, collect_pipe, text, flags=re.DOTALL)
         
         return {
             'processed_text': processed_text,
@@ -289,54 +289,44 @@ class LatexParser:
                 self._add_placeholder(node.latex_verbatim())
 
     # === POSTPROCESSING METHODS ===
-    
-    def _restore_pipe_commands(self, pipe_info):
-        """Restore pipe delimited commands in the parsed segments."""
-        for i, pipe_cmd in enumerate(pipe_info['pipe_commands']):
-            placeholder = f"PIPECMD{i}PIPECMD"
-            
-            for j, (seg_type, content) in enumerate(self.segments):
-                if placeholder in content:
-                    if content.strip() == placeholder:
-                        self.segments[j] = ('placeholder', pipe_cmd['original'])
-                    else:
-                        parts = content.split(placeholder)
-                        if len(parts) == 2:
-                            new_segments = []
-                            if parts[0]:
-                                new_segments.append(('text' if parts[0].strip() else 'placeholder', parts[0]))
-                            
-                            new_segments.append(('placeholder', pipe_cmd['original']))
-                            
-                            if parts[1]:
-                                new_segments.append(('text' if parts[1].strip() else 'placeholder', parts[1]))
-                            
-                            self.segments[j:j+1] = new_segments
-                            break
+    def _restore_pipe_commands(self):
+        """
+        Replace **every** placeholder instance, even if a segment contains the token
+        more than once.  Uses the lookup table built in `_extract_pipe_commands`.
+        """
+        self._generic_restore(self._pipe_map)    
 
-    def _restore_verb_commands(self, verb_info):
-        """Restore verb commands in the parsed segments."""
-        for i, verb_cmd in enumerate(verb_info['verb_commands']):
-            placeholder = f"VERBCMD{i}VERBCMD"
-            
-            for j, (seg_type, content) in enumerate(self.segments):
+    def _restore_verb_commands(self):
+        """Restore all `\verb` placeholders using the same generic helper."""
+        self._generic_restore(self._verb_map)
+
+    def _generic_restore(self, lookup: dict[str, str]) -> None:
+        """
+        Generic helper that replaces every placeholder found in *lookup* with its
+        original text, handling any number of occurrences inside a segment.
+        """
+        i = 0
+        while i < len(self.segments):
+            seg_type, content = self.segments[i]
+            made_changes = False
+            for placeholder, original in lookup.items():
                 if placeholder in content:
-                    if content.strip() == placeholder:
-                        self.segments[j] = ('placeholder', verb_cmd['original'])
-                    else:
-                        parts = content.split(placeholder)
-                        if len(parts) == 2:
-                            new_segments = []
-                            if parts[0]:
-                                new_segments.append(('text' if parts[0].strip() else 'placeholder', parts[0]))
-                            
-                            new_segments.append(('placeholder', verb_cmd['original']))
-                            
-                            if parts[1]:
-                                new_segments.append(('text' if parts[1].strip() else 'placeholder', parts[1]))
-                            
-                            self.segments[j:j+1] = new_segments
-                            break
+                    # Split *every* occurrence, not just the first two.
+                    parts = content.split(placeholder)
+                    new_segments = []
+                    for k, part in enumerate(parts):
+                        if part:
+                            new_segments.append(
+                                ('text' if part.strip() else 'placeholder', part)
+                            )
+                        if k < len(parts) - 1:
+                            new_segments.append(('placeholder', original))
+                    # Replace current segment with the expanded list
+                    self.segments[i:i+1] = new_segments
+                    made_changes = True
+                    break  # restart outer loop because list length changed
+            if not made_changes:
+                i += 1
 
 def parse_latex(latex_content) -> list[tuple[str, str]]:
     """High-level function to instantiate and use the LatexParser."""
