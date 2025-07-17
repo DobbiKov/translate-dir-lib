@@ -1,10 +1,7 @@
-from pprint import pprint
-from markdown_it import MarkdownIt
-
 from myst_parser.parsers.mdit import create_md_parser
 from markdown_it.renderer import RendererProtocol
-from markdown_it.utils import OptionsDict, OptionsType
-from typing import Callable, ClassVar, Sequence, MutableMapping, Any, TypeAlias
+from markdown_it.utils import OptionsDict
+from typing import Sequence, MutableMapping, Any, TypeAlias
 from markdown_it.token import Token
 from copy import deepcopy
 from myst_parser.config.main import MdParserConfig
@@ -22,7 +19,7 @@ def _collect_handlers(cls):
 
 def _handler(token_type_s: str | list[str]):
     def decorator(fn):
-        if type(token_type_s) == str:
+        if isinstance(token_type_s, str):
             fn._token_types = [token_type_s]
         else:
             fn._token_types = token_type_s
@@ -94,7 +91,7 @@ class CustomRenderer(RendererProtocol):
                     ('placeholder', '\n'),
                 ],  idx + 1
             case "{code}" | "{code-block}" | "{sourcecode}" | "{code-cell}":
-                lang = info
+                # lang = info
                 return [
                     ('placeholder', markup),
                     ('placeholder', table_type),
@@ -313,7 +310,6 @@ class CustomRenderer(RendererProtocol):
 
     @_handler("paragraph_open")
     def renderOpenParagraph(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
         return [], idx + 1
     @_handler("front_matter")
     def renderFrontMatter(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
@@ -325,11 +321,9 @@ class CustomRenderer(RendererProtocol):
         return [('placeholder', f"({token.content})=\n")], idx + 1
     @_handler("blockquote_open")
     def renderQuote(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
         return [('placeholder', "> ")], idx + 1
     @_handler("hr")
     def renderDelimiter(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
         return [('placeholder', "---\n")], idx + 1
 
     @_handler("myst_role")
@@ -507,7 +501,7 @@ def parse_myst(source: str) -> list[tuple[str, str]]:
             "fieldlist",
             "html_admonition",
             "html_image",
-            "linkify",
+            # "linkify",
             "replacements",
             "smartquotes",
             "substitution",

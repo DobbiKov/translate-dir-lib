@@ -44,11 +44,11 @@ def reconstruct_from_xml(translated_xml: str) -> str:
             try:
                 orig = element.get('original') # if the id isn't found in the PH's db, we get the source from the 'original' attribute
                 if orig is None:
-                    logging.warning(f"Original contents of the <PH> tag is not found!")
+                    logging.warning("Original contents of the <PH> tag is not found!")
                 else:
                     reconstructed_parts.append(orig)
-            except Exception as e:
-                logging.warning(f"Original contents of the <PH> tag is not found!")
+            except Exception:
+                logging.warning("Original contents of the <PH> tag is not found!")
         else:
             logging.warning(f"Unexpected tag <{element.tag}> found inside <TEXT>. It will be ignored.")
 

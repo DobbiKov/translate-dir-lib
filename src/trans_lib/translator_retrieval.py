@@ -1,12 +1,11 @@
 from dataclasses import dataclass
-import re
 from typing import Any, Callable, Coroutine
 from loguru import logger
 from trans_lib.helpers import calculate_checksum, extract_translated_from_response
 from pathlib import Path
 from trans_lib.enums import ChunkType, DocumentType, Language
 from trans_lib.translation_store.translation_store import TranslationStore, TranslationStoreCsv
-from trans_lib.translator import def_prompt_template, finalize_prompt, finalize_xml_prompt, translate_chunk_with_prompt, _prepare_prompt_for_language, _prepare_prompt_for_vocab_list, _prepare_prompt_for_content_type, _prepare_prompt_for_translation_example
+from trans_lib.translator import finalize_prompt, finalize_xml_prompt, _prepare_prompt_for_language, _prepare_prompt_for_vocab_list, _prepare_prompt_for_content_type, _prepare_prompt_for_translation_example
 from trans_lib.vocab_list import VocabList
 from trans_lib.xml_manipulator_mod.xml import reconstruct_from_xml
 from trans_lib.xml_manipulator_mod.mod import chunk_to_xml, code_to_xml
@@ -96,16 +95,16 @@ def _xml_prompt_builder(doc_type: DocumentType, chunk_type: ChunkType):
         xml_chunk = ""
         vocab = params.vocab
 
-        lang = None
+        # lang = None
         if chunk_type == ChunkType.Code:
-            if type(params) is CodeMeta:
+            if isinstance(params, CodeMeta):
                 print("da")
                 xml_chunk, _ = code_to_xml(chunk, params.prog_lang)
         else:
             xml_chunk = chunk_to_xml(chunk, chunk_type)
 
         prompt = xml_translation_prompt
-        if type(params) == WithExampleMeta and chunk_type != ChunkType.Code:
+        if isinstance(params, WithExampleMeta) and chunk_type != ChunkType.Code:
             prompt = xml_with_previous_translation_prompt
             ex_src = chunk_to_xml(params.ex_src, chunk_type)
             ex_tgt = chunk_to_xml(params.ex_tgt, chunk_type)

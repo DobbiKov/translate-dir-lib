@@ -1,12 +1,10 @@
 import os
-from os.path import isdir
 import shutil
 from pathlib import Path
 from typing import List, Optional
 
 from loguru import logger
 
-from trans_lib import diff
 from trans_lib.doc_corrector import correct_file_translation
 from trans_lib.translation_store.translation_store import TranslationStoreCsv
 from trans_lib.vocab_list import VocabList
