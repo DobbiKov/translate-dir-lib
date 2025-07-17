@@ -128,17 +128,30 @@ def _xml_prompt_builder(doc_type: DocumentType, chunk_type: ChunkType):
 
     return _builder
 
+def _identity_prompt_builder():
+    def _builder(params: Meta):
+        return params.chunk, False
+
+    return _builder
+
 async def _call_model_func(text: str) -> str:
-    print("=======================")
-    print("prompt:")
-    print(text)
+    # print("=======================")
+    # print("prompt:")
+    # print(text)
     return await _ask_gemini_model(text, model_name="gemini-2.0-flash")
+
+async def _dont_call_model(text: str) -> str:
+    print("do nothing")
+    print("get this one")
+    print(text)
+    print("=====")
+    return text
 
 # ---- Strategies map ------------------------------------------------ #
 LATEX_STRATEGY   = TranslateStrategy(_xml_prompt_builder(DocumentType.LaTeX, ChunkType.LaTeX), _call_model_func, lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
 MYST_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.JupyterNotebook, ChunkType.Myst), _call_model_func,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
 PLAIN_STRATEGY   = TranslateStrategy(_plain_prompt_builder(prompt4), _call_model_func,                    extract_translated_from_response)
-CODE_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.JupyterNotebook, ChunkType.Code), _call_model_func,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
+CODE_STRATEGY    = TranslateStrategy(_identity_prompt_builder(), _dont_call_model,  lambda r: r) 
 MD_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.Markdown, ChunkType.Myst), _call_model_func,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
 
 STRATEGY_MAP: dict[tuple[DocumentType, ChunkType], TranslateStrategy] = {
