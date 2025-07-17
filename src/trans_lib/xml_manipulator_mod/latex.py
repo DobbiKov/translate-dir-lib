@@ -1,4 +1,5 @@
-import re, uuid
+import re
+import uuid
 from pylatexenc.latexwalker import (LatexCommentNode, LatexWalker, LatexCharsNode, LatexMacroNode,
                                     LatexEnvironmentNode, LatexMathNode, LatexGroupNode)
 
@@ -112,8 +113,8 @@ class LatexParser:
         
         def collect_pipe(match):
             command_name = match.group(1)
-            star = match.group(2)
-            content = match.group(3)
+            # star = match.group(2)
+            # content = match.group(3)
             
             # Skip verb commands as they're handled separately
             if command_name.lower() == 'verb':

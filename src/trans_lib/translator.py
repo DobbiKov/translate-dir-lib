@@ -3,7 +3,6 @@ import os
 
 from google import genai
 from google.genai import types as g_types
-from loguru import logger
 
 from trans_lib.vocab_list import VocabList
 
