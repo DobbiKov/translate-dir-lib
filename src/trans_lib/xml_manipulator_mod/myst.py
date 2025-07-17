@@ -269,7 +269,7 @@ class CustomRenderer(RendererProtocol):
          
     @_handler(["heading_close", "paragraph_close", "softbreak", "blockquote_close", "hardbreak", "list_item_close"])
     def renderLineBrake(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        return [('placeholder', "\n")], idx + 1
+        return [('placeholder', "\n\n")], idx + 1
 
     @_handler(["em_open", "em_close"])
     def renderEmphasize(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
