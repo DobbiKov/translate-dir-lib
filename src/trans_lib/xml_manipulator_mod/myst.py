@@ -507,7 +507,7 @@ def parse_myst(source: str) -> list[tuple[str, str]]:
             "fieldlist",
             "html_admonition",
             "html_image",
-            "linkify",
+            # "linkify",
             "replacements",
             "smartquotes",
             "substitution",
