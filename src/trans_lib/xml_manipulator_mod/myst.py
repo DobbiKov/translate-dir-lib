@@ -267,8 +267,12 @@ class CustomRenderer(RendererProtocol):
             token_markup = "##"
         return [('placeholder', token_markup + " ")], idx + 1
          
-    @_handler(["heading_close", "paragraph_close", "softbreak", "blockquote_close", "hardbreak", "list_item_close"])
+    @_handler(["heading_close", "blockquote_close", "list_item_close"])
     def renderLineBrake(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        return [('placeholder', "\n")], idx + 1
+
+    @_handler(["paragraph_close", "softbreak", "hardbreak"])
+    def renderBigLineBrake(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         return [('placeholder', "\n\n")], idx + 1
 
     @_handler(["em_open", "em_close"])
