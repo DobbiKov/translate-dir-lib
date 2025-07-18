@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from typing import Any, Callable, Coroutine
+import time
+from typing import Callable
 from loguru import logger
 from trans_lib.helpers import calculate_checksum, extract_translated_from_response
 from pathlib import Path
@@ -12,6 +13,7 @@ from trans_lib.xml_manipulator_mod.mod import chunk_to_xml, code_to_xml
 from trans_lib.prompts import xml_translation_prompt
 from trans_lib.translator import _ask_gemini_model
 from trans_lib.prompts import prompt4, xml_with_previous_translation_prompt
+from unified_model_caller.core import LLMCaller
 
 
 def is_whitespace(text: str) -> bool:
@@ -55,19 +57,22 @@ class TranslateStrategy:
     def __init__(
         self,
         prompt_builder: Callable[[Meta], tuple[str, bool]],
-        call_model: Callable[[str], Coroutine[Any, Any, str]],
+        call_model: Callable[[str], str],
         postprocess: Callable[[str], str],
     ) -> None:
         self._prompt_builder = prompt_builder
         self._call_model = call_model
         self._post = postprocess
 
+    def set_call_model(self, call_mode: Callable[[str], str]) -> None:
+        self._call_model = call_mode
+
     async def run(
         self,
         params: Meta
     ) -> str:
         prompt, is_xml = self._prompt_builder(params)
-        raw = await self._call_model(prompt)
+        raw = self._call_model(prompt)
         return self._post(raw)
 
 
@@ -140,7 +145,7 @@ async def _call_model_func(text: str) -> str:
     # print(text)
     return await _ask_gemini_model(text, model_name="gemini-2.0-flash")
 
-async def _dont_call_model(text: str) -> str:
+def _dont_call_model(text: str) -> str:
     print("do nothing")
     print("get this one")
     print(text)
@@ -148,11 +153,11 @@ async def _dont_call_model(text: str) -> str:
     return text
 
 # ---- Strategies map ------------------------------------------------ #
-LATEX_STRATEGY   = TranslateStrategy(_xml_prompt_builder(DocumentType.LaTeX, ChunkType.LaTeX), _call_model_func, lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
-MYST_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.JupyterNotebook, ChunkType.Myst), _call_model_func,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
-PLAIN_STRATEGY   = TranslateStrategy(_plain_prompt_builder(prompt4), _call_model_func,                    extract_translated_from_response)
+LATEX_STRATEGY   = TranslateStrategy(_xml_prompt_builder(DocumentType.LaTeX, ChunkType.LaTeX), _dont_call_model, lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
+MYST_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.JupyterNotebook, ChunkType.Myst), _dont_call_model,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
+PLAIN_STRATEGY   = TranslateStrategy(_plain_prompt_builder(prompt4), _dont_call_model,                    extract_translated_from_response)
 CODE_STRATEGY    = TranslateStrategy(_identity_prompt_builder(), _dont_call_model,  lambda r: r) 
-MD_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.Markdown, ChunkType.Myst), _call_model_func,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
+MD_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.Markdown, ChunkType.Myst), _dont_call_model,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
 
 STRATEGY_MAP: dict[tuple[DocumentType, ChunkType], TranslateStrategy] = {
     (DocumentType.LaTeX,            ChunkType.LaTeX): LATEX_STRATEGY,
@@ -166,8 +171,9 @@ STRATEGY_MAP: dict[tuple[DocumentType, ChunkType], TranslateStrategy] = {
 class ChunkTranslator:
     """Facade: one method replaces legacy free‑function."""
 
-    def __init__(self, store: TranslationStore):
+    def __init__(self, store: TranslationStore, model_caller: LLMCaller | None = None):
         self._store = store
+        self._caller: LLMCaller | None = model_caller
 
     async def translate_or_fetch(self, meta: Meta) -> str:
         chunk = meta.chunk
@@ -181,6 +187,10 @@ class ChunkTranslator:
             return cached
 
         strategy = STRATEGY_MAP[(meta.doc_type, meta.chunk_type)]
+        caller = self._caller
+        if caller is not None:
+            strategy.set_call_model(lambda t: caller.call(t))
+
         example = self._store.get_best_pair_example_from_db(meta.src_lang, meta.tgt_lang, meta.chunk)
         if example is not None:
             src_ex, tgt_ex, score = example
@@ -196,6 +206,7 @@ class ChunkTranslator:
                         tgt_ex
                         )
         translated = await strategy.run(meta)
+        time.sleep(5)
         tgt_checksum = calculate_checksum(translated)
 
         self._store.persist_pair(
@@ -207,6 +218,10 @@ class ChunkTranslator:
             translated,
         )
         return translated
+
+def build_translator_with_model(root_path: Path, caller: LLMCaller) -> ChunkTranslator:
+    """Constructs default translation factory with a particular model"""
+    return ChunkTranslator(TranslationStoreCsv(root_path), caller)
 
 def build_default_translator(root_path: Path) -> ChunkTranslator:
     """Constructs default translation factory"""
