@@ -16,10 +16,14 @@ dependencies = [
     "pydantic>=2.11.5",
     "pylatexenc>=2.10",
     "tree-sitter-language-pack>=0.9.0",
+    "unified-model-caller",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+unified-model-caller = { git = "https://github.com/DobbiKov/unified-model-caller.git" }
 
 [tool.setuptools] 
 py-modules = ["trans_lib"]

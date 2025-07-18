@@ -18,14 +18,11 @@ import requests
 # TODO:
 # Configure the API key
 try:
-    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-    if not GOOGLE_API_KEY:
-        print("Warning: GOOGLE_API_KEY environment variable not set. Translation will fail.")
-        # raise EnvironmentError("GOOGLE_API_KEY environment variable must be set for translation.")
+    LLM_API_KEY = os.getenv("LLM_API_KEY")
+    if not LLM_API_KEY:
+        print("Warning: LLM_API_KEY environment variable not set. Translation will fail.")
 except Exception as e:
-    print(f"Error configuring Google GenAI: {e}")
-    # This might happen if os.getenv itself fails or configure has issues not related to API key.
-
+    print(f"Error configuring LLM api key: {e}")
 
 
 def get_default_prompt_text() -> str:

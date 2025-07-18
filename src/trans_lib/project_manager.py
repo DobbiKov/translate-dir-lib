@@ -20,7 +20,7 @@ from .doc_translator import translate_file_to_file_async # Using the async versi
 from .helpers import find_dir_upwards
 from .constants import CONF_DIR, CONFIG_FILENAME
 from .errors import (
-    CorrectTranslationError, CorrectingTranslationError, InitProjectError, InvalidPathError, NoSourceFileError, ProjectAlreadyInitializedError, WriteConfigError as ConfigWriteError,
+    CorrectTranslationError, CorrectingTranslationError, InitProjectError, InvalidPathError, NoSourceFileError, ProjectAlreadyInitializedError, SetLLMServiceError, WriteConfigError as ConfigWriteError,
     LoadProjectError, NoConfigFoundError, LoadConfigError as ConfigLoadError,
     SetSourceDirError, DirectoryDoesNotExistError, NotADirectoryError as PathNotADirectoryError,
     AnalyzeDirError, LangAlreadyInProjectError,
@@ -254,6 +254,14 @@ class Project:
             raise GetTranslatableFilesError(NoSourceLanguageError("No source language set, cannot get translatable files."))
         return self.config.get_translatable_files()
 
+    def set_llm_service_and_model(self, service: str, model: str) -> None:
+        """Sets the service and the model that will be used for translation."""
+        try:
+            self.config.set_llm_service_with_model(service, model)
+            self.save_config()
+        except Exception as e: # Other errors from build_tree or Pydantic
+            raise SetLLMServiceError(f"Error while setting llm service: {e}")
+
     def _find_correspondent_translatable_file(self, target_path: Path) -> Path | None:
         """
         Returns a correspondent source language translatable file for the given translated one or None
@@ -349,6 +357,11 @@ class Project:
 
         self._correct_translation_file(file_path, target_lang)
 
+    def get_llm_service(self) -> str:
+        return self.config.get_llm_service()
+    def get_llm_model(self) -> str:
+        return self.config.get_llm_model()
+
     async def translate_single_file(self, file_path_str: str, target_lang: Language, vocab_list: VocabList | None) -> None:
         """Translates a single specified file to the target language."""
         try:
@@ -388,7 +401,7 @@ class Project:
         
         print(f"Translating {file_path.name} to {target_lang.value} -> {target_file_path}...")
         try:
-            await translate_file_to_file_async(self.root_path, file_path, source_language, target_file_path, target_lang, vocab_list)
+            await translate_file_to_file_async(self.root_path, file_path, source_language, target_file_path, target_lang, vocab_list, self.get_llm_service(), self.get_llm_model())
         except TranslationProcessError as e:
             raise TranslateFileError(f"Translation process failed for {file_path.name}: {e}", e)
         except IOError as e: # From file writing in translate_file_to_file_async
