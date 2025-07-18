@@ -23,8 +23,6 @@ try:
         print("Warning: LLM_API_KEY environment variable not set. Translation will fail.")
 except Exception as e:
     print(f"Error configuring LLM api key: {e}")
-    # This might happen if os.getenv itself fails or configure has issues not related to API key.
-
 
 
 def get_default_prompt_text() -> str:
