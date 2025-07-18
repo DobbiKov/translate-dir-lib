@@ -357,6 +357,11 @@ class Project:
 
         self._correct_translation_file(file_path, target_lang)
 
+    def get_llm_service(self) -> str:
+        return self.config.get_llm_service()
+    def get_llm_model(self) -> str:
+        return self.config.get_llm_model()
+
     async def translate_single_file(self, file_path_str: str, target_lang: Language, vocab_list: VocabList | None) -> None:
         """Translates a single specified file to the target language."""
         try:
@@ -396,7 +401,7 @@ class Project:
         
         print(f"Translating {file_path.name} to {target_lang.value} -> {target_file_path}...")
         try:
-            await translate_file_to_file_async(self.root_path, file_path, source_language, target_file_path, target_lang, vocab_list)
+            await translate_file_to_file_async(self.root_path, file_path, source_language, target_file_path, target_lang, vocab_list, self.get_llm_service(), self.get_llm_model())
         except TranslationProcessError as e:
             raise TranslateFileError(f"Translation process failed for {file_path.name}: {e}", e)
         except IOError as e: # From file writing in translate_file_to_file_async
