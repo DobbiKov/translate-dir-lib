@@ -47,6 +47,9 @@ class NoConfigFoundError(LoadProjectError):
     """No configuration file found for the project."""
     pass
 
+class SetLLMServiceError(ProjectError):
+    """Errors when setting the llm service."""
+    pass
 class SetSourceDirError(ProjectError):
     """Errors when setting the source directory."""
     pass

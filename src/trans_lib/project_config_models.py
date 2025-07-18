@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import List, Optional, Callable
+from unified_model_caller import enums as unif_enums
 
 from pydantic import BaseModel, Field
 from loguru import logger
@@ -76,6 +77,9 @@ class ProjectConfig(BaseModel):
     root_path: Path = Path()
     translatable_files: list[Path] = []
 
+    llm_service: str = "google"
+    llm_model: str = "gemini-2.0-flash"
+
     @classmethod
     def new(cls, project_name: str, root_path: Path) -> ProjectConfig:
         return cls(name=project_name, lang_dirs=[], src_dir=None, root_path=root_path, translatable_files=[])
@@ -96,6 +100,12 @@ class ProjectConfig(BaseModel):
         if self.src_dir:
             return self.src_dir.get_path()
         return None
+
+    def get_llm_service(self) -> str:
+        return self.llm_service
+
+    def get_llm_model(self) -> str:
+        return self.llm_model
 
     def get_target_dir_path_by_lang(self, lang: Language) -> Optional[Path]:
         for lang_dir_obj in self.lang_dirs:
@@ -170,6 +180,12 @@ class ProjectConfig(BaseModel):
             if self._find_file_and_apply(sub_dir_model, path, func):
                 return True
         return False
+
+    def set_llm_service_with_model(self, service: str, model: str) -> None:
+        """Set's LLM service and model"""
+        corr_service = unif_enums.Service.from_str(service)
+        self.llm_service = service
+        self.llm_model = model
 
     def make_file_translatable(self, path: Path, translatable: bool) -> None:
         """Marks a file as translatable or untranslatable."""

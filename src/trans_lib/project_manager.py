@@ -20,7 +20,7 @@ from .doc_translator import translate_file_to_file_async # Using the async versi
 from .helpers import find_dir_upwards
 from .constants import CONF_DIR, CONFIG_FILENAME
 from .errors import (
-    CorrectTranslationError, CorrectingTranslationError, InitProjectError, InvalidPathError, NoSourceFileError, ProjectAlreadyInitializedError, WriteConfigError as ConfigWriteError,
+    CorrectTranslationError, CorrectingTranslationError, InitProjectError, InvalidPathError, NoSourceFileError, ProjectAlreadyInitializedError, SetLLMServiceError, WriteConfigError as ConfigWriteError,
     LoadProjectError, NoConfigFoundError, LoadConfigError as ConfigLoadError,
     SetSourceDirError, DirectoryDoesNotExistError, NotADirectoryError as PathNotADirectoryError,
     AnalyzeDirError, LangAlreadyInProjectError,
@@ -253,6 +253,14 @@ class Project:
         if not self.config.src_dir:
             raise GetTranslatableFilesError(NoSourceLanguageError("No source language set, cannot get translatable files."))
         return self.config.get_translatable_files()
+
+    def set_llm_service_and_model(self, service: str, model: str) -> None:
+        """Sets the service and the model that will be used for translation."""
+        try:
+            self.config.set_llm_service_with_model(service, model)
+            self.save_config()
+        except Exception as e: # Other errors from build_tree or Pydantic
+            raise SetLLMServiceError(f"Error while setting llm service: {e}")
 
     def _find_correspondent_translatable_file(self, target_path: Path) -> Path | None:
         """
