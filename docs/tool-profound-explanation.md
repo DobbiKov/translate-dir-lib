@@ -71,9 +71,9 @@ analysis_translation_proj/
 │   │   └── ...
 │   └── bib/
 │       └── bib.tex
-├── .trans_git/
-    ├── trans_conf.json
-    └── trans_git_db/
+├── .translate_dir/
+    ├── config.json
+    └── translate_db/
         └── ...
 ```
 
@@ -96,14 +96,14 @@ analysis_translation_proj/
 │   │   └── ...
 │   └── bib/
 │       └── bib.tex
-├── .trans_git/
-    ├── trans_conf.json
-    └── trans_git_db/
+├── .translate_dir/
+    ├── config.json
+    └── translate_db/
         └── ...
 ```
 
 ## Project initialization and required settings
-When you initialize a project the `.trans_git` directory is created that stores `trans_conf.json` config. This config stores:
+When you initialize a project the `.translate_dir` directory is created that stores `config.json` config. This config stores:
 - project's name
 - source and target languages
 - directories that correspond to the source and target languages
@@ -202,11 +202,11 @@ track changes and edits in the source project and the translated versions of
 it.
 
 ### Structure
-The database is presented in the `trans_git_db` directory that is stored in the
+The database is presented in the `translate_db` directory that is stored in the
 root directory of the project. This folder has the next structure:
 
 ```
-trans_git_db/
+translate_db/
 ├── correspondence_db.csv
 ├── <lang_1>/
 │   └── ...
@@ -226,7 +226,7 @@ the storage of the chunk contents, source retrieval and updates comparison.
 
 Example of such structure:
 ```
-trans_git_db/
+translate_db/
 ├── English/
 │   ├── <checksum1_en>
 │   └── <checksum2_en>
