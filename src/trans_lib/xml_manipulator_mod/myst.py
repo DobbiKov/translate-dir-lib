@@ -365,7 +365,11 @@ class CustomRenderer(RendererProtocol):
             ('text', token.content),
             ('placeholder', '\n')
         ], idx + 1
-        
+
+    @_handler("ordered_list_open")
+    def renderOrderedList(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        return self._renderOrderedList(tokens, idx)
+    
     @_handler("bullet_list_open")
     def renderBulletList(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         return self._renderBulletList(tokens, idx)
@@ -378,16 +382,51 @@ class CustomRenderer(RendererProtocol):
             ('placeholder', token.content)
         ], idx + 1
         
-    def _renderBulletList(self, tokens: Sequence[Token], idx: int, level: int = 0) -> tuple[Chunk, int]:
+
+    def _renderOrderedList(self, tokens: Sequence[Token], idx: int, level: int = 0) -> tuple[Chunk, int]:
         res = []
         idx += 1
         while idx < len(tokens):
             token = tokens[idx]
+            if token.type == "ordered_list_close":
+                idx += 1
+                if level == 0:
+                    res = res + [('placeholder', '\n\n')]
+                break
+            elif token.type == "ordered_list_open":
+                self.process_list = True
+                res = res + [('placeholder', '\n')]
+                temp_res, new_idx = self._renderOrderedList(tokens, idx, level+1)
+                res = res + temp_res
+                idx = new_idx
+            elif token.type == "list_item_open":
+                self.process_list = True
+                cont = ("\t"*level) + f"{token.info}. "
+                res.append(
+                    ('placeholder', cont)
+                )
+                idx += 1
+            else:
+                temp_res, new_idx = self.renderToken(tokens, idx)
+                res = res + temp_res
+                idx = new_idx
+        self.process_list = False
+        return res, idx
+    
+    def _renderBulletList(self, tokens: Sequence[Token], idx: int, level: int = 0) -> tuple[Chunk, int]:
+        res = []
+        idx += 1
+        self.process_list = True
+        while idx < len(tokens):
+            token = tokens[idx]
             if token.type == "bullet_list_close":
                 idx += 1
+                if level == 0:
+                    res = res + [('placeholder', '\n\n')]
                 break
             elif token.type == "bullet_list_open":
                 self.process_list = True
+                res = res + [('placeholder', '\n')]
                 temp_res, new_idx = self._renderBulletList(tokens, idx, level+1)
                 res = res + temp_res
                 idx = new_idx
