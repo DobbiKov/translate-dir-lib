@@ -30,6 +30,7 @@ def _handler(token_type_s: str | list[str]):
 class CustomRenderer(RendererProtocol):
     __output__ = "xml"
     _handlers = {}
+    process_list = False
 
     # for content: cut the fields, and then parse content properly: for math and code
 
@@ -273,7 +274,9 @@ class CustomRenderer(RendererProtocol):
 
     @_handler(["paragraph_close", "softbreak", "hardbreak"])
     def renderBigLineBrake(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        return [('placeholder', "\n\n")], idx + 1
+        if not self.process_list:
+            return [('placeholder', "\n\n")], idx + 1
+        return [('placeholder', "")], idx + 1
 
     @_handler(["em_open", "em_close"])
     def renderEmphasize(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
@@ -378,10 +381,12 @@ class CustomRenderer(RendererProtocol):
                 idx += 1
                 break
             elif token.type == "bullet_list_open":
+                self.process_list = True
                 temp_res, new_idx = self._renderBulletList(tokens, idx, level+1)
                 res = res + temp_res
                 idx = new_idx
             elif token.type == "list_item_open":
+                self.process_list = True
                 cont = ("\t"*level) + "- "
                 res.append(
                     ('placeholder', cont)
@@ -391,6 +396,7 @@ class CustomRenderer(RendererProtocol):
                 temp_res, new_idx = self.renderToken(tokens, idx)
                 res = res + temp_res
                 idx = new_idx
+        self.process_list = False
         return res, idx
                 
                 
