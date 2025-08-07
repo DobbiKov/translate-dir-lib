@@ -276,7 +276,7 @@ class CustomRenderer(RendererProtocol):
     def renderBigLineBrake(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         if not self.process_list:
             return [('placeholder', "\n\n")], idx + 1
-        return [('placeholder', "")], idx + 1
+        return [], idx + 1
 
     @_handler(["em_open", "em_close"])
     def renderEmphasize(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
