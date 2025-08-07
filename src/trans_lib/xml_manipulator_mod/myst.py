@@ -268,8 +268,14 @@ class CustomRenderer(RendererProtocol):
             token_markup = "##"
         return [('placeholder', token_markup + " ")], idx + 1
          
-    @_handler(["heading_close", "blockquote_close", "list_item_close"])
+    @_handler(["heading_close", "blockquote_close"])
     def renderLineBrake(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        return [('placeholder', "\n")], idx + 1
+    
+    @_handler(["list_item_close"])
+    def renderListItemClose(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        if len(tokens) > idx+1 and (tokens[idx+1].type == "bullet_list_close" or tokens[idx+1].type == "ordered_list_close"):
+            return [], idx + 1
         return [('placeholder', "\n")], idx + 1
 
     @_handler(["paragraph_close", "softbreak", "hardbreak"])
