@@ -146,10 +146,6 @@ async def _call_model_func(text: str) -> str:
     return await _ask_gemini_model(text, model_name="gemini-2.0-flash")
 
 def _dont_call_model(text: str) -> str:
-    print("do nothing")
-    print("get this one")
-    print(text)
-    print("=====")
     return text
 
 # ---- Strategies map ------------------------------------------------ #
@@ -188,7 +184,7 @@ class ChunkTranslator:
 
         strategy = STRATEGY_MAP[(meta.doc_type, meta.chunk_type)]
         caller = self._caller
-        if caller is not None:
+        if caller is not None and strategy != CODE_STRATEGY: # we don't want to call model on code, we leave it unchanged
             strategy.set_call_model(lambda t: caller.call(t))
 
         example = self._store.get_best_pair_example_from_db(meta.src_lang, meta.tgt_lang, meta.chunk)
