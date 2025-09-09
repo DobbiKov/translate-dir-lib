@@ -183,7 +183,7 @@ class ChunkTranslator:
         src_checksum = calculate_checksum(chunk)
         cached = self._store.lookup(src_checksum, meta.src_lang, meta.tgt_lang)
         if cached is not None:
-            logger.debug("cache hit (%s → %s)", meta.src_lang, meta.tgt_lang)
+            logger.debug(f"cache hit ({meta.src_lang} -> {meta.tgt_lang})")
             return cached
 
         strategy = STRATEGY_MAP[(meta.doc_type, meta.chunk_type)]
