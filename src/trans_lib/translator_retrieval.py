@@ -219,10 +219,6 @@ class ChunkTranslator:
         )
         return translated
 
-def build_translator_with_model(root_path: Path, caller: LLMCaller) -> ChunkTranslator:
+def build_translator_with_model(root_path: Path, caller: LLMCaller | None = None) -> ChunkTranslator:
     """Constructs default translation factory with a particular model"""
     return ChunkTranslator(TranslationStoreCsv(root_path), caller)
-
-def build_default_translator(root_path: Path) -> ChunkTranslator:
-    """Constructs default translation factory"""
-    return ChunkTranslator(TranslationStoreCsv(root_path))

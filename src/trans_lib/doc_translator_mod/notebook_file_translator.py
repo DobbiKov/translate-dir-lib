@@ -2,7 +2,7 @@ from unified_model_caller.core import LLMCaller
 from ..prompts import prompt_jupyter_code, prompt_jupyter_md 
 from pathlib import Path
 
-from trans_lib.translator_retrieval import CodeMeta, Meta, build_default_translator, build_translator_with_model
+from trans_lib.translator_retrieval import CodeMeta, Meta, build_translator_with_model
 from trans_lib.vocab_list import VocabList
 from ..enums import ChunkType, DocumentType, Language
 from ..helpers import calculate_checksum

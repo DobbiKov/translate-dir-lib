@@ -6,7 +6,7 @@ from unified_model_caller.core import LLMCaller
 from trans_lib.doc_translator_mod.myst_chunker import split_myst_document_into_chunks
 from trans_lib.enums import ChunkType, DocumentType, Language
 from trans_lib.helpers import calculate_checksum
-from trans_lib.translator_retrieval import Meta, build_default_translator, build_translator_with_model
+from trans_lib.translator_retrieval import Meta, build_translator_with_model
 from trans_lib.vocab_list import VocabList
 
 
