@@ -179,7 +179,7 @@ class ChunkTranslator:
         src_checksum = calculate_checksum(chunk)
         cached = self._store.lookup(src_checksum, meta.src_lang, meta.tgt_lang)
         if cached is not None:
-            logger.debug("cache hit (%s → %s)", meta.src_lang, meta.tgt_lang)
+            logger.debug(f"cache hit ({meta.src_lang} -> {meta.tgt_lang})")
             return cached
 
         strategy = STRATEGY_MAP[(meta.doc_type, meta.chunk_type)]
@@ -215,10 +215,6 @@ class ChunkTranslator:
         )
         return translated
 
-def build_translator_with_model(root_path: Path, caller: LLMCaller) -> ChunkTranslator:
+def build_translator_with_model(root_path: Path, caller: LLMCaller | None = None) -> ChunkTranslator:
     """Constructs default translation factory with a particular model"""
     return ChunkTranslator(TranslationStoreCsv(root_path), caller)
-
-def build_default_translator(root_path: Path) -> ChunkTranslator:
-    """Constructs default translation factory"""
-    return ChunkTranslator(TranslationStoreCsv(root_path))
