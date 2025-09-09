@@ -23,11 +23,11 @@ async def translate_jupyter_cell_async(root_path: Path, cell: dict, source_langu
     cell["metadata"].setdefault("tags", [])
     cell["metadata"]["tags"].append("needs_review")
     cell["metadata"]["src_checksum"] = checksum
-    match cell_type:
-        case "code":
-            cell["source"] = await translate_code_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller)
-        case _:
-            cell["source"] = await translate_markdown_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller)
+
+    if cell_type == "code":
+        cell["source"] = await translate_code_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller)
+    else:
+        cell["source"] = await translate_markdown_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller)
 
     return cell
 
