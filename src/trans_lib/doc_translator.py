@@ -33,7 +33,7 @@ async def translate_file_to_file_async(
     try:
         llm_caller = LLMCaller(llm_service, llm_model, LLM_API_KEY or "")
         if doc_type == DocumentType.JupyterNotebook:
-            logger.trace("translate jupyter")
+            logger.debug("translate jupyter")
             await translate_notebook_async(root_path, source_path, source_language, target_path, target_language, vocab_list, llm_caller)
         elif doc_type == DocumentType.Markdown:
             logger.debug("translate markdown")
@@ -42,6 +42,7 @@ async def translate_file_to_file_async(
             logger.trace("translate latex")
             await latex_file_translator.translate_file_async(root_path, source_path, source_language, target_path, target_language, vocab_list, llm_caller)
         else: # any other type
+            logger.debug("other type? lol")
             translated_content = await translate_file_async(source_path, target_language, vocab_list)
             target_path.parent.mkdir(parents=True, exist_ok=True)
             target_path.write_text(translated_content, encoding="utf-8")
