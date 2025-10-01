@@ -1,12 +1,15 @@
 # Translate directory library
+
 A library to manage the translation text writing projects (e.g: LaTeX,
 Markdown, Jupyter, MyST, Typst). The library is aimed to simplify and automate
 the translation process and compiling of the translated version of the documents.
 
-**Important**
+## **Important**
+
 > The library is still in an early phase of development and may have bugs and unimplemented features
 
 ## Features
+
 - [x] Project creation
 - [x] Source language and the source folder to translate setting
 - [x] Target language addition
@@ -18,13 +21,16 @@ the translation process and compiling of the translated version of the documents
 The profound explanation of the logic and algorithms of the tool can be found [here](./docs/tool-profound-explanation.md)
 
 ## Installation
+
 ### For in-project library usage
+
 1. Clone the repo: `git clone https://github.com/DobbiKov/translate-dir-lib`
 2. Enter to your project where you want to use this library (`cd <your_project_path>`)
 3. Install the library as a dependency using `pip`: `pip install <path_to_the_library_directory>`
 4. Enjoy!
 
 ### For the library development and contribution uses
+
 1. Ensure you have [uv](https://docs.astral.sh/uv/#__tabbed_1_1) tool installed
    (visit their site for the installation guide)
 2. Clone the repo: `git clone https://github.com/DobbiKov/translate-dir-lib`
@@ -37,11 +43,13 @@ The profound explanation of the logic and algorithms of the tool can be found [h
 The documentation for the library can be found [here](./docs/main.md)
 
 ## ToDo
+
 - [ ] Fix paragraph and list handling in MyST parsing.
 
 ## 📚 Citation
 
 If you use this software in your research or writing, please cite it as follows:
+
 ```bib
 @software{korotenko-sci-trans-git,
     author = {Yehor Korotenko},
@@ -54,8 +62,8 @@ If you use this software in your research or writing, please cite it as follows:
 }
 ```
 
+## Contributing
 
-## Contributing 
 The suggestions and pull requests are welcome. Visit the issues pages as well
 as the project's [main page](https://github.com/DobbiKov/sci-trans-git) and the
 [shared document](https://codimd.math.cnrs.fr/sUW9PQ1tTLWcR98UjLHLpw) in order
