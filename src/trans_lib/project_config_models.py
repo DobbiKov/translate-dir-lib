@@ -201,6 +201,7 @@ class ProjectConfig(BaseModel):
             if resolved_path not in self.translatable_files:
                 raise AddTranslatableFileError("This file is not marked as translatable!")
             self.translatable_files.remove(resolved_path)
+            return  # Exit early after removal - don't continue to add logic
         
 
         src_dir_path = src_dir.get_path().resolve()
