@@ -476,13 +476,10 @@ You are tasked with translating scientific text from [SOURCE_LANGUAGE] to [TARGE
 The document is composed of <TEXT> elements that contain the full translatable content (sentences or paragraphs), interleaved with <PH> tags for non-translatable content such as [CONTENT_TYPE].
 Instructions:
     - Translate only the content inside <TEXT> tags, excluding anything inside <PH> tags.
-    - Do not remove, modify any <PH/> tags or their attributes.
-    - Use the original attribute of each <PH/> tag to understand the context and grammar. This will help you make correct translation decisions (e.g., for plurality, case, or syntax), but you must not change or translate the contents of the <PH> tags themselves.
+    - Do not remove, modify any <PH> tags or their attributes.
+    - Use the text of each <PH> tag to understand the context and grammar. This will help you make correct translation decisions (e.g., for plurality, case, or syntax), but you must not change or translate the contents of the <PH> tags themselves.
     - Treat each <TEXT> block as a complete sentence or paragraph. You may reorder words, adjust structure, and apply natural grammar in the target language — as long as all <PH> tags remain in place and unchanged.
     - Your response must contain only the translated XML — return the modified <TEXT> block with embedded <PH> tags and nothing else (no explanations, no markdown, no prefix/suffix text) in the <output> tag the output format will be provided below.
-    - All <PH> tags must be self-closing and written in the form: 
-        <PH id="..." original="..."/>
-    - Do not produce </PH> closing tags, and do not place content inside <PH> elements. Any other structure is invalid and will break XML parsing.
     - If the provided chunk doesn't contain any <PH> tags, you simply translate the text inside the <TEXT> tag and return it in the initial format.
         Example (Spanish to Ukrainian):
             Input:
@@ -511,7 +508,7 @@ Output Format:
 <output>
 <document>
 <TEXT>
-  ...translated text and inline <PH id="..." original="..."/> tags (if such presented in the input)...
+  ...translated text and inline <PH id="...">...</PH> tags (if such presented in the input)...
 </TEXT>
 </document>
 </output>
@@ -540,19 +537,16 @@ You are provided with:
 
 ### Rules:
 - Translate or modify **only the parts that changed** in the new source.
-- Do **not modify, remove, or reorder** any <PH/> tags.
-- Use the `original` attribute of each <PH/> tag for understanding grammar context (e.g. case, gender, plurality), but do **not translate or alter** their content.
+- Do not remove, modify any <PH> tags or their attributes.
+- Use the text of each <PH> tag to understand the context and grammar. This will help you make correct translation decisions (e.g., for plurality, case, or syntax), but you must not change or translate the contents of the <PH> tags themselves.
 - Your response must contain only the updated XML — return the modified <TEXT> block with embedded <PH> tags and nothing else (no explanations, no markdown, no prefix/suffix text) in the <output> tag the output format will be provided below.
-- All <PH> tags must be self-closing and written in the form:
-    <PH id="..." original="..."/>
-- Never use closing tags like </PH> or wrap content inside <PH> tags.
 - If the provided chunk doesn't contain any <PH> tags, you simply translate the text inside the <TEXT> tag and return it in the initial format
 
 ### Output Format:
 <output>
 <document>
 <TEXT>
-  ...translated text with embedded <PH id="..." original="..."/> tags...
+  ...translated text with embedded <PH id="...">...</PH> tags...
 </TEXT>
 </document>
 </output>
