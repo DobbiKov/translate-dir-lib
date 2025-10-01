@@ -42,7 +42,8 @@ def reconstruct_from_xml(translated_xml: str) -> str:
         # A. Append the content of the placeholder itself.
         if element.tag == 'PH':
             try:
-                orig = element.get('original') # if the id isn't found in the PH's db, we get the source from the 'original' attribute
+                # orig = element.get('original') # if the id isn't found in the PH's db, we get the source from the 'original' attribute
+                orig = element.text or ""
                 if orig is None:
                     logging.warning("Original contents of the <PH> tag is not found!")
                 else:
@@ -112,7 +113,8 @@ def create_translation_xml(segments: list[tuple[str, str]]) -> tuple[str, dict]:
         elif seg_type == 'placeholder':
             # Create the placeholder element
             current_ph_id = str(ph_id)
-            ph_elem = ET.SubElement(text_container, 'PH', id=current_ph_id, original=content)
+            ph_elem = ET.SubElement(text_container, 'PH', id=current_ph_id)
+            ph_elem.text = content
 
             placeholders[current_ph_id] = content
             ph_id += 1
