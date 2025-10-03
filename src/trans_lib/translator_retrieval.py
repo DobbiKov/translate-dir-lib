@@ -186,6 +186,12 @@ class ChunkTranslator:
         caller = self._caller
         if caller is not None and strategy != CODE_STRATEGY: # we don't want to call model on code, we leave it unchanged
             strategy.set_call_model(lambda t: caller.call(t))
+            def f_call_model(t):
+                res = caller.call(t)
+                caller.wait_cooldown()
+                return res
+
+            strategy.set_call_model(f_call_model)
 
         example = self._store.get_best_pair_example_from_db(meta.src_lang, meta.tgt_lang, meta.chunk)
         if example is not None:
