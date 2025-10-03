@@ -28,4 +28,6 @@ unified-model-caller = { git = "https://github.com/DobbiKov/unified-model-caller
 [tool.setuptools] 
 py-modules = ["trans_lib"]
 
+[tool.pytest.ini_options]
+pythonpath = ["src"]
 
