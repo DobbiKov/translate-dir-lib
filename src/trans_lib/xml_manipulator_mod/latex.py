@@ -2,7 +2,6 @@ import re
 import uuid
 from pylatexenc.latexwalker import (LatexCommentNode, LatexWalker, LatexCharsNode, LatexMacroNode,
                                     LatexEnvironmentNode, LatexMathNode, LatexGroupNode)
-
 class LatexParser:
     """
     Unified LaTeX parser that combines all functionality:
@@ -28,7 +27,6 @@ class LatexParser:
         self.alignment_envs = {'tabular', 'tabular*', 'array', 'align', 'align*',
                                'aligned', 'flalign', 'flalign*', 'alignat',
                                'alignat*', 'gather', 'gather*'}
-
         # Allow customization
         if len(placeholder_commands) != 0:
             self.placeholder_commands.update(placeholder_commands)
@@ -36,13 +34,11 @@ class LatexParser:
             self.placeholder_envs.update(placeholder_envs)
         if len(placeholders_with_text) != 0:
             self.math_text_macros.update(placeholders_with_text)
-
         # State attributes
         self.segments = []
         self.latex_content = ""
         self._verb_map: dict[str, str] = {}
         self._pipe_map: dict[str, str] = {}
-
     def parse(self, latex_content) -> list[tuple[str, str]]:
         """
         Main parsing method that handles all special cases.
@@ -61,10 +57,8 @@ class LatexParser:
         self.latex_content = processed_content
         lw = LatexWalker(processed_content)
         nodelist, _, _ = lw.get_latex_nodes()
-
         if r'\end{document}' in processed_content and r'\begin{document}' not in processed_content:
             return [('placeholder', latex_content)]
-
         self._walk_text_nodes(nodelist)
         
         # Restore in reverse order (pipe commands first, then verb commands)
@@ -72,11 +66,9 @@ class LatexParser:
         self._restore_verb_commands()
         
         return self.segments
-
     def add_math_text_macros(self, *names: str):
         """Register additional text‑in‑math macros at runtime."""
         self.math_text_macros.update(names)
-
     # === PREPROCESSING METHODS ===
     def _make_placeholder(self, tag: str) -> str:
         """
@@ -130,26 +122,22 @@ class LatexParser:
             'processed_text': processed_text,
             'pipe_commands': pipe_commands
         }
-
     # === CORE PARSING METHODS ===
     
     def _add_placeholder(self, content):
         if content: 
             self.segments.append(('placeholder', content))
-
     def _add_text(self, content):
         if content.strip(): 
             self.segments.append(('text', content))
         elif content: 
             self.segments.append(('placeholder', content))
-
     def _process_chars_node(self, node, in_alignment=False):
         """Process character nodes, handling & specially."""
         if in_alignment:
             parts = re.split(r'(&)', node.chars)
         else:
             parts = [node.chars]  
-
         for part in parts:
             if not part: 
                 continue
@@ -157,12 +145,10 @@ class LatexParser:
                 self._add_placeholder(part)
             else: 
                 self._add_text(part)
-
     def _walk_text_nodes(self, nodelist, env_stack=[]):
         """Main node walker for text mode - handles asterisk preservation."""
         if nodelist is None: 
             return
-
         for node in nodelist:
             if node.isNodeType(LatexCharsNode):
                 self._process_chars_node(node, in_alignment=(len(env_stack)>0) and env_stack[-1] in self.alignment_envs)
@@ -211,20 +197,21 @@ class LatexParser:
                     if not node.nodelist:
                         self._add_placeholder(node.latex_verbatim())
                         continue
-
                     # find the first node that lies *after* the \begin argument list
                     header_end_pos = self._env_header_end(node)
-
                     first_body_node = next(
                         (n for n in node.nodelist if n.pos >= header_end_pos),
                         node.nodelist[0],
                     )
-                    content_start_pos = first_body_node.pos
+                    content_start_pos = header_end_pos
+                    if content_start_pos <= node.pos or content_start_pos > first_body_node.pos:
+                        content_start_pos = first_body_node.pos
 
                     last_node = node.nodelist[-1]
                     content_end_pos = last_node.pos + last_node.len
 
                     begin_placeholder = self.latex_content[node.pos:content_start_pos]
+                    begin_placeholder = re.sub(r'\n[ \t]*$', '', begin_placeholder)
                     self._add_placeholder(begin_placeholder)
 
                     if envname in self.math_envs:
@@ -413,5 +400,6 @@ def parse_latex(latex_content) -> list[tuple[str, str]]:
     """High-level function to instantiate and use the LatexParser."""
     parser = LatexParser()
     return parser.parse(latex_content)
+
 
 
