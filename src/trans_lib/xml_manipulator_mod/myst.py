@@ -278,6 +278,11 @@ class CustomRenderer(RendererProtocol):
             return [], idx + 1
         return [('placeholder', "\n")], idx + 1
 
+    @_handler(["softbreak"])
+    def renderSoftBreak(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        if not self.process_list:
+            return [('placeholder', "\n")], idx + 1
+        return [], idx + 1
     @_handler(["paragraph_close", "softbreak", "hardbreak"])
     def renderBigLineBrake(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         if not self.process_list:
