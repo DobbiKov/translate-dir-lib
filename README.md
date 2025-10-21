@@ -47,8 +47,8 @@ The profound explanation of the logic and algorithms of the tool can be found [h
 The documentation for the library can be found [here](./docs/main.md)
 
 ## ToDo
-
-- [ ] Fix paragraph and list handling in MyST parsing.
+- don't translate if a chunk contains placeholders only (without text)
+- don't stop translation process when an exception is raised
 
 ## 📚 Citation
 
