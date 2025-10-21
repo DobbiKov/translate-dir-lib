@@ -406,6 +406,12 @@ class CustomRenderer(RendererProtocol):
                 if level == 0:
                     res = res + [('placeholder', '\n\n')]
                 break
+            elif token.type == "bullet_list_open":
+                self.process_list = True
+                res = res + [('placeholder', '\n')]
+                temp_res, new_idx = self._renderBulletList(tokens, idx, level+1)
+                res = res + temp_res
+                idx = new_idx
             elif token.type == "ordered_list_open":
                 self.process_list = True
                 res = res + [('placeholder', '\n')]
@@ -419,9 +425,13 @@ class CustomRenderer(RendererProtocol):
                 res.append(('placeholder', prefix + marker))
                 self.list_indent_stack.append(prefix + (" " * len(marker)))
                 idx += 1
-            else:
-                if token.type == "list_item_close" and self.list_indent_stack:
+            elif token.type == "list_item_close":
+                if self.list_indent_stack:
                     self.list_indent_stack.pop()
+                temp_res, new_idx = self.renderToken(tokens, idx)
+                res = res + temp_res
+                idx = new_idx
+            else:
                 temp_res, new_idx = self.renderToken(tokens, idx)
                 res = res + temp_res
                 idx = new_idx
@@ -439,6 +449,12 @@ class CustomRenderer(RendererProtocol):
                 if level == 0:
                     res = res + [('placeholder', '\n\n')]
                 break
+            elif token.type == "ordered_list_open":
+                self.process_list = True
+                res = res + [('placeholder', '\n')]
+                temp_res, new_idx = self._renderOrderedList(tokens, idx, level+1)
+                res = res + temp_res
+                idx = new_idx
             elif token.type == "bullet_list_open":
                 self.process_list = True
                 res = res + [('placeholder', '\n')]
@@ -452,9 +468,13 @@ class CustomRenderer(RendererProtocol):
                 res.append(('placeholder', prefix + marker))
                 self.list_indent_stack.append(prefix + (" " * len(marker)))
                 idx += 1
-            else:
-                if token.type == "list_item_close" and self.list_indent_stack:
+            elif token.type == "list_item_close":
+                if self.list_indent_stack:
                     self.list_indent_stack.pop()
+                temp_res, new_idx = self.renderToken(tokens, idx)
+                res = res + temp_res
+                idx = new_idx
+            else:
                 temp_res, new_idx = self.renderToken(tokens, idx)
                 res = res + temp_res
                 idx = new_idx
