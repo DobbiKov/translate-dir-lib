@@ -117,3 +117,41 @@ def test_myst_list_item_preserves_continuation_lines():
 
     assert "- hey\n  hey\n  hey" in reconstructed
     assert reconstructed.count("\n  hey") == 2
+
+
+def test_myst_inline_link_round_trip_preserves_markup():
+    source = "Paragraph with [example](https://example.com) link.\n\nSecond paragraph.\n"
+    xml_output, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output).rstrip()
+
+    lines = reconstructed.splitlines()
+
+    assert lines[0] == "Paragraph with [example](https://example.com) link."
+    assert lines[1] == ""
+    assert lines[2] == "Second paragraph."
+
+
+def test_myst_admonition_with_list_round_trip():
+    source = ":::{admonition} Tip\n- item\n  detail\n:::\n"
+    xml_output, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output).rstrip()
+
+    lines = reconstructed.splitlines()
+
+    assert lines[0] == ":::{admonition} Tip"
+    assert "- item" in lines[1]
+    assert lines[2] == "  detail"
+    assert lines[-1] == ":::"
+
+
+def test_myst_nested_lists_preserve_indentation():
+    source = "- outer\n  1. inner\n     - detail\n       line\n"
+    xml_output, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output).rstrip()
+
+    lines = reconstructed.splitlines()
+
+    assert lines[0] == "- outer"
+    assert lines[1] == "\t1. inner"
+    assert lines[2] == "\t\t- detail"
+    assert lines[3] == "\t\t  line"
