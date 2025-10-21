@@ -108,3 +108,12 @@ def test_myst_to_xml_preserves_text_segments_and_placeholders():
 
     reconstructed = reconstruct_from_xml(xml_output)
     assert "print(\"Hello world\")" in reconstructed
+
+
+def test_myst_list_item_preserves_continuation_lines():
+    source = "- hey\n  hey\n  hey\n"
+    xml_output, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output)
+
+    assert "- hey\n  hey\n  hey" in reconstructed
+    assert reconstructed.count("\n  hey") == 2
