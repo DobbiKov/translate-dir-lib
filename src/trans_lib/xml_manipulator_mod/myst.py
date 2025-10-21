@@ -32,6 +32,10 @@ class CustomRenderer(RendererProtocol):
     _handlers = {}
     process_list = False
 
+    def __init__(self):
+        self.process_list = False
+        self.list_indent_stack: list[str] = []
+
     # for content: cut the fields, and then parse content properly: for math and code
 
     def _dispatch(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
@@ -280,11 +284,15 @@ class CustomRenderer(RendererProtocol):
 
     @_handler(["softbreak"])
     def renderSoftBreak(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        if not self.process_list:
-            return [('placeholder', "\n")], idx + 1
-        return [], idx + 1
-    @_handler(["paragraph_close", "softbreak", "hardbreak"])
+        indent = self.list_indent_stack[-1] if self.list_indent_stack else ""
+        return [('placeholder', "\n" + indent)], idx + 1
+
+    @_handler(["paragraph_close", "hardbreak"])
     def renderBigLineBrake(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        if token.type == "hardbreak":
+            indent = self.list_indent_stack[-1] if self.list_indent_stack else ""
+            return [('placeholder', "\n" + indent)], idx + 1
         if not self.process_list:
             return [('placeholder', "\n\n")], idx + 1
         return [], idx + 1
@@ -398,6 +406,12 @@ class CustomRenderer(RendererProtocol):
                 if level == 0:
                     res = res + [('placeholder', '\n\n')]
                 break
+            elif token.type == "bullet_list_open":
+                self.process_list = True
+                res = res + [('placeholder', '\n')]
+                temp_res, new_idx = self._renderBulletList(tokens, idx, level+1)
+                res = res + temp_res
+                idx = new_idx
             elif token.type == "ordered_list_open":
                 self.process_list = True
                 res = res + [('placeholder', '\n')]
@@ -406,18 +420,24 @@ class CustomRenderer(RendererProtocol):
                 idx = new_idx
             elif token.type == "list_item_open":
                 self.process_list = True
-                cont = ("\t"*level) + f"{token.info}. "
-                res.append(
-                    ('placeholder', cont)
-                )
+                prefix = "\t" * level
+                marker = f"{token.info}. "
+                res.append(('placeholder', prefix + marker))
+                self.list_indent_stack.append(prefix + (" " * len(marker)))
                 idx += 1
+            elif token.type == "list_item_close":
+                if self.list_indent_stack:
+                    self.list_indent_stack.pop()
+                temp_res, new_idx = self.renderToken(tokens, idx)
+                res = res + temp_res
+                idx = new_idx
             else:
                 temp_res, new_idx = self.renderToken(tokens, idx)
                 res = res + temp_res
                 idx = new_idx
         self.process_list = False
         return res, idx
-    
+
     def _renderBulletList(self, tokens: Sequence[Token], idx: int, level: int = 0) -> tuple[Chunk, int]:
         res = []
         idx += 1
@@ -429,6 +449,12 @@ class CustomRenderer(RendererProtocol):
                 if level == 0:
                     res = res + [('placeholder', '\n\n')]
                 break
+            elif token.type == "ordered_list_open":
+                self.process_list = True
+                res = res + [('placeholder', '\n')]
+                temp_res, new_idx = self._renderOrderedList(tokens, idx, level+1)
+                res = res + temp_res
+                idx = new_idx
             elif token.type == "bullet_list_open":
                 self.process_list = True
                 res = res + [('placeholder', '\n')]
@@ -437,11 +463,17 @@ class CustomRenderer(RendererProtocol):
                 idx = new_idx
             elif token.type == "list_item_open":
                 self.process_list = True
-                cont = ("\t"*level) + "- "
-                res.append(
-                    ('placeholder', cont)
-                )
+                prefix = "\t" * level
+                marker = "- "
+                res.append(('placeholder', prefix + marker))
+                self.list_indent_stack.append(prefix + (" " * len(marker)))
                 idx += 1
+            elif token.type == "list_item_close":
+                if self.list_indent_stack:
+                    self.list_indent_stack.pop()
+                temp_res, new_idx = self.renderToken(tokens, idx)
+                res = res + temp_res
+                idx = new_idx
             else:
                 temp_res, new_idx = self.renderToken(tokens, idx)
                 res = res + temp_res
@@ -468,6 +500,8 @@ class CustomRenderer(RendererProtocol):
         return res
 
     def render(self, tokens: Sequence[Token], options: OptionsDict, env: MutableMapping[str, Any]):
+        self.list_indent_stack = []
+        self.process_list = False
         res = []
         idx = 0
         while idx < len(tokens):
