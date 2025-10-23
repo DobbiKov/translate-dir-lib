@@ -212,6 +212,9 @@ class ChunkTranslator:
         translated = await strategy.run(meta) if not ph_only else chunk
         tgt_checksum = calculate_checksum(translated)
 
+        if ph_only:
+            logger.trace("ph only")
+
         self._store.persist_pair(
             src_checksum,
             tgt_checksum,
