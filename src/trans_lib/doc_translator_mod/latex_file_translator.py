@@ -7,6 +7,7 @@ from trans_lib.translator_retrieval import Meta, build_translator_with_model
 from trans_lib.vocab_list import VocabList
 from ..enums import ChunkType, DocumentType, Language
 from ..helpers import calculate_checksum
+from trans_lib.errors import ChunkTranslationFailed
 from loguru import logger
 
 
@@ -68,7 +69,11 @@ async def translate_chunk_async(root_path: Path, cell: dict, source_language: La
    cell["metadata"]["needs_review"] = "True"
    cell["metadata"]["src_checksum"] = checksum
 
-   cell["source"] = await translate_any_chunk_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller)
+   try:
+       cell["source"] = await translate_any_chunk_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller)
+   except ChunkTranslationFailed as exc:
+       cell["metadata"]["not-translated-due-to-exception"] = "True"
+       cell["source"] = exc.chunk
 
    return cell
 

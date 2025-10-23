@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 import time
 from typing import Callable
@@ -14,6 +15,14 @@ from trans_lib.prompts import xml_translation_prompt
 from trans_lib.translator import _ask_gemini_model
 from trans_lib.prompts import prompt4, xml_with_previous_translation_prompt
 from unified_model_caller.core import LLMCaller
+from unified_model_caller.errors import ApiCallError
+from trans_lib.errors import ChunkTranslationFailed
+try:
+    from unified_model_caller.errors import ModelOverloadedError
+except ImportError:  # pragma: no cover - unified_model_caller may not expose the new error yet
+    class ModelOverloadedError(ApiCallError):
+        """Fallback stub when unified_model_caller doesn't expose ModelOverloadedError."""
+        pass
 
 
 def is_whitespace(text: str) -> bool:
@@ -167,9 +176,20 @@ STRATEGY_MAP: dict[tuple[DocumentType, ChunkType], TranslateStrategy] = {
 class ChunkTranslator:
     """Facade: one method replaces legacy free‑function."""
 
-    def __init__(self, store: TranslationStore, model_caller: LLMCaller | None = None):
+    def __init__(
+        self,
+        store: TranslationStore,
+        model_caller: LLMCaller | None = None,
+        *,
+        overload_retry_attempts: int = 5,
+        overload_retry_initial_delay: float = 1.0,
+        overload_retry_max_delay: float = 16.0,
+    ):
         self._store = store
         self._caller: LLMCaller | None = model_caller
+        self._overload_attempts = max(1, overload_retry_attempts)
+        self._overload_initial_delay = max(0.0, overload_retry_initial_delay)
+        self._overload_max_delay = max(self._overload_initial_delay, overload_retry_max_delay)
 
     async def translate_or_fetch(self, meta: Meta) -> str:
         chunk = meta.chunk
@@ -187,6 +207,7 @@ class ChunkTranslator:
         caller = self._caller
         if caller is not None and strategy != CODE_STRATEGY: # we don't want to call model on code, we leave it unchanged
             strategy.set_call_model(lambda t: caller.call(t))
+
             def f_call_model(t):
                 res = caller.call(t)
                 caller.wait_cooldown()
@@ -199,17 +220,27 @@ class ChunkTranslator:
             src_ex, tgt_ex, score = example
             if score > 0.7:
                 meta = WithExampleMeta(
-                        meta.chunk,
-                        meta.src_lang,
-                        meta.tgt_lang,
-                        meta.doc_type,
-                        meta.chunk_type,
-                        meta.vocab,
-                        src_ex,
-                        tgt_ex
-                        )
+                    meta.chunk,
+                    meta.src_lang,
+                    meta.tgt_lang,
+                    meta.doc_type,
+                    meta.chunk_type,
+                    meta.vocab,
+                    src_ex,
+                    tgt_ex,
+                )
 
-        translated = await strategy.run(meta) if not ph_only else chunk
+        if ph_only:
+            translated = chunk
+        else:
+            try:
+                translated = await self._translate_with_retry(strategy, meta)
+            except Exception as exc:  # noqa: BLE001 - we intentionally downgrade translation errors
+                logger.error(
+                    f"Chunk translation failed due to {exc.__class__.__name__}: {exc}",
+                )
+                raise ChunkTranslationFailed(chunk, exc) from exc
+
         tgt_checksum = calculate_checksum(translated)
 
         if ph_only:
@@ -224,6 +255,25 @@ class ChunkTranslator:
             translated,
         )
         return translated
+
+    async def _translate_with_retry(self, strategy: TranslateStrategy, meta: Meta) -> str:
+        delay = self._overload_initial_delay or 1.0
+        for attempt in range(1, self._overload_attempts + 1):
+            try:
+                return await strategy.run(meta)
+            except ModelOverloadedError as exc:
+                if attempt >= self._overload_attempts:
+                    logger.error(
+                        f"Model overloaded after {attempt} attempts, giving up.",
+                    )
+                    raise exc
+
+                wait_seconds = min(delay, self._overload_max_delay)
+                logger.warning(
+                    f"Model overloaded (attempt {attempt}/{self._overload_attempts}). Retrying in {wait_seconds:.2f}s...",
+                )
+                await asyncio.sleep(wait_seconds)
+                delay = min(delay * 2, self._overload_max_delay)
 
 def build_translator_with_model(root_path: Path, caller: LLMCaller | None = None) -> ChunkTranslator:
     """Constructs default translation factory with a particular model"""
