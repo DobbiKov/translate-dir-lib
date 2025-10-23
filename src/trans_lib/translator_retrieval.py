@@ -9,7 +9,7 @@ from trans_lib.translation_store.translation_store import TranslationStore, Tran
 from trans_lib.translator import finalize_prompt, finalize_xml_prompt, _prepare_prompt_for_language, _prepare_prompt_for_vocab_list, _prepare_prompt_for_content_type, _prepare_prompt_for_translation_example
 from trans_lib.vocab_list import VocabList
 from trans_lib.xml_manipulator_mod.xml import reconstruct_from_xml
-from trans_lib.xml_manipulator_mod.mod import chunk_to_xml, code_to_xml
+from trans_lib.xml_manipulator_mod.mod import chunk_contains_ph_only, chunk_to_xml, code_to_xml
 from trans_lib.prompts import xml_translation_prompt
 from trans_lib.translator import _ask_gemini_model
 from trans_lib.prompts import prompt4, xml_with_previous_translation_prompt
@@ -104,7 +104,7 @@ def _xml_prompt_builder(doc_type: DocumentType, chunk_type: ChunkType):
         if chunk_type == ChunkType.Code:
             if isinstance(params, CodeMeta):
                 print("da")
-                xml_chunk, _ = code_to_xml(chunk, params.prog_lang)
+                xml_chunk = code_to_xml(chunk, params.prog_lang)[0]
         else:
             xml_chunk = chunk_to_xml(chunk, chunk_type)
 
@@ -183,6 +183,7 @@ class ChunkTranslator:
             return cached
 
         strategy = STRATEGY_MAP[(meta.doc_type, meta.chunk_type)]
+        ph_only = chunk_contains_ph_only(chunk, meta.chunk_type)
         caller = self._caller
         if caller is not None and strategy != CODE_STRATEGY: # we don't want to call model on code, we leave it unchanged
             strategy.set_call_model(lambda t: caller.call(t))
@@ -207,8 +208,8 @@ class ChunkTranslator:
                         src_ex,
                         tgt_ex
                         )
-        translated = await strategy.run(meta)
-        time.sleep(5)
+
+        translated = await strategy.run(meta) if not ph_only else chunk
         tgt_checksum = calculate_checksum(translated)
 
         self._store.persist_pair(

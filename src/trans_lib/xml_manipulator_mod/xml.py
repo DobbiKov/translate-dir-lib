@@ -61,7 +61,7 @@ def reconstruct_from_xml(translated_xml: str) -> str:
     return "".join(reconstructed_parts)
 
 
-def create_translation_xml(segments: list[tuple[str, str]]) -> tuple[str, dict]:
+def create_translation_xml(segments: list[tuple[str, str]]) -> tuple[str, dict, bool]:
     """
     Converts parsed segments into a single <TEXT> tag containing mixed content
     (text and <PH> tags), which is ideal for translation.
@@ -74,6 +74,7 @@ def create_translation_xml(segments: list[tuple[str, str]]) -> tuple[str, dict]:
     Returns:
         tuple[str, dict]: A tuple containing the XML string and the placeholder dictionary.
     """
+    ph_only = len([1 for el in segments if el[0] == 'text']) == 0
     # -- Step 1: Coalesce consecutive placeholders --
     # We group segments by their type. If consecutive segments are placeholders,
     # they will be grouped together and we can join their content.
@@ -127,4 +128,4 @@ def create_translation_xml(segments: list[tuple[str, str]]) -> tuple[str, dict]:
     # Ensure the output directory exists
     # output_dir.mkdir(parents=True, exist_ok=True)
 
-    return xml_string, placeholders
+    return xml_string, placeholders, ph_only
