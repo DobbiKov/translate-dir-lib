@@ -91,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         args.stdin,
         unescape_text=not args.literal_text,
     )
-    xml_output, placeholders = myst_to_xml(source)
+    xml_output, placeholders, _ = myst_to_xml(source)
     reconstructed = reconstruct_from_xml(xml_output)
 
     print("=== XML ===")
