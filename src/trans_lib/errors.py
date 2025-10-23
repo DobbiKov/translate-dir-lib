@@ -142,6 +142,15 @@ class TranslationProcessError(TranslateFileError):
     def __init__(self, message: str, original_exception: Optional[Exception] = None):
         super().__init__(message)
         self.original_exception = original_exception
+
+
+class ChunkTranslationFailed(TranslateFileError):
+    """Signals that a chunk could not be translated and should be left unchanged."""
+
+    def __init__(self, chunk: str, original_exception: Optional[Exception] = None):
+        super().__init__("Chunk translation failed.")
+        self.chunk = chunk
+        self.original_exception = original_exception
        
 class CorrectTranslationError(ProjectError):
     """

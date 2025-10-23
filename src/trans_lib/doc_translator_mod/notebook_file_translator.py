@@ -3,6 +3,7 @@ from ..prompts import prompt_jupyter_code, prompt_jupyter_md
 from pathlib import Path
 
 from trans_lib.translator_retrieval import CodeMeta, Meta, build_translator_with_model
+from trans_lib.errors import ChunkTranslationFailed
 from trans_lib.vocab_list import VocabList
 from ..enums import ChunkType, DocumentType, Language
 from ..helpers import calculate_checksum
@@ -24,10 +25,17 @@ async def translate_jupyter_cell_async(root_path: Path, cell: dict, source_langu
     cell["metadata"]["tags"].append("needs_review")
     cell["metadata"]["src_checksum"] = checksum
 
-    if cell_type == "code":
-        cell["source"] = await translate_code_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller)
-    else:
-        cell["source"] = await translate_markdown_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller)
+    try:
+        if cell_type == "code":
+            cell["source"] = await translate_code_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller)
+        else:
+            cell["source"] = await translate_markdown_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller)
+    except ChunkTranslationFailed as exc:
+        tags = cell["metadata"].setdefault("tags", [])
+        if "not-translated-due-to-exception" not in tags:
+            tags.append("not-translated-due-to-exception")
+        cell["metadata"]["not-translated-due-to-exception"] = "True"
+        cell["source"] = exc.chunk
 
     return cell
 
@@ -50,5 +58,3 @@ async def translate_code_cell_async(root_path: Path, contents: str, source_langu
     tr = build_translator_with_model(root_path, llm_caller)
     meta = CodeMeta(contents, source_language, target_language, DocumentType.JupyterNotebook, ChunkType.Code, vocab_list, "python") # TODO: the language must be set accordingly to the cell
     return await tr.translate_or_fetch(meta)
-
-
