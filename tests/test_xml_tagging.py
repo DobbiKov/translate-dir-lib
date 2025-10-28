@@ -1,5 +1,7 @@
 import xml.etree.ElementTree as ET
 
+import pytest
+
 from trans_lib.enums import ChunkType
 from trans_lib.xml_manipulator_mod.mod import chunk_to_xml, latex_to_xml, myst_to_xml
 from trans_lib.xml_manipulator_mod.xml import reconstruct_from_xml
@@ -144,6 +146,29 @@ def test_myst_admonition_with_list_round_trip():
     assert "- item" in lines[1]
     assert lines[2] == "  detail"
     assert lines[-1] == ":::"
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        [(':class:', 'very important'), (':name:', 'tip-field'), (':width:', '60%')],
+        [(':caption:', 'Danger zone'), (':height:', '120px')],
+    ],
+)
+def test_myst_admonition_field_list_preserves_space_between_name_and_value(fields):
+    field_lines = "\n".join(f"{name} {value}" for name, value in fields)
+    source = ":::{admonition} Tip\n" + field_lines + "\nBody\n:::\n"
+
+    xml_output, placeholders, _ = myst_to_xml(source)
+    field_placeholder = next(value for value in placeholders.values() if fields[0][0] in value)
+
+    for name, value in fields:
+        expected_line = f"{name} {value}"
+        assert expected_line in field_placeholder
+
+    reconstructed_lines = reconstruct_from_xml(xml_output).splitlines()
+    for name, value in fields:
+        assert f"{name} {value}" in reconstructed_lines
 
 
 def test_myst_nested_lists_preserve_indentation():
