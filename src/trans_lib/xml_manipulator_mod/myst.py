@@ -149,8 +149,10 @@ class CustomRenderer(RendererProtocol):
                 line += "\n"
                 res.append(('placeholder', line))
                 line = ""
-            elif token_type in ["fieldlist_name_open", "fieldlist_name_close"]:
+            elif token_type in ["fieldlist_name_open"]:
                 line += ":"
+            elif token_type in ["fieldlist_name_close"]:
+                line += ": "
             elif token_type == "inline":
                 line += token.content
             elif token_type == "field_list_close":
