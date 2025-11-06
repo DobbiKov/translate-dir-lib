@@ -1,7 +1,7 @@
 # The profound explanation of the tool
 
-This page contains the profound overview and explanation of the architecture,
-algorithms and ideology of the library and explain all its features.
+This page contains an overview and explanation of the architecture, algorithms
+and ideology of the library, and explains its features.
 
 ## Table of Contents
 
@@ -24,24 +24,24 @@ algorithms and ideology of the library and explain all its features.
 
 ## Main Unit: Project
 
-The main unit of the library is called **project**. The project contains all the
-information about your file structure, languages and translation database.
+The main unit of the library is called a **translation project**. A translation
+project contains all the information about your file structure, languages and
+translation database.
 
-The project behaves similarly to the git. There's always a root directory that
-you must be in, where you'll initialize the translation project. The directory
-contains project's config in the _dot_ directory dedicated to this tool,
-translation database and the files that are "tracked", in our case the files
-that are synced and translated across the languages.
+Translation projects behaves similarly to, e.g., `git` projects. There is always
+a root directory that you must be in, where you'll initialize the translation
+project. The root directory contains the project configuration in a dedicated
+_dot_ directory, a translation database, and the files that are "tracked": in
+our case the files that are synced and translated across the languages.
 
 > Note: don't confuse your writing project, for example: LaTeX project and
 > translation project. Your "writing project's" root directory must be placed in
 > the root directory of the translation project.
 
-For example: Let's assume that we have a LaTeX project in the directory called
-`analysis_notes` that has the next structure
-
+For example: let's assume that we have a French LaTeX project in a directory
+having the following structure:
 ```
-analysis_notes/
+analysis_notes_fr/
 ├── main.tex
 ├── lec1.tex
 ├── authors.tex
@@ -51,13 +51,12 @@ analysis_notes/
     └── bib.tex
 ```
 
-Then, if we want to create a translation project using this CLI, then we need to
-move to the directory of our choice or create one, here:
-`analysis_translation_proj` and put the `analysis_notes` directory there:
+Creating a translation project requires a dedicated directory holding
+`analysis_notes_fr` as subdirectory. For example:
 
 ```
-analysis_translation_proj/
-└── analysis_notes/
+analysis_notes/
+└── analysis_notes_fr/
     ├── main.tex
     ├── lec1.tex
     ├── authors.tex
@@ -67,12 +66,10 @@ analysis_translation_proj/
         └── bib.tex
 ```
 
-Then, when we will initialize our translation project it will have the next
-structure:
-
+Once initialized, the translation project has the following structure:
 ```
-analysis_translation_proj/
-├── analysis_notes/
+analysis_notes/
+├── analysis_notes_fr/
 │   ├── main.tex
 │   ├── lec1.tex
 │   ├── authors.tex
@@ -86,11 +83,11 @@ analysis_translation_proj/
         └── ...
 ```
 
-And after translation into Ukrainian:
+And after translation into Ukrainian it becomes:
 
 ```
-analysis_translation_proj/
-├── analysis_notes/
+analysis_notes/
+├── analysis_notes_fr/
 │   ├── main.tex
 │   ├── lec1.tex
 │   ├── authors.tex
@@ -98,7 +95,7 @@ analysis_translation_proj/
 │   │   └── ...
 │   └── bib/
 │       └── bib.tex
-├── proj_name_ua/
+├── analysis_notes_ua/
 │   ├── main.tex
 │   ├── lec1.tex
 │   ├── authors.tex
@@ -114,32 +111,20 @@ analysis_translation_proj/
 
 ## Project initialization and required settings
 
-When you initialize a project the `.translate_dir` directory is created that
-stores `config.json` config. This config stores:
+When you initialize a project, a `.translate_dir` directory is created that
+stores a `config.json` configuration file. This file will store:
 
-- project's name
-- source and target languages
-- directories that correspond to the source and target languages
-- files that must be translated
-- and additional settings
+- the project's name
+- the source and target languages
+- the directories that correspond to the source and target languages
+- the files that must be translated
+- additional settings
 
-However, when you initialize a project, you define your intentions but it is not
-sufficient yet to translate any files.
-
-Firstly, you must set the **source directory** and a language that corresponds
-to that source directory. Only the files from the set source directory will be
-able to be translated, you can't specify any files from other directories that
-are not children of the source directory to be translatable even if those files
-are located in the root directory of the project.
-
-Secondly, you must set the target languages different from the source language.
-The setting of a target language will create a directory in the root of the
-project that will have as a name: the name of the project and an appropriate
-language suffix. Example: The addition of the French language in the project
-named `analysis_course` will produce the directory with a name
-`analysis_course_fr`.
-
-This directory will have the copy of the source directory with translated files.
+You must then set a **source directory** together with its language. Only files
+within that source directory can be translated. You must then set at least one
+**target directory** together with its language. The target directory will be
+created if needed and will eventually hold the translation of the source
+directory.
 
 ### Important notes
 
@@ -148,68 +133,43 @@ This directory will have the copy of the source directory with translated files.
 - The target languages can be removed using `remove-target` command (in CLI), or
   `remove_target_language` method in the library.
 
-## Two types of files
+## Translatable and untranslatable files.
 
-All the files in the source directory are considered as _untranslatable_ by
-default. It means that those files won't be translated and will be copied when
-`sync` command is used.
+You can mark any file in the source directory as _translatable_; a translatable
+file is ignored by the `sync` command, and translated by the translation
+commands.
 
-You can mark any file in the source directory as _translatable_, then such file
-won't be copied by `sync` command and will be able to be translated using the
-appropriate command.
+All other files in the source directory are considered as _untranslatable_. An
+untranslatable file is copied over as is by the `sync` command and ignored by
+the translation commands. Typical untranslatable files are assets such as media
+or bibliography files.
 
-## Syncing vs Translating
-
-### Syncing
-
-When `sync` command is used, all the _untranslatable_ files from the source
-directory are copied to the target language directories. An example of such
-files are images, figures or bibliography.
-
-The goal of this functionality is to reproduce your "writing" project's
-structure in order to simplify the compilation process. That is to say, when you
-translate your project and use `sync` command, you can compile it without any
-additional actions required.
-
-> Note: the `sync` command doesn't copy the files that are marked as
-> _translatable_.
-
-### Translating
-
-Translating reads the files in the source directory that are marked as
-_translatable_, translates them and writes to the appropriate target language
-directories. During the translation process, the files that are _not_ marked as
-_translatable_ won't be copied to the target directories.
-
-### Difference
-
-The syncing _copies_ only the _untranslatable_ files and doesn't touch
-_translatable_ ones. Translating translates the files and put them into
-appropriate directories.
+With this, once translated and synced, the target directory should be ready for
+use (e.g. for building with latex).
 
 ## Translation algorithm
 
-The core idea of the algorithm of the algorithm is read a file, divide it into
-_chunks_ (sometimes called _cells_ here) and pass to an LLM (currently _gemini_
-models from google) with a big prompt that asks a model translate a chunk and
-explains how to preserve the structure, syntax and layout. Then the translation
-is extracted, added as a pair with the source of the chunk in the database and
-written to the output file.
+The algorithm reads a file, divides it into _chunks_ (sometimes called _cells_
+here) and pass them to a Large Language Model (by default the _gemini_ models
+from google) together with a big prompt that asks the model to translate a chunk
+and explains how to preserve the structure, syntax and layout. Then the
+translation is extracted, added as a translation pair with the source of the
+chunk in the translation database (see below) and written to the output file.
 
 After the translation, some metadata is set for each chunk in the output file.
 Such metadata may be:
 
-- source checksum that serves to identify the source text that has been
+- the source checksum that serves to identify the source text that has been
   translated
-- _needs_review_ tag that alerts the user that a particular chunk has been
-  translated by machine but wasn't verified by human.
+- a _needs_review_ tag that alerts the user that a particular chunk has been
+  translated by machine and needs review by a human.
 
-The translation command may also take an optional parameter that is a vocabulary
-list. That list contains pairs of a word or phrase on a source language and it's
-translation on the target one. That vocabulary that is passed to the LLM in
-order to improve it's translation quality.
+The translation command may also take a vocabulary list as optional parameter.
+That list contains pairs of a word or phrase on a source language and its
+translation on the target one. That vocabulary is passed to the LLM in order to
+improve its translation quality.
 
-Current version of the library supports the next services:
+The current version of the library supports the next services:
 
 - OpenAI
 - Anthropic
@@ -224,25 +184,15 @@ default.
 When translating, an environment variable `LLM_API_KEY` must be set accordingly
 to the service you use.
 
-## Correcting
+## The Translation Database
 
-After the translation a user may want to correct or edit the translated files.
-These changes are logically should be saved in order to not lose those changes.
-Thus, when the correction command is called, it reads each translated chunk in
-the translated files retrieve the source text using the source checksum and if
-it figures out that the translation has been changed by user it updates it in
-the database.
-
-## Translation Database
-
-Translation database is aimed to store translation pairs in order to avoid
-retranslation of the chunks that have already been translated previously and
-track changes and edits in the source project and the translated versions of it.
+The translation database stores translation pairs for later fast retrieval and
+reuse.
 
 ### Structure
 
 The database is presented in the `translate_db` directory that is stored in the
-root directory of the project. This folder has the next structure:
+root directory of the project. This folder has the following structure:
 
 ```
 translate_db/
@@ -253,17 +203,17 @@ translate_db/
     └── ...
 ```
 
-and consists of the next parts:
+and consists of tow parts:
 
-- Text to checksum DB
-- correspondence DB
+- a checksum to text database
+- a correspondence databas
 
-### Text to checksum DB
+### Checksum to text database
 
-This part of the database is represented by the `<lang_*>` folders that store
-files that has any text (usually the text of the chunks from the files) and the
-checksum of the contents of the file as a name of the file. This system allows
-the storage of the chunk contents, source retrieval and updates comparison.
+This part of the database is stored in the `<lang_*>` folders; each file in
+these folder holds a chunk of text and is named after the checksum of that
+chunk. This system allows the storage of the chunk contents, source retrieval
+and updates comparison.
 
 Example of such structure:
 
@@ -278,21 +228,25 @@ translate_db/
 └── correspondence_db.csv
 ```
 
-### Correspondence DB
+### Correspondence database
 
-The correspondence database is represented by the `correspondence_db.csv` file
-that stores in each row the checksum of at least two languages that the source
-contents correspond to the translated contents.
+The correspondence database is stored in the `correspondence_db.csv` file. Each
+row of that file stores the checksums of chunks of text in two languages or
+more, and states that they are the current reference translations of each other.
 
-Example:
-
+For example, the following rows:
 ```
 English,French
 <checksum1_en>, <checksum1_fr>
 <checksum2_en>, <checksum2_fr>
 ```
+states that the chunks stored in the files `English/<checksum_1_en>` and
+`French/<checksum1_fr>` respectively are the current reference translations of 
+each other.
 
-That means that the contents of the file stored in `English/<checksum_1_en>`
-correspond to the contents of the file `French/<checksum1_fr>`, that is to say
-that the contents of the file `French/<checksum1_fr>` is a translation into
-French of the text stored in the `English/<checksum1_en>` file.
+## Correcting
+
+After the automated translation, authors will typically review the translated
+chunks and do some postedits. These postedits are precious. Calling the
+`correction` command updates accordingly the translation database to ensure that
+future translations exploit them.
