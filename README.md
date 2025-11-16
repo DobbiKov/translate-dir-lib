@@ -1,6 +1,6 @@
 # Translate directory library
 
-A library to manage the translation text writing projects (e.g: LaTeX,
+A library and a CLI to manage the translation text writing projects (e.g: LaTeX,
 Markdown, Jupyter, MyST, Typst). The library is aimed to simplify and automate
 the translation process and compiling of the translated version of the documents.
 
@@ -22,6 +22,11 @@ The profound explanation of the logic and algorithms of the tool can be found [h
 
 ## Installation
 
+### For CLI usage
+1. Clone the repo: `git clone https://github.com/DobbiKov/translate-dir-lib`
+2. Enter to the directory: `cd translate-dir-lib`
+3. Install the CLI: `uv tool install -e .`
+4. Use it: `translate-dir`
 ### For in-project library usage
 
 1. Clone the repo: `git clone https://github.com/DobbiKov/translate-dir-lib`
@@ -47,8 +52,6 @@ The profound explanation of the logic and algorithms of the tool can be found [h
 The documentation for the library can be found [here](./docs/main.md)
 
 ## ToDo
-- don't translate if a chunk contains placeholders only (without text)
-- don't stop translation process when an exception is raised
 
 ## 📚 Citation
 
