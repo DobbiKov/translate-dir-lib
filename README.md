@@ -49,7 +49,8 @@ The profound explanation of the logic and algorithms of the tool can be found [h
 
 ## Documentation
 
-The documentation for the library can be found [here](./docs/main.md)
+- The documentation for the library can be found [here](./docs/main.md)
+- The documentation for the CLI can be found [here](./docs/cli.md)
 
 ## ToDo
 
