@@ -3,8 +3,6 @@ import shutil
 from pathlib import Path
 from typing import List, Optional
 
-from loguru import logger
-
 from trans_lib.doc_corrector import correct_file_translation
 from trans_lib.translation_store.translation_store import TranslationStoreCsv
 from trans_lib.vocab_list import VocabList
@@ -47,6 +45,7 @@ class Project:
         """
         self.root_path = root_path.resolve()
         self.config = config
+        self._normalized_paths_on_load = self.config.set_runtime_root_path(self.root_path)
 
     @property
     def config_file_path(self) -> Path:
@@ -60,7 +59,7 @@ class Project:
     def _create_new_for_init(cls, project_name: str, project_root_path: Path) -> 'Project':
         """Creates a new Project instance with a new config, for internal use by init_project."""
         abs_path = project_root_path.resolve()
-        config = ProjectConfig.new(project_name=project_name, root_path=project_root_path)
+        config = ProjectConfig.new(project_name=project_name)
         return cls(abs_path, config)
 
     def save_config(self) -> None:
@@ -71,6 +70,10 @@ class Project:
         except ConfigWriteError as e:
             # Wrap in a more specific error if needed, or re-raise
             raise e # Or ProjectSaveConfigError(e)
+
+    @property
+    def paths_normalized_on_load(self) -> bool:
+        return self._normalized_paths_on_load
 
     def _get_source_language(self) -> Optional[Language]:
         if self.config.src_dir:
@@ -425,19 +428,6 @@ class Project:
             # The sleep is now inside translate_single_file, after each successful API call.
         print(f"Finished translation to {target_lang.value}.")
 
-    def _verify_project_placement(self) -> None:
-        """
-        Verifies that the project hasn't been moved to another directory, if it has, then all the paths are corrected.
-        """
-        pass
-        curr_root = Path(os.path.realpath(self.root_path))
-        old_root = self.config.get_root_path()
-
-        if curr_root != old_root:
-            logger.debug("Config root path doesn't correspond to the corrent one!")
-            self.config.rearrange_project(curr_root, old_root) 
-            self.save_config()
-
 # TODO: remove this, as it is diff, it must be implemented in the translation, after XML tagging
 # DEBUG!
     def diff(self, txt: str, lang: Language) -> tuple[str, float]:
@@ -484,11 +474,11 @@ def load_project(path_str: str) -> Project:
     try:
         config_model = load_project_config(config_file_path)
         project = Project(project_root, config_model)
-        project._verify_project_placement()
+        if project.paths_normalized_on_load:
+            project.save_config()
         print(f"Project '{project.config.name}' loaded from {project_root}")
         return project
     except ConfigLoadError as e:
         raise LoadProjectError(f"Failed to load project configuration: {e}", e)
     except Exception as e:
         raise LoadProjectError(f"An unexpected error occurred during project loading: {e}", e)
-

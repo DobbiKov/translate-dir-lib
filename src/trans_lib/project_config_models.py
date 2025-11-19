@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Optional, Callable
 from unified_model_caller import enums as unif_enums
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from loguru import logger
 
 from .enums import Language
@@ -62,33 +62,44 @@ class LangDir(BaseModel):
     """A master directory for a language."""
     language: Language
     path: Path
+    root_path: Path | None = Field(default=None, exclude=True)
 
     def get_lang(self) -> Language:
         return self.language
+
+    def attach_root_path(self, root_path: Path) -> None:
+        """Stores the project root used to resolve the relative path."""
+        self.root_path = root_path.resolve()
+
     def get_path(self) -> Path:
-        return self.path
+        if self.path.is_absolute() or not self.root_path:
+            return self.path
+        return (self.root_path / self.path).resolve()
 
 
 class ProjectConfig(BaseModel):
     """A struct representing a particular project's config."""
+    model_config = ConfigDict(extra="ignore")
+
     name: str
     lang_dirs: List[LangDir] = Field(default_factory=list)
     src_dir: Optional[LangDir] = None
-    root_path: Path = Path()
-    translatable_files: list[Path] = []
+    translatable_files: List[Path] = Field(default_factory=list)
+    runtime_root_path: Path | None = Field(default=None, exclude=True)
 
     llm_service: str = "google"
     llm_model: str = "gemini-2.0-flash"
 
     @classmethod
-    def new(cls, project_name: str, root_path: Path) -> ProjectConfig:
-        return cls(name=project_name, lang_dirs=[], src_dir=None, root_path=root_path, translatable_files=[])
+    def new(cls, project_name: str) -> ProjectConfig:
+        return cls(
+            name=project_name,
+            lang_dirs=[],
+            src_dir=None,
+        )
 
     def get_name(self) -> str:
         return self.name
-
-    def get_root_path(self) -> Path:
-        return self.root_path
 
     def get_src_dir(self) -> Optional[LangDir]:
         return self.src_dir
@@ -98,6 +109,7 @@ class ProjectConfig(BaseModel):
 
     def get_src_dir_path(self) -> Optional[Path]:
         if self.src_dir:
+            self._attach_root_if_missing(self.src_dir)
             return self.src_dir.get_path()
         return None
 
@@ -110,52 +122,28 @@ class ProjectConfig(BaseModel):
     def get_target_dir_path_by_lang(self, lang: Language) -> Optional[Path]:
         for lang_dir_obj in self.lang_dirs:
             if lang_dir_obj.get_lang() == lang:
+                self._attach_root_if_missing(lang_dir_obj)
                 return lang_dir_obj.get_path()
         return None
-
-    def rearrange_project(self, curr_root: Path, old_root: Path) -> None:
-        """
-        Rewrite all the paths accordingly to the new root path.
-        This method is called when the project directory has been moved.
-        """
-        def _update_path(path: Path, new_root: Path, previous_root: Path) -> Path:
-            """
-            Helper function to update path if the root path has been changed
-            """
-            try:
-                relative_dir_path = path.relative_to(previous_root)
-                return new_root / relative_dir_path
-            except ValueError:
-                logger.warning(f"Path {path} is not within the old project root {previous_root}. Skipping update for this item.")
-                return path
-
-        # Update the project's own root_path
-        self.root_path = curr_root
-
-        # Update the source directory, if it exists
-        if self.src_dir:
-            self.src_dir.path = _update_path(self.src_dir.path, curr_root, old_root)
-
-        # Update all target language directories
-        for lang_dir in self.lang_dirs:
-            lang_dir.path = _update_path(lang_dir.path, curr_root, old_root)
-
-        for i in range(len( self.translatable_files )):
-            self.translatable_files[i] = _update_path(self.translatable_files[i], curr_root, old_root)
-
 
 
     def set_src_dir_config(self, dir_path: Path, lang: Language) -> None:
         """
         Sets the source directory in the config.
         """
-        self.src_dir = LangDir(language=lang, path=dir_path)
+        rel_path = self._relativize_to_runtime_root(dir_path)
+        lang_dir = LangDir(language=lang, path=rel_path)
+        lang_dir.attach_root_path(self._get_runtime_root())
+        self.src_dir = lang_dir
 
     def add_lang_dir_config(self, dir_path: Path, lang: Language) -> None:
         """
         Adds a target language directory to the config.
         """
-        self.lang_dirs.append(LangDir(language=lang, path=dir_path))
+        rel_path = self._relativize_to_runtime_root(dir_path)
+        lang_dir = LangDir(language=lang, path=rel_path)
+        lang_dir.attach_root_path(self._get_runtime_root())
+        self.lang_dirs.append(lang_dir)
 
     def remove_lang_config(self, lang: Language) -> bool:
         """Removes a language directory from the config. Returns True if removed."""
@@ -197,26 +185,94 @@ class ProjectConfig(BaseModel):
             raise AddTranslatableFileError(NoSourceLanguageError())
 
         if not translatable:
-            # TODO: remove from translatable files list
-            if resolved_path not in self.translatable_files:
+            rel_path = self._relativize_to_runtime_root(resolved_path)
+            if rel_path not in self.translatable_files:
                 raise AddTranslatableFileError("This file is not marked as translatable!")
-            self.translatable_files.remove(resolved_path)
+            self.translatable_files.remove(rel_path)
             return  # Exit early after removal - don't continue to add logic
         
 
         src_dir_path = src_dir.get_path().resolve()
 
-        if not resolved_path.relative_to(src_dir_path):
+        try:
+            resolved_path.relative_to(src_dir_path)
+        except ValueError:
             raise AddTranslatableFileError(f"The provided file {path} is not in the source directory!")
         if not resolved_path.exists() or not resolved_path.is_file():
             raise AddTranslatableFileError(FileDoesNotExistError("This file does not exist"))
         
-        if resolved_path not in self.translatable_files:
-            self.translatable_files.append(resolved_path)
+        rel_path = self._relativize_to_runtime_root(resolved_path)
+        if rel_path not in self.translatable_files:
+            self.translatable_files.append(rel_path)
 
     def get_translatable_files(self) -> List[Path]:
         """Gets a list of all the translatable files in the source directory."""
         if not self.src_dir:
             return [] 
+        root = self._get_runtime_root()
+        resolved_files: List[Path] = []
+        for stored_path in self.translatable_files:
+            if stored_path.is_absolute():
+                resolved_files.append(stored_path)
+            else:
+                resolved_files.append((root / stored_path).resolve())
+        return resolved_files
 
-        return self.translatable_files
+    def set_runtime_root_path(self, root_path: Path) -> bool:
+        """Sets the runtime root used to resolve stored relative paths."""
+        resolved_root = root_path.resolve()
+        self.runtime_root_path = resolved_root
+
+        changed = False
+        if self._normalize_lang_dir(self.src_dir, resolved_root):
+            changed = True
+
+        for lang_dir in self.lang_dirs:
+            if self._normalize_lang_dir(lang_dir, resolved_root):
+                changed = True
+
+        normalized_files: List[Path] = []
+        for path in self.translatable_files:
+            normalized = self._ensure_relative_path(path, resolved_root)
+            if normalized != path:
+                changed = True
+            normalized_files.append(normalized)
+        self.translatable_files = normalized_files
+        return changed
+
+    def _normalize_lang_dir(self, lang_dir: Optional[LangDir], reference_root: Path) -> bool:
+        if not lang_dir:
+            return False
+        normalized_path = self._ensure_relative_path(lang_dir.path, reference_root)
+        changed = normalized_path != lang_dir.path
+        lang_dir.path = normalized_path
+        lang_dir.attach_root_path(self.runtime_root_path or reference_root)
+        return changed
+
+    def _get_runtime_root(self) -> Path:
+        if self.runtime_root_path:
+            return self.runtime_root_path
+        raise ValueError("Project root path is not set, cannot resolve relative paths.")
+
+    def _relativize_to_runtime_root(self, path: Path) -> Path:
+        root = self._get_runtime_root()
+        resolved_path = path.resolve()
+        try:
+            return resolved_path.relative_to(root)
+        except ValueError:
+            raise ValueError(f"Path {resolved_path} is not under the project root {root}")
+
+    def _ensure_relative_path(self, path: Path, reference_root: Path) -> Path:
+        if not path.is_absolute():
+            return path
+        try:
+            return path.relative_to(reference_root)
+        except ValueError:
+            logger.warning(
+                f"Path {path} is not within the project root {reference_root}. Keeping absolute path in config."
+            )
+            return path
+
+    def _attach_root_if_missing(self, lang_dir: Optional[LangDir]) -> None:
+        if lang_dir and not lang_dir.root_path:
+            lang_dir.attach_root_path(self._get_runtime_root())
