@@ -3,11 +3,14 @@ import shutil
 from pathlib import Path
 from typing import List, Optional
 
+from loguru import logger
+
 from trans_lib.doc_corrector import correct_file_translation
 from trans_lib.translation_store.translation_store import TranslationStoreCsv
+from trans_lib.translation_store.db_rebuilder import collect_translation_pairs
 from trans_lib.vocab_list import VocabList
 
-from .enums import Language
+from .enums import DocumentType, Language
 from .project_config_models import ProjectConfig, LangDir
 from .project_config_io import (
     load_project_config,
@@ -15,7 +18,7 @@ from .project_config_io import (
     copy_untranslatable_files_recursive
 )
 from .doc_translator import translate_file_to_file_async # Using the async version
-from .helpers import find_dir_upwards
+from .helpers import analyze_document_type, calculate_checksum, find_dir_upwards
 from .constants import CONF_DIR, CONFIG_FILENAME
 from .errors import (
     CorrectTranslationError, CorrectingTranslationError, InitProjectError, InvalidPathError, NoSourceFileError, ProjectAlreadyInitializedError, SetLLMServiceError, WriteConfigError as ConfigWriteError,
@@ -26,7 +29,7 @@ from .errors import (
     RemoveLanguageError, TargetLanguageNotInProjectError,
     SyncFilesError, NoTargetLanguagesError, CopyFileDirError, AddTranslatableFileError,
     FileDoesNotExistError, GetTranslatableFilesError, TranslateFileError, UntranslatableFileError,
-    TranslationProcessError
+    TranslationProcessError, RebuildTranslationDbError
 )
 
 
@@ -370,6 +373,94 @@ class Project:
              raise CorrectTranslationError(TargetLanguageNotInProjectError("Critical: Target language config vanished."))
 
         self._correct_translation_file(file_path, target_lang)
+
+    def rebuild_translation_database(self, target_lang: Language | None = None) -> None:
+        """Rebuilds the translation cache by scanning on-disk source/target files."""
+        source_language = self._get_source_language()
+        if source_language is None:
+            raise RebuildTranslationDbError("Cannot rebuild translation database: Source language is not set.")
+
+        src_dir = self.config.src_dir
+        if src_dir is None:
+            raise RebuildTranslationDbError("Cannot rebuild translation database: Source directory is not configured.")
+        src_root = src_dir.get_path()
+
+        target_lang_dirs = self._get_target_language_dirs()
+        if target_lang is not None:
+            target_lang_dirs = [ld for ld in target_lang_dirs if ld.language == target_lang]
+            if not target_lang_dirs:
+                raise RebuildTranslationDbError(f"Language {target_lang} is not configured as a target language.")
+
+        if not target_lang_dirs:
+            raise RebuildTranslationDbError("Cannot rebuild translation database: No target languages configured.")
+
+        try:
+            translatable_files = self.get_translatable_files()
+        except GetTranslatableFilesError as exc:
+            raise RebuildTranslationDbError(f"Cannot rebuild translation database: {exc}") from exc
+
+        if not translatable_files:
+            raise RebuildTranslationDbError("Cannot rebuild translation database: No translatable files configured.")
+
+        store = TranslationStoreCsv(self.root_path)
+        rebuilt_pairs = 0
+        processed_files = 0
+
+        for target_dir in target_lang_dirs:
+            target_root = target_dir.get_path()
+            if not target_root.exists():
+                raise RebuildTranslationDbError(f"Target directory {target_root} does not exist.")
+
+            for src_file in translatable_files:
+                try:
+                    relative_path = src_file.relative_to(src_root)
+                except ValueError as exc:
+                    raise RebuildTranslationDbError(
+                        f"Translatable file {src_file} is not inside the configured source directory {src_root}.",
+                    ) from exc
+
+                target_file = target_root / relative_path
+                if not target_file.exists():
+                    logger.warning(
+                        "Skipping rebuild for {} → {}: target file is missing.",
+                        src_file,
+                        target_file,
+                    )
+                    continue
+
+                doc_type = analyze_document_type(src_file)
+                try:
+                    recovered_pairs = collect_translation_pairs(src_file, target_file, doc_type)
+                except Exception as exc:
+                    raise RebuildTranslationDbError(
+                        f"Failed to collect translation chunks for {target_file}: {exc}",
+                    ) from exc
+
+                if not recovered_pairs:
+                    continue
+
+                processed_files += 1
+                relative_path_str = relative_path.as_posix()
+
+                for pair in recovered_pairs:
+                    tgt_checksum = calculate_checksum(pair.tgt_text)
+                    store.persist_pair(
+                        pair.src_checksum,
+                        tgt_checksum,
+                        source_language,
+                        target_dir.language,
+                        pair.src_text,
+                        pair.tgt_text,
+                        relative_path_str,
+                    )
+                    rebuilt_pairs += 1
+
+        logger.info(
+            "Rebuilt {} translation chunk pairs from {} files for {} target language(s).",
+            rebuilt_pairs,
+            processed_files,
+            len(target_lang_dirs),
+        )
 
     def get_llm_service(self) -> str:
         return self.config.get_llm_service()

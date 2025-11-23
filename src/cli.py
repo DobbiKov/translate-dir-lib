@@ -310,6 +310,24 @@ def correct_all_cli(
         typer.secho(f"An unexpected error occurred during 'update-translation all': {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
+# ============ db app =============
+db_app = typer.Typer(name="db", help="Translation database utilities", no_args_is_help=True)
+app.add_typer(db_app)
+
+@db_app.command("rebuild")
+def rebuild_db_cli(ctx: typer.Context):
+    """Rebuilds the translation database for all target languages using on-disk files."""
+    project = get_project_from_context(ctx)
+    try:
+        project.rebuild_translation_database()
+        typer.secho("Translation database rebuilt for all target languages.", fg=typer.colors.GREEN)
+    except errors.RebuildTranslationDbError as e:
+        typer.secho(f"Error rebuilding translation database: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    except Exception as e:
+        typer.secho(f"An unexpected error occurred during database rebuild: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
 # --- Main execution for CLI ---
 # This callback is for global options like --project-dir if you add them
 # For now, it's not strictly needed as get_project_from_context handles loading

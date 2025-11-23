@@ -158,6 +158,10 @@ class CorrectTranslationError(ProjectError):
     """
     pass
 
+class RebuildTranslationDbError(ProjectError):
+    """Errors raised while rebuilding the translation database."""
+    pass
+
 class CorrectingTranslationError(CorrectTranslationError):
     """
     Correcting translation error
