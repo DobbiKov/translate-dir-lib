@@ -282,8 +282,19 @@ class Project:
         source_language = self._get_source_language()
         if source_language is None:
             raise CorrectTranslationError(NoSourceLanguageError("Cannot find the source file: No source language set."))
+
+        target_lang_dir_config = next((ld for ld in self.config.lang_dirs if ld.language == target_lang), None)
+        if not target_lang_dir_config:
+            raise CorrectTranslationError(TargetLanguageNotInProjectError(f"Cannot correct translation: Target language {target_lang} not in project."))
+
+        target_root = target_lang_dir_config.get_path()
         try:
-            if correct_file_translation(self.root_path, target_path, target_lang, source_language):
+            relative_path = target_path.relative_to(target_root).as_posix()
+        except ValueError as exc:
+            raise CorrectTranslationError(UntranslatableFileError(f"File {target_path} is not inside the target directory {target_root}")) from exc
+
+        try:
+            if correct_file_translation(self.root_path, target_path, target_lang, source_language, relative_path):
                 print(f"Successfully corrected the translation in {target_path.name}")
             else:
                 print("The file doesn't need any corrections to be saved")
@@ -401,10 +412,21 @@ class Project:
             raise TranslateFileError(FileDoesNotExistError(f"File {file_path} is translatable but not in source root {src_dir_root_path}."))
 
         target_file_path = target_dir_root_path / relative_path
+        relative_path_str = relative_path.as_posix()
         
         print(f"Translating {file_path.name} to {target_lang.value} -> {target_file_path}...")
         try:
-            await translate_file_to_file_async(self.root_path, file_path, source_language, target_file_path, target_lang, vocab_list, self.get_llm_service(), self.get_llm_model())
+            await translate_file_to_file_async(
+                self.root_path,
+                file_path,
+                source_language,
+                target_file_path,
+                target_lang,
+                relative_path_str,
+                vocab_list,
+                self.get_llm_service(),
+                self.get_llm_model(),
+            )
         except TranslationProcessError as e:
             raise TranslateFileError(f"Translation process failed for {file_path.name}: {e}", e)
         except IOError as e: # From file writing in translate_file_to_file_async

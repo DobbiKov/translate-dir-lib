@@ -49,19 +49,36 @@ def get_myst_cells(source_file_path: Path) -> list[dict]:
 
     return cells
 
-async def translate_file_async(root_path: Path, source_file_path: Path, source_language: Language, target_file_path: Path, target_language: Language, vocab_list: VocabList | None, llm_caller: LLMCaller) -> None:
+async def translate_file_async(
+    root_path: Path,
+    source_file_path: Path,
+    source_language: Language,
+    target_file_path: Path,
+    target_language: Language,
+    relative_path: str,
+    vocab_list: VocabList | None,
+    llm_caller: LLMCaller,
+) -> None:
     """Handler for a latex file-to-file translation"""
     cells = get_myst_cells(source_file_path)
 
     for i in range(len(cells)):
         cell = cells[i]
-        cells[i] = await translate_chunk_async(root_path, cell, source_language, target_language, vocab_list, llm_caller)
+        cells[i] = await translate_chunk_async(root_path, cell, source_language, target_language, relative_path, vocab_list, llm_caller)
 
     with open(target_file_path, "w") as f:
         f.write(compile_myst_cells(cells))
 
 
-async def translate_chunk_async(root_path: Path, cell: dict, source_language: Language, target_language: Language, vocab_list: VocabList | None, llm_caller: LLMCaller) -> dict:
+async def translate_chunk_async(
+    root_path: Path,
+    cell: dict,
+    source_language: Language,
+    target_language: Language,
+    relative_path: str,
+    vocab_list: VocabList | None,
+    llm_caller: LLMCaller,
+) -> dict:
    """Handler for a latex chunk translation"""
    src_txt = cell["source"] 
    logger.debug(f"{src_txt}")
@@ -71,16 +88,24 @@ async def translate_chunk_async(root_path: Path, cell: dict, source_language: La
    cell["metadata"]["src_checksum"] = checksum
 
    try:
-       cell["source"] = await translate_any_chunk_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller)
+       cell["source"] = await translate_any_chunk_async(root_path, src_txt, source_language, target_language, relative_path, vocab_list, llm_caller)
    except ChunkTranslationFailed as exc:
        cell["metadata"]["not-translated-due-to-exception"] = "True"
        cell["source"] = exc.chunk
 
    return cell
 
-async def translate_any_chunk_async(root_path: Path, contents: str, source_language: Language, target_language: Language, vocab_list: VocabList | None, llm_caller: LLMCaller) -> str:
+async def translate_any_chunk_async(
+    root_path: Path,
+    contents: str,
+    source_language: Language,
+    target_language: Language,
+    relative_path: str,
+    vocab_list: VocabList | None,
+    llm_caller: LLMCaller,
+) -> str:
     tr = build_translator_with_model(root_path, llm_caller)
-    meta = Meta(contents, source_language, target_language, DocumentType.Markdown, ChunkType.Myst, vocab_list)
+    meta = Meta(contents, source_language, target_language, DocumentType.Markdown, ChunkType.Myst, vocab_list, relative_path)
     return await tr.translate_or_fetch(meta)
 
 

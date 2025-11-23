@@ -14,6 +14,17 @@ def calculate_checksum(contents: str) -> str:
     """
     return hashlib.sha256(contents.encode('utf-8')).hexdigest()
 
+def normalize_relative_path(path: Path | str) -> str:
+    """Converts any Path-like input to a normalized POSIX relative string."""
+    if isinstance(path, Path):
+        return path.as_posix()
+    return Path(path).as_posix()
+
+def calculate_path_checksum(relative_path: str | Path) -> str:
+    """Returns a checksum for a normalized relative path string."""
+    normalized = normalize_relative_path(relative_path)
+    return hashlib.sha256(normalized.encode('utf-8')).hexdigest()
+
 def ensure_dir_exists(path: Path) -> None:
     if not os.path.exists(path):
         os.mkdir(path)
@@ -113,44 +124,70 @@ def extract_text_between_tags(text: str, start_tag: str, end_tag: str) -> str:
 
     return text[start_index:end_index].strip()
 
+    
 def extract_translated_from_response(message: str) -> str:
     """
-    Takes a text and returns the content written within all <output>...</output> tags.
-    Concatenates content from multiple <output> tags if present.
+    1. Looks for <output> tags. If found, returns content *inside* tags (stripping tags and leading \n).
+    2. If <output> not found, looks for <document> tags. Returns content *including* the tags.
+    3. Returns empty string if neither are found.
     """
     
-    if "<output>" not in message:
-        return "" 
+    if "<output>" in message:
+        res_list = []
+        current_pos = 0
+        while True:
+            start_idx = message.find("<output>", current_pos)
+            if start_idx == -1:
+                break
+            start_idx += len("<output>")
+            
+            end_idx = message.find("</output>", start_idx)
+            if end_idx == -1: 
+                # No closing tag: take the rest of the string
+                segment = message[start_idx:]
+                if segment.startswith("\n"):
+                     segment = segment[1:]
+                res_list.append(segment)
+                break 
 
-    res_list = []
-    current_pos = 0
-    while True:
-        start_idx = message.find("<output>", current_pos)
-        if start_idx == -1:
-            break
-        start_idx += len("<output>")
-        
-        end_idx = message.find("</output>", start_idx)
-        if end_idx == -1: # No closing tag found for the last opened <output>
-            # Decide behavior: take rest of string, or ignore this segment.
-            # Rust logic: `chunk_string.split("</output>").next().unwrap()`
-            # This would take the part before `</output>` if it exists.
-            # If `</output>` doesn't exist in `chunk_string`, `split` returns a single element list,
-            # and `.next().unwrap()` takes that whole `chunk_string`.
-            # So, if no closing tag, it takes the rest of that segment.
-            segment = message[start_idx:]
-            if segment.startswith("\n"): # Mimic strip_prefix
-                 segment = segment[1:]
+            segment = message[start_idx:end_idx]
+            if segment.startswith("\n"):
+                segment = segment[1:]
             res_list.append(segment)
-            break # No more closing tags to look for
+            current_pos = end_idx + len("</output>")
+            
+        return "".join(res_list)
 
-        segment = message[start_idx:end_idx]
-        if segment.startswith("\n"): # Mimic strip_prefix
-            segment = segment[1:]
-        res_list.append(segment)
-        current_pos = end_idx + len("</output>")
-        
-    return "".join(res_list)
+    elif "<document>" in message:
+        res_list = []
+        current_pos = 0
+        while True:
+            start_idx = message.find("<document>", current_pos)
+            if start_idx == -1:
+                break
+            
+            # Note: We do NOT add len("<document>") to start_idx because 
+            # we want to include the tag in the result.
+
+            end_idx = message.find("</document>", start_idx)
+            if end_idx == -1:
+                # No closing tag: take the rest of the string (including the opening tag)
+                segment = message[start_idx:]
+                res_list.append(segment)
+                break 
+
+            # Calculate the end position to include "</document>"
+            end_pos = end_idx + len("</document>")
+            
+            segment = message[start_idx:end_pos]
+            # We do NOT strip startswith("\n") here to preserve exact document structure
+            res_list.append(segment)
+            
+            current_pos = end_pos
+
+        return "".join(res_list)
+
+    return ""
 
 
 def read_string_from_file(path: Path) -> str:

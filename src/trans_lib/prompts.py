@@ -541,6 +541,7 @@ You are provided with:
 - Use the text of each <PH> tag to understand the context and grammar. This will help you make correct translation decisions (e.g., for plurality, case, or syntax), but you must not change or translate the contents of the <PH> tags themselves.
 - Your response must contain only the updated XML — return the modified <TEXT> block with embedded <PH> tags and nothing else (no explanations, no markdown, no prefix/suffix text) in the <output> tag the output format will be provided below.
 - If the provided chunk doesn't contain any <PH> tags, you simply translate the text inside the <TEXT> tag and return it in the initial format
+- If updated translated is exactly as old translation, provide it in the output anyway
 
 ### Output Format:
 <output>
@@ -563,6 +564,4 @@ Don't cover the output in any Markdown or XML environments like (```) etc.
 
 #### New Source:
 [SRC]
-
-Now provide the updated translation:
 '''

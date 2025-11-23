@@ -3,14 +3,24 @@ from pathlib import Path
 
 from trans_lib.diff import get_best_match_in_dir, get_checksum_for_best_match_in_dir
 from trans_lib.enums import Language
-from trans_lib.translation_store.trans_db import ensure_db_dir, ensure_lang_dirs, find_correspondent_checksum, read_contents_by_checksum_with_lang, set_checksum_pair_to_correspondence_db, add_contents_to_db, do_translation_correspond_to_source
+from trans_lib.translation_store.trans_db import (
+    add_contents_to_db,
+    do_translation_correspond_to_source,
+    ensure_db_dir,
+    ensure_lang_dirs,
+    find_correspondent_checksum,
+    get_lang_path_dir,
+    read_contents_by_checksum_with_lang,
+    register_path_hash,
+    set_checksum_pair_to_correspondence_db,
+)
 
 class TranslationStore(ABC):
     def __init__(self, root_path: Path, db_path: Path) -> None:
         self.db_path = db_path
         self.root_path = root_path
     @abstractmethod
-    def lookup(self, src_checksum: str, src_lang: Language, tgt_lang: Language) -> str | None:
+    def lookup(self, src_checksum: str, src_lang: Language, tgt_lang: Language, relative_path: str) -> str | None:
         pass
 
     @abstractmethod
@@ -22,16 +32,23 @@ class TranslationStore(ABC):
         tgt_lang: Language,
         src_text: str,
         tgt_text: str,
+        relative_path: str,
     ) -> None:
         """Return the cached *target text* if the pair exists, else *None*."""
         pass
 
     @abstractmethod
-    def get_contents_by_checksum(self, checksum: str, lang: Language) -> str | None:
+    def get_contents_by_checksum(self, checksum: str, lang: Language, relative_path: str) -> str | None:
         pass
 
     @abstractmethod
-    def get_best_pair_example_from_db(self, lang: Language, tgt_lang: Language, txt: str) -> tuple[str, str, float] | None:
+    def get_best_pair_example_from_db(
+        self,
+        lang: Language,
+        tgt_lang: Language,
+        txt: str,
+        relative_path: str,
+    ) -> tuple[str, str, float] | None:
         """
         Returns the triplet (src, tgt, score) of the best match between the provided text and the found source text in the database.
         """
@@ -45,7 +62,7 @@ class TranslationStore(ABC):
         pass
 
     @abstractmethod
-    def do_translation_correspond_to_source(self, root_path: Path, src_checksum: str, src_lang: Language, tgt_contents: str, tgt_lang: Language) -> bool:
+    def do_translation_correspond_to_source(self, src_checksum: str, src_lang: Language, tgt_contents: str, tgt_lang: Language, relative_path: str) -> bool:
         pass
 
 class TranslationStoreCsv(TranslationStore):
@@ -53,12 +70,13 @@ class TranslationStoreCsv(TranslationStore):
         db_path = ensure_db_dir(root_path)
         super().__init__(root_path, db_path)
 
-    def lookup(self, src_checksum: str, src_lang: Language, tgt_lang: Language) -> str | None:
+    def lookup(self, src_checksum: str, src_lang: Language, tgt_lang: Language, relative_path: str) -> str | None:
         """Return the cached *target text* if the pair exists, else *None*."""
-        tgt_checksum = find_correspondent_checksum(self.root_path, src_checksum, src_lang, tgt_lang)
+        path_hash = register_path_hash(self.root_path, relative_path)
+        tgt_checksum = find_correspondent_checksum(self.root_path, src_checksum, src_lang, tgt_lang, path_hash)
         if tgt_checksum is None:
             return None
-        return read_contents_by_checksum_with_lang(self.root_path, tgt_checksum, tgt_lang)
+        return read_contents_by_checksum_with_lang(self.root_path, tgt_checksum, tgt_lang, path_hash)
 
     def persist_pair(
         self,
@@ -68,22 +86,29 @@ class TranslationStoreCsv(TranslationStore):
         tgt_lang: Language,
         src_text: str,
         tgt_text: str,
+        relative_path: str,
     ) -> None:
         """
         Adds translation pair to the database
         """
-        src_checksum = add_contents_to_db(self.root_path, src_text, src_lang) 
-        tgt_checksum = add_contents_to_db(self.root_path, tgt_text, tgt_lang) 
-        set_checksum_pair_to_correspondence_db(self.root_path, src_checksum, src_lang, tgt_checksum, tgt_lang)
+        path_hash = register_path_hash(self.root_path, relative_path)
+        src_checksum = add_contents_to_db(self.root_path, src_text, src_lang, path_hash)
+        tgt_checksum = add_contents_to_db(self.root_path, tgt_text, tgt_lang, path_hash)
+        set_checksum_pair_to_correspondence_db(self.root_path, src_checksum, src_lang, tgt_checksum, tgt_lang, path_hash)
 
-    def get_best_pair_example_from_db(self, lang: Language, tgt_lang: Language, txt: str) -> tuple[str, str, float] | None:
+    def get_best_pair_example_from_db(self, lang: Language, tgt_lang: Language, txt: str, relative_path: str) -> tuple[str, str, float] | None:
         """
         Returns the triplet (src, tgt, score) of the best match between the provided text and the found source text in the database.
         """
-        dir = ensure_lang_dirs(self.root_path, [lang])[0]
+        path_hash = register_path_hash(self.root_path, relative_path)
+        dir = get_lang_path_dir(self.root_path, lang, path_hash)
+        if not dir.exists():
+            return None
         src_checksum, score = get_checksum_for_best_match_in_dir(dir, txt)
-        src = self.get_contents_by_checksum(src_checksum, lang)
-        tgt = self.lookup(src_checksum, lang, tgt_lang)
+        if not src_checksum:
+            return None
+        src = self.get_contents_by_checksum(src_checksum, lang, relative_path)
+        tgt = self.lookup(src_checksum, lang, tgt_lang, relative_path)
         if tgt is None or src is None:
             return None
         return src, tgt, score
@@ -92,11 +117,20 @@ class TranslationStoreCsv(TranslationStore):
         """
         Returns the best match and the score between the provided chunk and all the chunks of the provided language.
         """
-        dir = ensure_lang_dirs(self.root_path, [lang])[0]
-        return get_best_match_in_dir(dir, txt)
+        lang_dir = ensure_lang_dirs(self.root_path, [lang])[0]
+        best_txt, best_score = "", 0.0
+        for path_dir in lang_dir.iterdir():
+            if not path_dir.is_dir():
+                continue
+            candidate_txt, score = get_best_match_in_dir(path_dir, txt)
+            if score > best_score:
+                best_txt, best_score = candidate_txt, score
+        return best_txt, best_score
 
-    def do_translation_correspond_to_source(self, root_path: Path, src_checksum: str, src_lang: Language, tgt_contents: str, tgt_lang: Language) -> bool:
-        return do_translation_correspond_to_source(root_path, src_checksum, src_lang, tgt_contents, tgt_lang)
+    def do_translation_correspond_to_source(self, src_checksum: str, src_lang: Language, tgt_contents: str, tgt_lang: Language, relative_path: str) -> bool:
+        path_hash = register_path_hash(self.root_path, relative_path)
+        return do_translation_correspond_to_source(self.root_path, src_checksum, src_lang, tgt_contents, tgt_lang, path_hash)
 
-    def get_contents_by_checksum(self, checksum: str, lang: Language) -> str | None:
-        return read_contents_by_checksum_with_lang(self.root_path, checksum, lang)
+    def get_contents_by_checksum(self, checksum: str, lang: Language, relative_path: str) -> str | None:
+        path_hash = register_path_hash(self.root_path, relative_path)
+        return read_contents_by_checksum_with_lang(self.root_path, checksum, lang, path_hash)

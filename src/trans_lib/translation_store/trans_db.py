@@ -4,8 +4,23 @@ from pathlib import Path
 from typing import Iterable
 
 from trans_lib.enums import Language
-from trans_lib.helpers import calculate_checksum, ensure_dir_exists, get_config_dir_from_root, read_string_from_file
-from trans_lib.constants import DB_DIR_NAME, CORRESPONDENCE_DB_NAME
+from trans_lib.helpers import (
+    calculate_checksum,
+    calculate_path_checksum,
+    ensure_dir_exists,
+    get_config_dir_from_root,
+    normalize_relative_path,
+    read_string_from_file,
+)
+from trans_lib.constants import DB_DIR_NAME, CORRESPONDENCE_DB_NAME, PATH_MAP_FILENAME
+
+PATH_CHECKSUM_COLUMN = "path_checksum"
+PATH_MAP_COLUMNS = [PATH_CHECKSUM_COLUMN, "relative_path"]
+
+def _ensure_path_field(fields: list[str]) -> list[str]:
+    if PATH_CHECKSUM_COLUMN not in fields:
+        fields.insert(0, PATH_CHECKSUM_COLUMN)
+    return fields
 
 
 def ensure_db_dir(root_path: Path) -> Path:
@@ -13,23 +28,65 @@ def ensure_db_dir(root_path: Path) -> Path:
     ensure_dir_exists(db_full_dir_path)
     return db_full_dir_path
 
-def ensure_lang_dirs(root_path: Path, langs: Iterable[Language]) -> list[Path]:
-    db_full_dir_path = get_config_dir_from_root(root_path).joinpath(DB_DIR_NAME)
-    res = []
-    for lang in langs:
-        lang_str = str(lang)
-        lang_full_path = db_full_dir_path.joinpath(lang_str)
-        ensure_dir_exists(lang_full_path)
-        res.append(lang_full_path)
-    return res
+def ensure_lang_dir(root_path: Path, lang: Language) -> Path:
+    db_full_dir_path = ensure_db_dir(root_path)
+    lang_full_path = db_full_dir_path.joinpath(str(lang))
+    ensure_dir_exists(lang_full_path)
+    return lang_full_path
 
-def add_contents_to_db(root_path: Path, contents: str, lang: Language) -> str:
+def ensure_lang_dirs(root_path: Path, langs: Iterable[Language]) -> list[Path]:
+    return [ensure_lang_dir(root_path, lang) for lang in langs]
+
+def ensure_lang_path_dir(root_path: Path, lang: Language, path_hash: str) -> Path:
+    lang_full_path = ensure_lang_dir(root_path, lang)
+    path_dir = lang_full_path.joinpath(path_hash)
+    ensure_dir_exists(path_dir)
+    return path_dir
+
+def get_lang_path_dir(root_path: Path, lang: Language, path_hash: str) -> Path:
+    lang_full_path = ensure_lang_dir(root_path, lang)
+    return lang_full_path.joinpath(path_hash)
+
+def get_path_map_path(root_path: Path) -> Path:
+    return ensure_db_dir(root_path).joinpath(PATH_MAP_FILENAME)
+
+def ensure_path_map(root_path: Path) -> Path:
+    path = get_path_map_path(root_path)
+    ensure_db_dir(root_path)
+    if not os.path.exists(path):
+        with open(path, "w", newline="") as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=PATH_MAP_COLUMNS)
+            writer.writeheader()
+    return path
+
+def register_path_hash(root_path: Path, relative_path: str | Path) -> str:
+    normalized = normalize_relative_path(relative_path)
+    path_hash = calculate_path_checksum(normalized)
+    path_map = ensure_path_map(root_path)
+
+    with open(path_map, "r", newline="") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            if row.get(PATH_CHECKSUM_COLUMN) == path_hash:
+                existing = row.get("relative_path", "")
+                if existing and existing != normalized:
+                    raise ValueError(
+                        f"Path hash collision: {path_hash} already mapped to {existing}, got {normalized}",
+                    )
+                return path_hash
+
+    with open(path_map, "a", newline="") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=PATH_MAP_COLUMNS)
+        writer.writerow({PATH_CHECKSUM_COLUMN: path_hash, "relative_path": normalized})
+
+    return path_hash
+
+def add_contents_to_db(root_path: Path, contents: str, lang: Language, path_hash: str) -> str:
     """
     Adds the given contents to the database of checksum contents to the appropriate language directory and returns the contents checksum
     """
     ensure_db_dir(root_path)
-    
-    lang_dir_full_path = ensure_lang_dirs(root_path, [lang])[0]
+    lang_dir_full_path = ensure_lang_path_dir(root_path, lang, path_hash)
     checksum = calculate_checksum(contents)
     file_path = lang_dir_full_path.joinpath(checksum)
     if os.path.exists(file_path): # if the checksum file already exists, then no need to write it
@@ -39,14 +96,15 @@ def add_contents_to_db(root_path: Path, contents: str, lang: Language) -> str:
         f.write(contents)
     return checksum
 
-def read_contents_by_checksum_with_lang(root_path: Path, checksum: str, lang: Language) -> str | None:
+def read_contents_by_checksum_with_lang(root_path: Path, checksum: str, lang: Language, path_hash: str) -> str | None:
     """
     Looks for a file with the given checksum in the directory of the given language and returns its contents if it finds such file and None if it doesn't
 
     Note: better performance then a usual [read_contents_by_checksum]
     """
-    ensure_db_dir(root_path)
-    lang_dir_full_path = ensure_lang_dirs(root_path, [lang])[0]
+    lang_dir_full_path = get_lang_path_dir(root_path, lang, path_hash)
+    if not lang_dir_full_path.exists():
+        return None
     return _read_contents_by_checksum_in_dir(checksum, lang_dir_full_path)
 
 def _read_contents_by_checksum_in_dir(checksum: str, dir: Path) -> str | None:
@@ -68,14 +126,17 @@ def read_contents_by_checksum(root_path: Path, checksum: str) -> str | None:
     if not os.path.exists(db_dir_path):
         return None
 
-    for dir in db_dir_path.iterdir():
-        if not dir.is_dir():
+    for lang_dir in db_dir_path.iterdir():
+        if not lang_dir.is_dir():
             continue
 
-        path = dir.absolute()
-        res = _read_contents_by_checksum_in_dir(checksum, path)
-        if res is not None:
-            return res
+        for path_dir in lang_dir.iterdir():
+            if not path_dir.is_dir():
+                continue
+
+            res = _read_contents_by_checksum_in_dir(checksum, path_dir.absolute())
+            if res is not None:
+                return res
 
     return None
 
@@ -93,9 +154,8 @@ def ensure_correspondence_db(root_path: Path) -> None:
     ensure_db_dir(root_path)
     if os.path.exists(file_path):
         return
-    with open(file_path, 'w') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=[])
-
+    with open(file_path, 'w', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=[PATH_CHECKSUM_COLUMN])
         writer.writeheader()
 
 def add_lang_to_db_data(fields: list[str], data_list: list[dict], lang: Language) -> tuple[list[str], list[dict]]:
@@ -103,6 +163,7 @@ def add_lang_to_db_data(fields: list[str], data_list: list[dict], lang: Language
     Helper function.
     Adds language to the provided db data
     """
+    fields = _ensure_path_field(fields)
     if str(lang) in fields:
         return (fields, data_list)
 
@@ -118,7 +179,7 @@ def remove_lang_from_db_data(fields: list[str], data_list: list[dict], lang: Lan
     Helper function.
     Removes language from the provided db data
     """
-
+    fields = _ensure_path_field(fields)
     if str(lang) not in fields:
         return (fields, data_list)
 
@@ -153,7 +214,13 @@ def remove_language_from_correspondence_db(root_path: Path, lang: Language) -> N
 
     write_correspondence_db(root_path, data_list, fields)
 
-def find_correspondent_checksum(root_path: Path, src_checksum: str, src_lang: Language, tgt_lang: Language) -> str | None:
+def find_correspondent_checksum(
+    root_path: Path,
+    src_checksum: str,
+    src_lang: Language,
+    tgt_lang: Language,
+    path_hash: str,
+) -> str | None:
     """
     Looks for the correspondent checksum of a particular language to the given checksum (of the given language) returns the checksum if finds it, None otherwise
 
@@ -176,10 +243,14 @@ def find_correspondent_checksum(root_path: Path, src_checksum: str, src_lang: La
         return None
 
     (fields, data_list) = db_data
+    fields = _ensure_path_field(fields)
     if str(src_lang) not in fields or str(tgt_lang) not in fields:
         return None
 
     for data in data_list:
+        row_path_hash = data.get(PATH_CHECKSUM_COLUMN, "")
+        if row_path_hash and row_path_hash != path_hash:
+            continue
         if data[str(src_lang)] == src_checksum:
             tgt_checksum = data[str(tgt_lang)]
             if tgt_checksum == "": # if target checksum is an empty string, it means that for such source checksum and these languages there's no correspondence pair, return None
@@ -188,26 +259,47 @@ def find_correspondent_checksum(root_path: Path, src_checksum: str, src_lang: La
 
     return None
 
-def do_translation_checksum_correspond_to_source(root_path: Path, src_checksum: str, src_lang: Language, tgt_checksum: str, tgt_lang: Language) -> bool:
+def do_translation_checksum_correspond_to_source(
+    root_path: Path,
+    src_checksum: str,
+    src_lang: Language,
+    tgt_checksum: str,
+    tgt_lang: Language,
+    path_hash: str,
+) -> bool:
     """
     Returns true if two given checksums of two different languages correspond (i.e the one is a translation of the other) and False otherwise
     """
     if tgt_lang == src_lang:
         return False
-    true_tgt_checksum = find_correspondent_checksum(root_path, src_checksum, src_lang, tgt_lang)
+    true_tgt_checksum = find_correspondent_checksum(root_path, src_checksum, src_lang, tgt_lang, path_hash)
     if true_tgt_checksum is None:
         return False
 
     return true_tgt_checksum == tgt_checksum
 
-def do_translation_correspond_to_source(root_path: Path, src_checksum: str, src_lang: Language, tgt_contents: str, tgt_lang: Language) -> bool:
+def do_translation_correspond_to_source(
+    root_path: Path,
+    src_checksum: str,
+    src_lang: Language,
+    tgt_contents: str,
+    tgt_lang: Language,
+    path_hash: str,
+) -> bool:
     """
     Returns true if the given translation corresponds to the given source checksum and false otherwise
     """
     tgt_checksum = calculate_checksum(tgt_contents)
-    return do_translation_checksum_correspond_to_source(root_path, src_checksum, src_lang, tgt_checksum, tgt_lang)
+    return do_translation_checksum_correspond_to_source(root_path, src_checksum, src_lang, tgt_checksum, tgt_lang, path_hash)
 
-def set_checksum_pair_to_correspondence_db(root_path: Path, src_checksum: str, src_lang: Language, tgt_checksum: str, tgt_lang: Language) -> None:
+def set_checksum_pair_to_correspondence_db(
+    root_path: Path,
+    src_checksum: str,
+    src_lang: Language,
+    tgt_checksum: str,
+    tgt_lang: Language,
+    path_hash: str,
+) -> None:
     if src_lang == tgt_lang:
         return None
 
@@ -219,13 +311,20 @@ def set_checksum_pair_to_correspondence_db(root_path: Path, src_checksum: str, s
     if db_data is not None:
         (fields, data_list) = db_data
 
+    fields = _ensure_path_field(fields)
+
     if str(src_lang) not in fields:
         (fields, data_list) = add_lang_to_db_data(fields, data_list, src_lang)
     if str(tgt_lang) not in fields:
         (fields, data_list) = add_lang_to_db_data(fields, data_list, tgt_lang)
 
     for i in range(len(data_list)):
-        if data_list[i][str(src_lang)] == src_checksum:
+        row = data_list[i]
+        row_path_hash = row.get(PATH_CHECKSUM_COLUMN, "")
+        if row_path_hash and row_path_hash != path_hash:
+            continue
+        if row[str(src_lang)] == src_checksum:
+            row[PATH_CHECKSUM_COLUMN] = path_hash
             data_list[i][str(tgt_lang)] = tgt_checksum
             write_correspondence_db(root_path, data_list, fields)
             return
@@ -234,6 +333,7 @@ def set_checksum_pair_to_correspondence_db(root_path: Path, src_checksum: str, s
     new_row = {}
     for field in fields:
         new_row[field] = ""
+    new_row[PATH_CHECKSUM_COLUMN] = path_hash
     new_row[str(src_lang)] = src_checksum
     new_row[str(tgt_lang)] = tgt_checksum
     data_list.append(new_row)
@@ -255,13 +355,15 @@ def read_correspondence_db(root_path: Path) -> tuple[list[str], list[dict]] | No
     data_list = []
     field_names = []
     
-    with open(file_path, mode='r') as file:
+    with open(file_path, mode='r', newline='') as file:
         csv_reader = csv.DictReader(file)
-        field_names: list[str] = list(csv_reader.fieldnames or [])
+        raw_fields = list(csv_reader.fieldnames or [])
+        field_names = _ensure_path_field(raw_fields)
 
         for row in csv_reader:
+            row.setdefault(PATH_CHECKSUM_COLUMN, "")
             data_list.append(row)
-            
+
     return (field_names, data_list)
 
 def write_correspondence_db(root_path: Path, data_list: list[dict], fields: list[str] = []) -> None:
@@ -270,18 +372,20 @@ def write_correspondence_db(root_path: Path, data_list: list[dict], fields: list
     """
     ensure_db_dir(root_path)
     file_path = get_correspondence_db_path(root_path)
-    if len(data_list) == 0:
-        with open(file_path, 'w') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fields)
+    fields = _ensure_path_field(list(fields))
 
+    if len(data_list) == 0:
+        with open(file_path, 'w', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fields)
             writer.writeheader()
         return
 
-    first_row = data_list[0]
-    fields = list(first_row.keys())
+    for row in data_list:
+        row.setdefault(PATH_CHECKSUM_COLUMN, "")
+        for field in fields:
+            row.setdefault(field, "")
 
-    with open(file_path, 'w') as csvfile:
+    with open(file_path, 'w', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fields)
-
         writer.writeheader()
         writer.writerows(data_list)
