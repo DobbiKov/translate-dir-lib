@@ -12,7 +12,7 @@ from trans_lib.helpers import (
     normalize_relative_path,
     read_string_from_file,
 )
-from trans_lib.constants import DB_DIR_NAME, CORRESPONDENCE_DB_NAME, PATH_MAP_FILENAME
+from trans_lib.constants import CACHE_DIR_NAME, CORRESPONDENCE_CACHE_FILENAME, PATH_MAP_FILENAME
 
 PATH_CHECKSUM_COLUMN = "path_checksum"
 PATH_MAP_COLUMNS = [PATH_CHECKSUM_COLUMN, "relative_path"]
@@ -23,36 +23,36 @@ def _ensure_path_field(fields: list[str]) -> list[str]:
     return fields
 
 
-def ensure_db_dir(root_path: Path) -> Path:
-    db_full_dir_path = get_config_dir_from_root(root_path).joinpath(DB_DIR_NAME)
-    ensure_dir_exists(db_full_dir_path)
-    return db_full_dir_path
+def ensure_cache_dir(root_path: Path) -> Path:
+    cache_full_dir_path = get_config_dir_from_root(root_path).joinpath(CACHE_DIR_NAME)
+    ensure_dir_exists(cache_full_dir_path)
+    return cache_full_dir_path
 
-def ensure_lang_dir(root_path: Path, lang: Language) -> Path:
-    db_full_dir_path = ensure_db_dir(root_path)
-    lang_full_path = db_full_dir_path.joinpath(str(lang))
+def ensure_lang_cache_dir(root_path: Path, lang: Language) -> Path:
+    cache_full_dir_path = ensure_cache_dir(root_path)
+    lang_full_path = cache_full_dir_path.joinpath(str(lang))
     ensure_dir_exists(lang_full_path)
     return lang_full_path
 
-def ensure_lang_dirs(root_path: Path, langs: Iterable[Language]) -> list[Path]:
-    return [ensure_lang_dir(root_path, lang) for lang in langs]
+def ensure_lang_cache_dirs(root_path: Path, langs: Iterable[Language]) -> list[Path]:
+    return [ensure_lang_cache_dir(root_path, lang) for lang in langs]
 
-def ensure_lang_path_dir(root_path: Path, lang: Language, path_hash: str) -> Path:
-    lang_full_path = ensure_lang_dir(root_path, lang)
+def ensure_lang_cache_path_dir(root_path: Path, lang: Language, path_hash: str) -> Path:
+    lang_full_path = ensure_lang_cache_dir(root_path, lang)
     path_dir = lang_full_path.joinpath(path_hash)
     ensure_dir_exists(path_dir)
     return path_dir
 
-def get_lang_path_dir(root_path: Path, lang: Language, path_hash: str) -> Path:
-    lang_full_path = ensure_lang_dir(root_path, lang)
+def get_lang_cache_path_dir(root_path: Path, lang: Language, path_hash: str) -> Path:
+    lang_full_path = ensure_lang_cache_dir(root_path, lang)
     return lang_full_path.joinpath(path_hash)
 
 def get_path_map_path(root_path: Path) -> Path:
-    return ensure_db_dir(root_path).joinpath(PATH_MAP_FILENAME)
+    return ensure_cache_dir(root_path).joinpath(PATH_MAP_FILENAME)
 
 def ensure_path_map(root_path: Path) -> Path:
     path = get_path_map_path(root_path)
-    ensure_db_dir(root_path)
+    ensure_cache_dir(root_path)
     if not os.path.exists(path):
         with open(path, "w", newline="") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=PATH_MAP_COLUMNS)
@@ -81,12 +81,12 @@ def register_path_hash(root_path: Path, relative_path: str | Path) -> str:
 
     return path_hash
 
-def add_contents_to_db(root_path: Path, contents: str, lang: Language, path_hash: str) -> str:
+def add_contents_to_cache(root_path: Path, contents: str, lang: Language, path_hash: str) -> str:
     """
-    Adds the given contents to the database of checksum contents to the appropriate language directory and returns the contents checksum
+    Adds the given contents to the translation cache for the appropriate language/path and returns the contents checksum.
     """
-    ensure_db_dir(root_path)
-    lang_dir_full_path = ensure_lang_path_dir(root_path, lang, path_hash)
+    ensure_cache_dir(root_path)
+    lang_dir_full_path = ensure_lang_cache_path_dir(root_path, lang, path_hash)
     checksum = calculate_checksum(contents)
     file_path = lang_dir_full_path.joinpath(checksum)
     if os.path.exists(file_path): # if the checksum file already exists, then no need to write it
@@ -96,18 +96,18 @@ def add_contents_to_db(root_path: Path, contents: str, lang: Language, path_hash
         f.write(contents)
     return checksum
 
-def read_contents_by_checksum_with_lang(root_path: Path, checksum: str, lang: Language, path_hash: str) -> str | None:
+def read_cached_contents_by_lang(root_path: Path, checksum: str, lang: Language, path_hash: str) -> str | None:
     """
     Looks for a file with the given checksum in the directory of the given language and returns its contents if it finds such file and None if it doesn't
 
-    Note: better performance then a usual [read_contents_by_checksum]
+    Note: better performance than a full cache scan via read_contents_from_cache_by_checksum.
     """
-    lang_dir_full_path = get_lang_path_dir(root_path, lang, path_hash)
+    lang_dir_full_path = get_lang_cache_path_dir(root_path, lang, path_hash)
     if not lang_dir_full_path.exists():
         return None
-    return _read_contents_by_checksum_in_dir(checksum, lang_dir_full_path)
+    return _read_contents_from_cache_by_checksum_in_dir(checksum, lang_dir_full_path)
 
-def _read_contents_by_checksum_in_dir(checksum: str, dir: Path) -> str | None:
+def _read_contents_from_cache_by_checksum_in_dir(checksum: str, dir: Path) -> str | None:
     if not os.path.exists(dir) or not dir.is_dir():
         return None
     for file in dir.iterdir():
@@ -118,15 +118,15 @@ def _read_contents_by_checksum_in_dir(checksum: str, dir: Path) -> str | None:
             return read_string_from_file(file.absolute())
     return None
 
-def read_contents_by_checksum(root_path: Path, checksum: str) -> str | None:
+def read_contents_from_cache_by_checksum(root_path: Path, checksum: str) -> str | None:
     """
     Iterates through all the files in all the lang directories and searches for the checksum and returns the contents if it finds such file and None if it doesn't
     """
-    db_dir_path = ensure_db_dir(root_path)
-    if not os.path.exists(db_dir_path):
+    cache_dir_path = ensure_cache_dir(root_path)
+    if not os.path.exists(cache_dir_path):
         return None
 
-    for lang_dir in db_dir_path.iterdir():
+    for lang_dir in cache_dir_path.iterdir():
         if not lang_dir.is_dir():
             continue
 
@@ -134,34 +134,33 @@ def read_contents_by_checksum(root_path: Path, checksum: str) -> str | None:
             if not path_dir.is_dir():
                 continue
 
-            res = _read_contents_by_checksum_in_dir(checksum, path_dir.absolute())
+            res = _read_contents_from_cache_by_checksum_in_dir(checksum, path_dir.absolute())
             if res is not None:
                 return res
 
     return None
 
-# correspondence db
-def get_correspondence_db_path(root_path: Path) -> Path:
+# correspondence cache
+def get_correspondence_cache_path(root_path: Path) -> Path:
     """
-    Returns a full path to the correspondence db file.
+    Returns a full path to the correspondence cache file.
     """
-    db_dir_path = ensure_db_dir(root_path)
-    file_path = db_dir_path.joinpath(CORRESPONDENCE_DB_NAME)
+    cache_dir_path = ensure_cache_dir(root_path)
+    file_path = cache_dir_path.joinpath(CORRESPONDENCE_CACHE_FILENAME)
     return file_path
 
-def ensure_correspondence_db(root_path: Path) -> None:
-    file_path = get_correspondence_db_path(root_path)
-    ensure_db_dir(root_path)
+def ensure_correspondence_cache(root_path: Path) -> None:
+    file_path = get_correspondence_cache_path(root_path)
+    ensure_cache_dir(root_path)
     if os.path.exists(file_path):
         return
     with open(file_path, 'w', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=[PATH_CHECKSUM_COLUMN])
         writer.writeheader()
 
-def add_lang_to_db_data(fields: list[str], data_list: list[dict], lang: Language) -> tuple[list[str], list[dict]]:
+def add_lang_to_cache_data(fields: list[str], data_list: list[dict], lang: Language) -> tuple[list[str], list[dict]]:
     """
-    Helper function.
-    Adds language to the provided db data
+    Helper function to add a language column to cached correspondence rows.
     """
     fields = _ensure_path_field(fields)
     if str(lang) in fields:
@@ -174,10 +173,9 @@ def add_lang_to_db_data(fields: list[str], data_list: list[dict], lang: Language
 
     return (fields, data_list)
 
-def remove_lang_from_db_data(fields: list[str], data_list: list[dict], lang: Language) -> tuple[list[str], list[dict]]:
+def remove_lang_from_cache_data(fields: list[str], data_list: list[dict], lang: Language) -> tuple[list[str], list[dict]]:
     """
-    Helper function.
-    Removes language from the provided db data
+    Helper function to drop a language column from cached correspondence rows.
     """
     fields = _ensure_path_field(fields)
     if str(lang) not in fields:
@@ -189,30 +187,30 @@ def remove_lang_from_db_data(fields: list[str], data_list: list[dict], lang: Lan
 
     return (fields, data_list)
 
-def add_language_to_correspondence_db(root_path: Path, lang: Language) -> None:
-    db_data = read_correspondence_db(root_path)
-    if db_data is None: # if the db doesn't exist, then we create it and add our lang as a field
-        write_correspondence_db(root_path, [], [str(lang)])
+def add_language_to_correspondence_cache(root_path: Path, lang: Language) -> None:
+    cache_data = read_correspondence_cache(root_path)
+    if cache_data is None: # if the cache doesn't exist, then we create it and add our lang as a field
+        write_correspondence_cache(root_path, [], [str(lang)])
         return
 
-    (fields, data_list) = db_data
+    (fields, data_list) = cache_data
 
-    (fields, data_list) = add_lang_to_db_data(fields, data_list, lang)
+    (fields, data_list) = add_lang_to_cache_data(fields, data_list, lang)
 
-    write_correspondence_db(root_path, data_list, fields)
+    write_correspondence_cache(root_path, data_list, fields)
 
 
-def remove_language_from_correspondence_db(root_path: Path, lang: Language) -> None:
-    db_data = read_correspondence_db(root_path)
-    if db_data is None: # if the db doesn't exist, then do nothing
-        ensure_correspondence_db(root_path)
+def remove_language_from_correspondence_cache(root_path: Path, lang: Language) -> None:
+    cache_data = read_correspondence_cache(root_path)
+    if cache_data is None: # if the cache doesn't exist, then do nothing
+        ensure_correspondence_cache(root_path)
         return
 
-    (fields, data_list) = db_data
+    (fields, data_list) = cache_data
 
-    (fields, data_list) = remove_lang_from_db_data(fields, data_list, lang)
+    (fields, data_list) = remove_lang_from_cache_data(fields, data_list, lang)
 
-    write_correspondence_db(root_path, data_list, fields)
+    write_correspondence_cache(root_path, data_list, fields)
 
 def find_correspondent_checksum(
     root_path: Path,
@@ -237,12 +235,12 @@ def find_correspondent_checksum(
     """
     if src_lang == tgt_lang:
         return None
-    db_data = read_correspondence_db(root_path)
-    if db_data is None: # if the db doesn't exist, then do nothing
-        ensure_correspondence_db(root_path)
+    cache_data = read_correspondence_cache(root_path)
+    if cache_data is None: # if the db doesn't exist, then do nothing
+        ensure_correspondence_cache(root_path)
         return None
 
-    (fields, data_list) = db_data
+    (fields, data_list) = cache_data
     fields = _ensure_path_field(fields)
     if str(src_lang) not in fields or str(tgt_lang) not in fields:
         return None
@@ -292,7 +290,7 @@ def do_translation_correspond_to_source(
     tgt_checksum = calculate_checksum(tgt_contents)
     return do_translation_checksum_correspond_to_source(root_path, src_checksum, src_lang, tgt_checksum, tgt_lang, path_hash)
 
-def set_checksum_pair_to_correspondence_db(
+def set_checksum_pair_in_correspondence_cache(
     root_path: Path,
     src_checksum: str,
     src_lang: Language,
@@ -303,20 +301,20 @@ def set_checksum_pair_to_correspondence_db(
     if src_lang == tgt_lang:
         return None
 
-    db_data = read_correspondence_db(root_path)
-    if db_data is None: # if the db doesn't exist, then create it
-        ensure_correspondence_db(root_path)
+    cache_data = read_correspondence_cache(root_path)
+    if cache_data is None: # if the db doesn't exist, then create it
+        ensure_correspondence_cache(root_path)
 
     (fields, data_list) = ([], [])
-    if db_data is not None:
-        (fields, data_list) = db_data
+    if cache_data is not None:
+        (fields, data_list) = cache_data
 
     fields = _ensure_path_field(fields)
 
     if str(src_lang) not in fields:
-        (fields, data_list) = add_lang_to_db_data(fields, data_list, src_lang)
+        (fields, data_list) = add_lang_to_cache_data(fields, data_list, src_lang)
     if str(tgt_lang) not in fields:
-        (fields, data_list) = add_lang_to_db_data(fields, data_list, tgt_lang)
+        (fields, data_list) = add_lang_to_cache_data(fields, data_list, tgt_lang)
 
     for i in range(len(data_list)):
         row = data_list[i]
@@ -326,7 +324,7 @@ def set_checksum_pair_to_correspondence_db(
         if row[str(src_lang)] == src_checksum:
             row[PATH_CHECKSUM_COLUMN] = path_hash
             data_list[i][str(tgt_lang)] = tgt_checksum
-            write_correspondence_db(root_path, data_list, fields)
+            write_correspondence_cache(root_path, data_list, fields)
             return
 
     # if the source checksum isn't present in the db, then we create a new row with the pair
@@ -337,17 +335,17 @@ def set_checksum_pair_to_correspondence_db(
     new_row[str(src_lang)] = src_checksum
     new_row[str(tgt_lang)] = tgt_checksum
     data_list.append(new_row)
-    write_correspondence_db(root_path, data_list, fields)
+    write_correspondence_cache(root_path, data_list, fields)
 
 
     
 
-def read_correspondence_db(root_path: Path) -> tuple[list[str], list[dict]] | None:
+def read_correspondence_cache(root_path: Path) -> tuple[list[str], list[dict]] | None:
     """
-    Returns (list of fields, data in dictionary format) or None if the db doesn't exist
+    Returns (list of fields, data in dictionary format) or None if the cache file doesn't exist
     """
 
-    file_path = get_correspondence_db_path(root_path)
+    file_path = get_correspondence_cache_path(root_path)
 
     if not os.path.exists(file_path):
         return None
@@ -366,12 +364,12 @@ def read_correspondence_db(root_path: Path) -> tuple[list[str], list[dict]] | No
 
     return (field_names, data_list)
 
-def write_correspondence_db(root_path: Path, data_list: list[dict], fields: list[str] = []) -> None:
+def write_correspondence_cache(root_path: Path, data_list: list[dict], fields: list[str] = []) -> None:
     """
-    Writes correspondence db to the file, if the data is empty, then it writes the fields provided fields to the file
+    Writes the correspondence cache to disk; if no data is provided we only write the headers.
     """
-    ensure_db_dir(root_path)
-    file_path = get_correspondence_db_path(root_path)
+    ensure_cache_dir(root_path)
+    file_path = get_correspondence_cache_path(root_path)
     fields = _ensure_path_field(list(fields))
 
     if len(data_list) == 0:
