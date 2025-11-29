@@ -1,0 +1,320 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from loguru import logger
+
+from .doc_corrector import correct_file_translation
+from .doc_translator import translate_file_to_file_async
+from .translation_cache.translation_cache import TranslationCacheCsv
+from .translation_cache.cache_rebuilder import collect_translation_pairs
+from .helpers import analyze_document_type, calculate_checksum
+from .errors import (
+    CorrectTranslationError,
+    CorrectingTranslationError,
+    FileDoesNotExistError,
+    GetTranslatableFilesError,
+    NoSourceFileError,
+    NoSourceLanguageError,
+    TargetLanguageNotInProjectError,
+    TranslateFileError,
+    TranslationCacheSyncError,
+    TranslationProcessError,
+    UntranslatableFileError,
+)
+from .enums import Language
+
+if TYPE_CHECKING:
+    from .project_manager import Project
+    from trans_lib.vocab_list import VocabList
+
+
+def _require_source_language(project: Project) -> Language:
+    source_language = project._get_source_language()
+    if source_language is None:
+        raise NoSourceLanguageError("No source language set")
+    return source_language
+
+
+def _get_target_dir_config(project: Project, target_lang: Language):
+    for lang_dir in project.config.lang_dirs:
+        if lang_dir.language == target_lang:
+            return lang_dir
+    return None
+
+
+def _correct_translation_file(project: Project, target_path: Path, target_lang: Language) -> None:
+    print(f"Verifying {target_path.name} for the corrected translations ...")
+    source_language = _require_source_language(project)
+
+    target_lang_dir_config = _get_target_dir_config(project, target_lang)
+    if not target_lang_dir_config:
+        raise CorrectTranslationError(
+            TargetLanguageNotInProjectError(f"Cannot correct translation: Target language {target_lang} not in project."))
+
+    target_root = target_lang_dir_config.get_path()
+    try:
+        relative_path = target_path.relative_to(target_root).as_posix()
+    except ValueError as exc:
+        raise CorrectTranslationError(
+            UntranslatableFileError(f"File {target_path} is not inside the target directory {target_root}")) from exc
+
+    try:
+        if correct_file_translation(project.root_path, target_path, target_lang, source_language, relative_path):
+            print(f"Successfully corrected the translation in {target_path.name}")
+        else:
+            print("The file doesn't need any corrections to be saved")
+    except CorrectingTranslationError as e:
+        raise CorrectTranslationError(f"Correcting process failed for {target_path.name}: {e}", e)
+    except IOError as e:
+        raise CorrectTranslationError(f"IO error during correction of {target_path.name}: {e}", e)
+
+
+def correct_translation_for_lang(project: Project, target_lang: Language) -> None:
+    if target_lang not in project._get_target_languages():
+        raise CorrectTranslationError(
+            TargetLanguageNotInProjectError(f"Cannot correct translation: Target language {target_lang} not in project."))
+    source_language = project._get_source_language()
+    src_dir = project.config.src_dir
+    if source_language is None or src_dir is None:
+        raise CorrectTranslationError(
+            NoSourceLanguageError("Cannot find the source file: No source language set."))
+    src_path = src_dir.get_path()
+    translatable_files = project.get_translatable_files()
+    target_lang_dir_config = _get_target_dir_config(project, target_lang)
+
+    if not target_lang_dir_config:
+        raise CorrectTranslationError(
+            TargetLanguageNotInProjectError("Critical: Target language config vanished."))
+    tgt_lang_dir = target_lang_dir_config.get_path()
+    translated_paths = [tgt_lang_dir.joinpath(path.relative_to(src_path)) for path in translatable_files]
+    for tr_path in translated_paths:
+        _correct_translation_file(project, tr_path, target_lang)
+
+
+def correct_translation_single_file(project: Project, file_path_str: str) -> None:
+    try:
+        file_path = Path(file_path_str).resolve(strict=True)
+    except FileNotFoundError:
+        raise CorrectTranslationError(FileDoesNotExistError(f"File {file_path_str} not found."))
+
+    _require_source_language(project)
+    target_lang_dirs = project._get_target_language_dirs()
+
+    src_lang_dir = project.config.src_dir
+    if src_lang_dir is None:
+        raise CorrectTranslationError(NoSourceLanguageError("Cannot find the source file: No source language set."))
+    root_path = project.root_path
+    if not file_path.is_relative_to(root_path):
+        raise CorrectTranslationError(
+            UntranslatableFileError("The file doesn't have any correspondent source translatable file"))
+
+    target_lang = None
+    for tgt_lang_dir in target_lang_dirs:
+        if file_path.is_relative_to(tgt_lang_dir.get_path()):
+            target_lang = tgt_lang_dir.language
+            break
+
+    if target_lang is None:
+        raise CorrectTranslationError(
+            UntranslatableFileError("The file doesn't have any correspondent source translatable file"))
+
+    if target_lang not in project._get_target_languages():
+        raise CorrectTranslationError(
+            TargetLanguageNotInProjectError(f"Cannot correct translation: Target language {target_lang} not in project."))
+
+    src_file = project._find_correspondent_translatable_file(file_path)
+    if src_file is None:
+        raise CorrectTranslationError(
+            NoSourceFileError(f"There's no source file for the given {file_path_str}"))
+
+    if not project.config.src_dir:
+        raise CorrectTranslationError(NoSourceLanguageError("Critical: Source directory vanished"))
+
+    if not _get_target_dir_config(project, target_lang):
+        raise CorrectTranslationError(
+            TargetLanguageNotInProjectError("Critical: Target language config vanished."))
+
+    _correct_translation_file(project, file_path, target_lang)
+
+
+def sync_translation_cache(project: Project, target_lang: Language | None = None) -> None:
+    source_language = project._get_source_language()
+    if source_language is None:
+        raise TranslationCacheSyncError("Cannot sync translation cache: Source language is not set.")
+
+    src_dir = project.config.src_dir
+    if src_dir is None:
+        raise TranslationCacheSyncError("Cannot sync translation cache: Source directory is not configured.")
+    src_root = src_dir.get_path()
+
+    target_lang_dirs = project._get_target_language_dirs()
+    if target_lang is not None:
+        target_lang_dirs = [ld for ld in target_lang_dirs if ld.language == target_lang]
+        if not target_lang_dirs:
+            raise TranslationCacheSyncError(
+                f"Language {target_lang} is not configured as a target language.")
+
+    if not target_lang_dirs:
+        raise TranslationCacheSyncError("Cannot sync translation cache: No target languages configured.")
+
+    try:
+        translatable_files = project.get_translatable_files()
+    except GetTranslatableFilesError as exc:
+        raise TranslationCacheSyncError(f"Cannot sync translation cache: {exc}") from exc
+
+    if not translatable_files:
+        raise TranslationCacheSyncError(
+            "Cannot sync translation cache: No translatable files configured.")
+
+    store = TranslationCacheCsv(project.root_path)
+    synced_pairs = 0
+    processed_files = 0
+
+    for target_dir in target_lang_dirs:
+        target_root = target_dir.get_path()
+        if not target_root.exists():
+            raise TranslationCacheSyncError(
+                f"Target directory {target_root} does not exist.")
+
+        for src_file in translatable_files:
+            try:
+                relative_path = src_file.relative_to(src_root)
+            except ValueError as exc:
+                raise TranslationCacheSyncError(
+                    f"Translatable file {src_file} is not inside the configured source directory {src_root}.",
+                ) from exc
+
+            target_file = target_root / relative_path
+            if not target_file.exists():
+                logger.warning(
+                    "Skipping cache sync for {} → {}: target file is missing.",
+                    src_file,
+                    target_file,
+                )
+                continue
+
+            doc_type = analyze_document_type(src_file)
+            try:
+                recovered_pairs = collect_translation_pairs(src_file, target_file, doc_type)
+            except Exception as exc:
+                raise TranslationCacheSyncError(
+                    f"Failed to collect translation chunks for {target_file}: {exc}",
+                ) from exc
+
+            if not recovered_pairs:
+                continue
+
+            processed_files += 1
+            relative_path_str = relative_path.as_posix()
+
+            for pair in recovered_pairs:
+                tgt_checksum = calculate_checksum(pair.tgt_text)
+                store.persist_pair(
+                    pair.src_checksum,
+                    tgt_checksum,
+                    source_language,
+                    target_dir.language,
+                    pair.src_text,
+                    pair.tgt_text,
+                    relative_path_str,
+                )
+                synced_pairs += 1
+
+    logger.info(
+        "Synced {} translation chunk pairs from {} files for {} target language(s).",
+        synced_pairs,
+        processed_files,
+        len(target_lang_dirs),
+    )
+
+
+async def translate_single_file(
+    project: Project,
+    file_path_str: str,
+    target_lang: Language,
+    vocab_list: VocabList | None,
+) -> None:
+    try:
+        file_path = Path(file_path_str).resolve(strict=True)
+    except FileNotFoundError:
+        raise TranslateFileError(FileDoesNotExistError(f"File {file_path_str} not found."))
+
+    source_language = project._get_source_language()
+    if source_language is None:
+        raise TranslateFileError(NoSourceLanguageError("Cannot translate: No source language set."))
+    if target_lang not in project._get_target_languages():
+        raise TranslateFileError(
+            TargetLanguageNotInProjectError(
+                f"Cannot translate: Target language {target_lang} not in project."))
+
+    translatable_files = project.get_translatable_files()
+    if file_path not in translatable_files:
+        raise TranslateFileError(
+            UntranslatableFileError(f"File {file_path} is not marked as translatable."))
+
+    if not project.config.src_dir:
+        raise TranslateFileError(
+            NoSourceLanguageError("Critical: Source directory vanished"))
+
+    src_dir_root_path = project.config.src_dir.get_path()
+    target_lang_dir_config = _get_target_dir_config(project, target_lang)
+
+    if not target_lang_dir_config:
+        raise TranslateFileError(
+            TargetLanguageNotInProjectError("Critical: Target language config vanished."))
+
+    target_dir_root_path = target_lang_dir_config.get_path()
+
+    try:
+        relative_path = file_path.relative_to(src_dir_root_path)
+    except ValueError:
+        raise TranslateFileError(
+            FileDoesNotExistError(
+                f"File {file_path} is translatable but not in source root {src_dir_root_path}."))
+
+    target_file_path = target_dir_root_path / relative_path
+    relative_path_str = relative_path.as_posix()
+
+    print(f"Translating {file_path.name} to {target_lang.value} -> {target_file_path}...")
+    try:
+        await translate_file_to_file_async(
+            project.root_path,
+            file_path,
+            source_language,
+            target_file_path,
+            target_lang,
+            relative_path_str,
+            vocab_list,
+            project.get_llm_service(),
+            project.get_llm_model(),
+        )
+    except TranslationProcessError as e:
+        raise TranslateFileError(f"Translation process failed for {file_path.name}: {e}", e)
+    except IOError as e:
+        raise TranslateFileError(f"IO error during translation of {file_path.name}: {e}", e)
+
+
+async def translate_all_for_language(
+    project: Project,
+    target_lang: Language,
+    vocab_list: VocabList | None,
+) -> None:
+    translatable_files = project.get_translatable_files()
+    if not translatable_files:
+        print(f"No translatable files found for language {target_lang.value}.")
+        return
+
+    print(f"Starting translation of {len(translatable_files)} files to {target_lang.value}...")
+    for i, file_path in enumerate(translatable_files):
+        print(f"--- File {i+1}/{len(translatable_files)} ---")
+        try:
+            await translate_single_file(project, str(file_path), target_lang, vocab_list)
+        except TranslateFileError as e:
+            print(f"ERROR translating {file_path.name}: {e}. Skipping this file.")
+    print(f"Finished translation to {target_lang.value}.")
+
+
+def diff(project: Project, txt: str, lang: Language) -> tuple[str, float]:
+    return TranslationCacheCsv(project.root_path).get_best_match_from_cache(lang, txt)
