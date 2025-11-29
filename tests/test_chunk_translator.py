@@ -70,7 +70,7 @@ class InMemoryStore:
     def __init__(self):
         self.persisted: list[tuple[str, str]] = []
 
-    def lookup(self, src_checksum, src_lang, tgt_lang):
+    def lookup(self, src_checksum, src_lang, tgt_lang, relative_path):
         return None
 
     def persist_pair(
@@ -81,13 +81,14 @@ class InMemoryStore:
         tgt_lang,
         src_text,
         tgt_text,
+        relative_path,
     ):
         self.persisted.append((src_text, tgt_text))
 
-    def get_best_pair_example_from_db(self, lang, tgt_lang, txt):
+    def get_best_pair_example_from_db(self, lang, tgt_lang, txt, relative_path):
         return None
 
-    def get_contents_by_checksum(self, checksum, lang):
+    def get_contents_by_checksum(self, checksum, lang, relative_path):
         return None
 
     def get_best_match_from_db(self, lang, txt):
@@ -95,11 +96,11 @@ class InMemoryStore:
 
     def do_translation_correspond_to_source(
         self,
-        root_path,
         src_checksum,
         src_lang,
         tgt_contents,
         tgt_lang,
+        relative_path,
     ):
         raise NotImplementedError
 
@@ -166,6 +167,7 @@ def test_placeholder_only_chunk_skips_model_call():
         doc_type=DocumentType.JupyterNotebook,
         chunk_type=ChunkType.Myst,
         vocab=None,
+        rel_path="docs/example.md",
     )
 
     translated = asyncio.run(translator.translate_or_fetch(meta))
@@ -188,6 +190,7 @@ def test_chunk_with_text_raises_chunk_translation_failed():
         doc_type=DocumentType.JupyterNotebook,
         chunk_type=ChunkType.Myst,
         vocab=None,
+        rel_path="docs/example.md",
     )
 
     with pytest.raises(ChunkTranslationFailed) as excinfo:
@@ -212,6 +215,7 @@ def test_chunk_with_text_raises_chunk_translation_failed_latex():
         doc_type=DocumentType.LaTeX,
         chunk_type=ChunkType.LaTeX,
         vocab=None,
+        rel_path="docs/example.md",
     )
 
     with pytest.raises(ChunkTranslationFailed) as excinfo:
@@ -235,6 +239,7 @@ def test_chunk_with_ph_only_doesnt_call_model_latex():
         doc_type=DocumentType.LaTeX,
         chunk_type=ChunkType.LaTeX,
         vocab=None,
+        rel_path="docs/example.md",
     )
 
     translated = asyncio.run(translator.translate_or_fetch(meta))
@@ -275,6 +280,7 @@ def test_model_overloaded_retries_then_succeeds(monkeypatch):
         doc_type=DocumentType.Other,
         chunk_type=ChunkType.Other,
         vocab=None,
+        rel_path="docs/example.md",
     )
 
     translated = asyncio.run(translator.translate_or_fetch(meta))
@@ -314,6 +320,7 @@ def test_model_overloaded_exhausts_retries(monkeypatch):
         doc_type=DocumentType.Other,
         chunk_type=ChunkType.Other,
         vocab=None,
+        rel_path="docs/example.md",
     )
 
     with pytest.raises(ChunkTranslationFailed) as excinfo:
@@ -342,6 +349,7 @@ def test_myst_chunk_metadata_tagged_on_failure(monkeypatch):
             cell=cell,
             source_language=Language.ENGLISH,
             target_language=Language.FRENCH,
+            relative_path="docs/example.md",
             vocab_list=None,
             llm_caller=types.SimpleNamespace(),
         )
@@ -369,6 +377,7 @@ def test_latex_chunk_metadata_tagged_on_failure(monkeypatch):
             cell=cell,
             source_language=Language.ENGLISH,
             target_language=Language.FRENCH,
+            relative_path="docs/example.md",
             vocab_list=None,
             llm_caller=types.SimpleNamespace(),
         )
@@ -402,6 +411,7 @@ def test_notebook_cell_metadata_tagged_on_failure(monkeypatch):
             target_language=Language.FRENCH,
             vocab_list=None,
             llm_caller=types.SimpleNamespace(),
+            relative_path="docs/example.md",
         )
     )
 

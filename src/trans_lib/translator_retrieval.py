@@ -36,6 +36,7 @@ class Meta:
     doc_type: DocumentType
     chunk_type: ChunkType
     vocab: VocabList | None
+    rel_path: str
 
 @dataclass
 class CodeMeta(Meta):
@@ -45,6 +46,7 @@ class CodeMeta(Meta):
     doc_type: DocumentType
     chunk_type: ChunkType
     vocab: VocabList | None
+    rel_path: str
     prog_lang: str
 
 @dataclass
@@ -55,6 +57,7 @@ class WithExampleMeta(Meta):
     doc_type: DocumentType
     chunk_type: ChunkType
     vocab: VocabList | None
+    rel_path: str
     ex_src: str
     ex_tgt: str
 
@@ -197,7 +200,7 @@ class ChunkTranslator:
             return chunk  # whitespace → passthrough
 
         src_checksum = calculate_checksum(chunk)
-        cached = self._store.lookup(src_checksum, meta.src_lang, meta.tgt_lang)
+        cached = self._store.lookup(src_checksum, meta.src_lang, meta.tgt_lang, meta.rel_path)
         if cached is not None:
             logger.debug(f"cache hit ({meta.src_lang} -> {meta.tgt_lang})")
             return cached
@@ -215,10 +218,11 @@ class ChunkTranslator:
 
             strategy.set_call_model(f_call_model)
 
-        example = self._store.get_best_pair_example_from_db(meta.src_lang, meta.tgt_lang, meta.chunk)
+        example = self._store.get_best_pair_example_from_db(meta.src_lang, meta.tgt_lang, meta.chunk, meta.rel_path)
         if example is not None:
             src_ex, tgt_ex, score = example
             if score > 0.7:
+                logger.debug("Found an example for a chunk")
                 meta = WithExampleMeta(
                     meta.chunk,
                     meta.src_lang,
@@ -226,6 +230,7 @@ class ChunkTranslator:
                     meta.doc_type,
                     meta.chunk_type,
                     meta.vocab,
+                    meta.rel_path,
                     src_ex,
                     tgt_ex,
                 )
@@ -253,6 +258,7 @@ class ChunkTranslator:
             meta.tgt_lang,
             chunk,
             translated,
+            meta.rel_path,
         )
         return translated
 
