@@ -6,18 +6,18 @@ from loguru import logger
 from trans_lib.enums import Language
 from trans_lib.errors import ChecksumNotFoundError
 from trans_lib.helpers import calculate_checksum
-from trans_lib.translation_store.translation_store import TranslationStoreCsv
+from trans_lib.translation_cache.translation_cache import TranslationCacheCsv
 
 
 
 def correct_chunk_translation(root_path: Path, src_checksum: str, src_lang: Language, new_translation: str, tgt_lang: Language, relative_path: str) -> None:
     """
-    Corrects the translation pair (in the correspondence database) by changing the target language translation result to the new given translation
+    Corrects the translation pair (in the correspondence cache) by changing the target language translation result to the new given translation
     """
-    store = TranslationStoreCsv(root_path)
+    store = TranslationCacheCsv(root_path)
     _src_contents = store.get_contents_by_checksum(src_checksum, src_lang, relative_path)
     if _src_contents is None:
-        raise ChecksumNotFoundError(f"Given source checksum ({src_checksum}) isn't found in the database")
+        raise ChecksumNotFoundError(f"Given source checksum ({src_checksum}) isn't found in the cache")
 
     if store.do_translation_correspond_to_source(src_checksum, src_lang, new_translation, tgt_lang, relative_path):
         return 

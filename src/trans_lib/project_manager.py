@@ -6,8 +6,8 @@ from typing import List, Optional
 from loguru import logger
 
 from trans_lib.doc_corrector import correct_file_translation
-from trans_lib.translation_store.translation_store import TranslationStoreCsv
-from trans_lib.translation_store.db_rebuilder import collect_translation_pairs
+from trans_lib.translation_cache.translation_cache import TranslationCacheCsv
+from trans_lib.translation_cache.cache_rebuilder import collect_translation_pairs
 from trans_lib.vocab_list import VocabList
 
 from .enums import DocumentType, Language
@@ -29,7 +29,7 @@ from .errors import (
     RemoveLanguageError, TargetLanguageNotInProjectError,
     SyncFilesError, NoTargetLanguagesError, CopyFileDirError, AddTranslatableFileError,
     FileDoesNotExistError, GetTranslatableFilesError, TranslateFileError, UntranslatableFileError,
-    TranslationProcessError, RebuildTranslationDbError
+    TranslationProcessError, TranslationCacheSyncError
 )
 
 
@@ -308,7 +308,7 @@ class Project:
 
     def correct_translation_for_lang(self, target_lang: Language) -> None:
         """
-        Corrects translation (updates the translation DB) for the given language
+        Corrects translation (updates the translation cache) for the given language
         """
         if target_lang not in self._get_target_languages():
             raise CorrectTranslationError(TargetLanguageNotInProjectError(f"Cannot correct translation: Target language {target_lang} not in project."))
@@ -329,7 +329,7 @@ class Project:
 
     def correct_translation_single_file(self, file_path_str: str) -> None:
         """
-        Corrects translation (updates the translation DB) for a given file
+        Corrects translation (updates the translation cache) for a given file
         """
         try:
             file_path = Path(file_path_str).resolve(strict=True)
@@ -374,55 +374,55 @@ class Project:
 
         self._correct_translation_file(file_path, target_lang)
 
-    def rebuild_translation_database(self, target_lang: Language | None = None) -> None:
-        """Rebuilds the translation cache by scanning on-disk source/target files."""
+    def sync_translation_cache(self, target_lang: Language | None = None) -> None:
+        """Synchronizes the translation cache by scanning on-disk source/target files."""
         source_language = self._get_source_language()
         if source_language is None:
-            raise RebuildTranslationDbError("Cannot rebuild translation database: Source language is not set.")
+            raise TranslationCacheSyncError("Cannot sync translation cache: Source language is not set.")
 
         src_dir = self.config.src_dir
         if src_dir is None:
-            raise RebuildTranslationDbError("Cannot rebuild translation database: Source directory is not configured.")
+            raise TranslationCacheSyncError("Cannot sync translation cache: Source directory is not configured.")
         src_root = src_dir.get_path()
 
         target_lang_dirs = self._get_target_language_dirs()
         if target_lang is not None:
             target_lang_dirs = [ld for ld in target_lang_dirs if ld.language == target_lang]
             if not target_lang_dirs:
-                raise RebuildTranslationDbError(f"Language {target_lang} is not configured as a target language.")
+                raise TranslationCacheSyncError(f"Language {target_lang} is not configured as a target language.")
 
         if not target_lang_dirs:
-            raise RebuildTranslationDbError("Cannot rebuild translation database: No target languages configured.")
+            raise TranslationCacheSyncError("Cannot sync translation cache: No target languages configured.")
 
         try:
             translatable_files = self.get_translatable_files()
         except GetTranslatableFilesError as exc:
-            raise RebuildTranslationDbError(f"Cannot rebuild translation database: {exc}") from exc
+            raise TranslationCacheSyncError(f"Cannot sync translation cache: {exc}") from exc
 
         if not translatable_files:
-            raise RebuildTranslationDbError("Cannot rebuild translation database: No translatable files configured.")
+            raise TranslationCacheSyncError("Cannot sync translation cache: No translatable files configured.")
 
-        store = TranslationStoreCsv(self.root_path)
-        rebuilt_pairs = 0
+        store = TranslationCacheCsv(self.root_path)
+        synced_pairs = 0
         processed_files = 0
 
         for target_dir in target_lang_dirs:
             target_root = target_dir.get_path()
             if not target_root.exists():
-                raise RebuildTranslationDbError(f"Target directory {target_root} does not exist.")
+                raise TranslationCacheSyncError(f"Target directory {target_root} does not exist.")
 
             for src_file in translatable_files:
                 try:
                     relative_path = src_file.relative_to(src_root)
                 except ValueError as exc:
-                    raise RebuildTranslationDbError(
+                    raise TranslationCacheSyncError(
                         f"Translatable file {src_file} is not inside the configured source directory {src_root}.",
                     ) from exc
 
                 target_file = target_root / relative_path
                 if not target_file.exists():
                     logger.warning(
-                        "Skipping rebuild for {} → {}: target file is missing.",
+                        "Skipping cache sync for {} → {}: target file is missing.",
                         src_file,
                         target_file,
                     )
@@ -432,7 +432,7 @@ class Project:
                 try:
                     recovered_pairs = collect_translation_pairs(src_file, target_file, doc_type)
                 except Exception as exc:
-                    raise RebuildTranslationDbError(
+                    raise TranslationCacheSyncError(
                         f"Failed to collect translation chunks for {target_file}: {exc}",
                     ) from exc
 
@@ -453,11 +453,11 @@ class Project:
                         pair.tgt_text,
                         relative_path_str,
                     )
-                    rebuilt_pairs += 1
+                    synced_pairs += 1
 
         logger.info(
-            "Rebuilt {} translation chunk pairs from {} files for {} target language(s).",
-            rebuilt_pairs,
+            "Synced {} translation chunk pairs from {} files for {} target language(s).",
+            synced_pairs,
             processed_files,
             len(target_lang_dirs),
         )
@@ -544,7 +544,7 @@ class Project:
 # TODO: remove this, as it is diff, it must be implemented in the translation, after XML tagging
 # DEBUG!
     def diff(self, txt: str, lang: Language) -> tuple[str, float]:
-        return TranslationStoreCsv(self.root_path).get_best_match_from_db(lang, txt)
+        return TranslationCacheCsv(self.root_path).get_best_match_from_cache(lang, txt)
 
 
 # --- Module-level functions for project init and load ---

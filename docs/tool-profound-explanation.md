@@ -17,21 +17,21 @@ and ideology of the library, and explains its features.
     - [Difference](#difference)
   - [Translation algorithm](#translation-algorithm)
   - [Correcting](#correcting)
-  - [Translation Database](#translation-database)
+  - [Translation Cache](#the-translation-cache)
     - [Structure](#structure)
-    - [Text to checksum DB](#text-to-checksum-db)
-    - [Correspondence DB](#correspondence-db)
+    - [Checksum-to-text cache](#checksum-to-text-cache)
+    - [Correspondence cache](#correspondence-cache)
 
 ## Main Unit: Project
 
 The main unit of the library is called a **translation project**. A translation
 project contains all the information about your file structure, languages and
-translation database.
+translation cache.
 
 Translation projects behaves similarly to, e.g., `git` projects. There is always
 a root directory that you must be in, where you'll initialize the translation
 project. The root directory contains the project configuration in a dedicated
-_dot_ directory, a translation database, and the files that are "tracked": in
+_dot_ directory, a translation cache, and the files that are "tracked": in
 our case the files that are synced and translated across the languages.
 
 > Note: don't confuse your writing project, for example: LaTeX project and
@@ -79,7 +79,7 @@ analysis_notes/
 │       └── bib.tex
 ├── .translate_dir/
     ├── config.json
-    └── translate_db/
+    └── translate_cache/
         └── ...
 ```
 
@@ -105,7 +105,7 @@ analysis_notes/
 │       └── bib.tex
 ├── .translate_dir/
     ├── config.json
-    └── translate_db/
+    └── translate_cache/
         └── ...
 ```
 
@@ -154,7 +154,7 @@ here) and pass them to a Large Language Model (by default the _gemini_ models
 from google) together with a big prompt that asks the model to translate a chunk
 and explains how to preserve the structure, syntax and layout. Then the
 translation is extracted, added as a translation pair with the source of the
-chunk in the translation database (see below) and written to the output file.
+chunk in the translation cache (see below) and written to the output file.
 
 After the translation, some metadata is set for each chunk in the output file.
 Such metadata may be:
@@ -184,53 +184,53 @@ default.
 When translating, an environment variable `LLM_API_KEY` must be set accordingly
 to the service you use.
 
-## The Translation Database
+## The Translation Cache
 
-The translation database stores translation pairs for later fast retrieval and
+The translation cache stores translation pairs for later fast retrieval and
 reuse.
 
 ### Structure
 
-The database is presented in the `translate_db` directory that is stored in the
-root directory of the project. This folder has the following structure:
+The cache is stored in the `translate_cache` directory located at the project
+root. This folder has the following structure:
 
 ```
-translate_db/
-├── correspondence_db.csv
+translate_cache/
+├── correspondence_cache.csv
 ├── <lang_1>/
 │   └── ...
 └── <lang_2>/
     └── ...
 ```
 
-and consists of tow parts:
+and consists of two parts:
 
-- a checksum to text database
-- a correspondence databas
+- a checksum-to-text cache
+- a correspondence cache
 
-### Checksum to text database
+### Checksum-to-text cache
 
-This part of the database is stored in the `<lang_*>` folders; each file in
-these folder holds a chunk of text and is named after the checksum of that
-chunk. This system allows the storage of the chunk contents, source retrieval
-and updates comparison.
+This part of the cache is stored in the `<lang_*>` folders; each file in these
+folders holds a chunk of text and is named after the checksum of that chunk.
+This system allows the storage of the chunk contents, source retrieval and
+updates comparison.
 
 Example of such structure:
 
 ```
-translate_db/
+translate_cache/
 ├── English/
 │   ├── <checksum1_en>
 │   └── <checksum2_en>
 ├── French/
 │   ├── <checksum1_fr>
 │   └── <checksum2_fr>
-└── correspondence_db.csv
+└── correspondence_cache.csv
 ```
 
-### Correspondence database
+### Correspondence cache
 
-The correspondence database is stored in the `correspondence_db.csv` file. Each
+The correspondence cache is stored in the `correspondence_cache.csv` file. Each
 row of that file stores the checksums of chunks of text in two languages or
 more, and states that they are the current reference translations of each other.
 
@@ -248,5 +248,5 @@ each other.
 
 After the automated translation, authors will typically review the translated
 chunks and do some postedits. These postedits are precious. Calling the
-`correction` command updates accordingly the translation database to ensure that
+`correction` command updates accordingly the translation cache to ensure that
 future translations exploit them.

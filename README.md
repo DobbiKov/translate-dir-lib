@@ -14,7 +14,7 @@ the translation process and compiling of the translated version of the documents
 - [x] Source language and the source folder to translate setting
 - [x] Target language addition
 - [x] Project files syncing (between languages)
-- [x] Translation database
+- [x] Translation cache
 - [x] File translation
 - [x] Translation correction
 
