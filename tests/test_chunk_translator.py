@@ -85,13 +85,13 @@ class InMemoryStore:
     ):
         self.persisted.append((src_text, tgt_text))
 
-    def get_best_pair_example_from_db(self, lang, tgt_lang, txt, relative_path):
+    def get_best_pair_example_from_cache(self, lang, tgt_lang, txt, relative_path):
         return None
 
     def get_contents_by_checksum(self, checksum, lang, relative_path):
         return None
 
-    def get_best_match_from_db(self, lang, txt):
+    def get_best_match_from_cache(self, lang, txt):
         raise NotImplementedError
 
     def do_translation_correspond_to_source(

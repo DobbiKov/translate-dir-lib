@@ -41,10 +41,10 @@ content rather than wrestling with markup.
 - [x] **Project creation** – Set up a new translation workspace in seconds
 - [x] **Source & target language management** – Easily define languages for translation
 - [x] **File syncing** – Synchronize translatable and non-translatable files across languages
-- [x] **Translation database** – Keep track of all translated content and corrections
+- [x] **Translation cache** – Keep track of all translated content and corrections
 - [x] **AI-based translations** – Leverage Google Gemini for high-quality translations
 - [x] **Vocabulary support** – Fine-tune translations with custom glossaries
-- [x] **Correction workflow** – Save manual corrections directly into the database
+- [x] **Cache-aware corrections** – Preserve manual fixes by syncing the cache from files on disk
 
 ## Citation
 
@@ -212,18 +212,15 @@ translate-dir translate all english --vocabulary vocab.csv
 This vocabulary helps the translation tool choose more accurate terms and maintain consistency across your project.
 
 
-#### Correction
+#### Cache sync
 
-9. Save manual translation:
-    1. For a single file:
+9. Rebuild the translation cache from the files on disk:
     ```
-    translate-dir update-translation file <file_path>
+    translate-dir cache sync
     ```
 
-    2. To correct all files in a language:
-    ```
-    translate-dir update-translation all <language>
-    ```
+    Run this after manually editing translated files to ensure the cache matches
+    the current contents.
 
 ## Getting started for developers
 1. Ensure you have [uv](https://docs.astral.sh/uv/#__tabbed_1_1) tool installed. 
@@ -259,4 +256,3 @@ The suggestions and pull requests are welcome. Visit the issues pages as well
 as the project's [main page](https://github.com/DobbiKov/sci-trans-git) and the
 [shared document](https://codimd.math.cnrs.fr/sUW9PQ1tTLWcR98UjLHLpw) in order
 to know the current direction and plans of the project.
-

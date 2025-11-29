@@ -6,7 +6,7 @@ from trans_lib.enums import Language
 from trans_lib.helpers import calculate_checksum
 from trans_lib.project_config_models import ProjectConfig
 from trans_lib.project_manager import Project
-from trans_lib.translation_store.translation_store import TranslationStoreCsv
+from trans_lib.translation_cache.translation_cache import TranslationCacheCsv
 
 
 def _write_notebook(path: Path, cells: list[nbformat.NotebookNode]) -> None:
@@ -15,7 +15,7 @@ def _write_notebook(path: Path, cells: list[nbformat.NotebookNode]) -> None:
     nbformat.write(nb, path)
 
 
-def test_rebuild_translation_database_from_notebook(tmp_path):
+def test_sync_translation_cache_from_notebook(tmp_path):
     project_root = tmp_path / "proj"
     src_dir = project_root / "src_en"
     tgt_dir = project_root / "proj_fr"
@@ -48,9 +48,9 @@ def test_rebuild_translation_database_from_notebook(tmp_path):
     config.make_file_translatable(source_file, True)
 
     project = Project(project_root, config)
-    project.rebuild_translation_database()
+    project.sync_translation_cache()
 
-    store = TranslationStoreCsv(project_root)
+    store = TranslationCacheCsv(project_root)
     relative_path = source_file.relative_to(src_dir).as_posix()
 
     for original_cell, translated in zip(source_cells, translated_texts):

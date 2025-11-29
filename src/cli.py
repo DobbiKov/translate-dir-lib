@@ -272,60 +272,22 @@ def translate_all_cli(
     asyncio.run(_translate_all_command(project, lang, vocabulary))
 
 
-# ============ correct app =============
-correct_app = typer.Typer(name="update-translation", help="Update translation", no_args_is_help=True)
-app.add_typer(correct_app) # Sub-command of project
+# ============ cache app =============
+cache_app = typer.Typer(name="cache", help="Translation cache utilities", no_args_is_help=True)
+app.add_typer(cache_app)
 
-@correct_app.command("file")
-def correct_file_cli(
-    ctx: typer.Context,
-    file_path: Annotated[str, typer.Argument(help="Path to the file to update translation in.")],
-):
-    """Updates the translation of a single specified file."""
+@cache_app.command("sync")
+def sync_cache_cli(ctx: typer.Context):
+    """Synchronizes the translation cache for all target languages using on-disk files."""
     project = get_project_from_context(ctx)
     try:
-        project.correct_translation_single_file(file_path)
-        typer.secho(f"Verifying the contents to translate in the {file_path} file.", fg=typer.colors.GREEN)
-    except errors.CorrectTranslationError as e: # Should be caught by individual file errors mostly
-        typer.secho(f"Error during 'update-translation file' for {file_path}: {e}", fg=typer.colors.RED, err=True)
+        project.sync_translation_cache()
+        typer.secho("Translation cache synced for all target languages.", fg=typer.colors.GREEN)
+    except errors.TranslationCacheSyncError as e:
+        typer.secho(f"Error syncing translation cache: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
     except Exception as e:
-        typer.secho(f"An unexpected error occurred during 'update-translation file': {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
-
-@correct_app.command("all")
-def correct_all_cli(
-    ctx: typer.Context,
-    lang: Annotated[Language, typer.Argument(help="Target language for updating translation.", case_sensitive=False)]
-):
-    """Updates the translation of all the files of the specified language."""
-    project = get_project_from_context(ctx)
-    try:
-        project.correct_translation_for_lang(lang)
-        typer.secho(f"All files processed for correcting language {lang.value}.", fg=typer.colors.GREEN)
-    except errors.CorrectTranslationError as e: # Should be caught by individual file errors mostly
-        typer.secho(f"Error during 'update-translation all' for {lang.value}: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
-    except Exception as e:
-        typer.secho(f"An unexpected error occurred during 'update-translation all': {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
-
-# ============ db app =============
-db_app = typer.Typer(name="db", help="Translation database utilities", no_args_is_help=True)
-app.add_typer(db_app)
-
-@db_app.command("rebuild")
-def rebuild_db_cli(ctx: typer.Context):
-    """Rebuilds the translation database for all target languages using on-disk files."""
-    project = get_project_from_context(ctx)
-    try:
-        project.rebuild_translation_database()
-        typer.secho("Translation database rebuilt for all target languages.", fg=typer.colors.GREEN)
-    except errors.RebuildTranslationDbError as e:
-        typer.secho(f"Error rebuilding translation database: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
-    except Exception as e:
-        typer.secho(f"An unexpected error occurred during database rebuild: {e}", fg=typer.colors.RED, err=True)
+        typer.secho(f"An unexpected error occurred during cache sync: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
 # --- Main execution for CLI ---

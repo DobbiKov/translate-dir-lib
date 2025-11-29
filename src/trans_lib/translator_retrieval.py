@@ -6,7 +6,7 @@ from loguru import logger
 from trans_lib.helpers import calculate_checksum, extract_translated_from_response
 from pathlib import Path
 from trans_lib.enums import ChunkType, DocumentType, Language
-from trans_lib.translation_store.translation_store import TranslationStore, TranslationStoreCsv
+from trans_lib.translation_cache.translation_cache import TranslationCache, TranslationCacheCsv
 from trans_lib.translator import finalize_prompt, finalize_xml_prompt, _prepare_prompt_for_language, _prepare_prompt_for_vocab_list, _prepare_prompt_for_content_type, _prepare_prompt_for_translation_example
 from trans_lib.vocab_list import VocabList
 from trans_lib.xml_manipulator_mod.xml import reconstruct_from_xml
@@ -181,7 +181,7 @@ class ChunkTranslator:
 
     def __init__(
         self,
-        store: TranslationStore,
+        store: TranslationCache,
         model_caller: LLMCaller | None = None,
         *,
         overload_retry_attempts: int = 5,
@@ -218,7 +218,7 @@ class ChunkTranslator:
 
             strategy.set_call_model(f_call_model)
 
-        example = self._store.get_best_pair_example_from_db(meta.src_lang, meta.tgt_lang, meta.chunk, meta.rel_path)
+        example = self._store.get_best_pair_example_from_cache(meta.src_lang, meta.tgt_lang, meta.chunk, meta.rel_path)
         if example is not None:
             src_ex, tgt_ex, score = example
             if score > 0.7:
@@ -283,4 +283,4 @@ class ChunkTranslator:
 
 def build_translator_with_model(root_path: Path, caller: LLMCaller | None = None) -> ChunkTranslator:
     """Constructs default translation factory with a particular model"""
-    return ChunkTranslator(TranslationStoreCsv(root_path), caller)
+    return ChunkTranslator(TranslationCacheCsv(root_path), caller)
