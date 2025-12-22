@@ -1,10 +1,12 @@
 import asyncio
 import os
 import csv
+import sys
 from pathlib import Path
 from typing import List, Optional
 
 import typer
+from loguru import logger
 from typing_extensions import Annotated # For Typer < 0.7 or for more complex annotations
 
 from trans_lib.enums import Language, CLI_LANGUAGE_CHOICES
@@ -18,6 +20,14 @@ app = typer.Typer(
     help="A tool for managing and translating directory structures.",
     no_args_is_help=True
 )
+
+@app.callback()
+def main(
+    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show diagnostic logs.")] = False,
+) -> None:
+    logger.remove()
+    if verbose:
+        logger.add(sys.stderr, level="TRACE")
 
 # Shared callback to load project (or handle not being in one)
 def get_project_from_context(ctx: typer.Context) -> Project:

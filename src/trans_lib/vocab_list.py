@@ -36,7 +36,7 @@ def vocab_list_from_vocab_db(db: list[dict], source_lang: Language, target_lang:
     if len(db) == 0:
         return VocabList([], [])
     if str(source_lang) not in list(db[0].keys()) or str(target_lang) not in list(db[0].keys()):
-        print("No source or target language provided in the vocabulary list!")
+        logger.warning("No source or target language provided in the vocabulary list.")
         return VocabList([], [])
     source_terms = []
     target_terms = []
