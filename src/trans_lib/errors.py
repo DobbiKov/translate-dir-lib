@@ -158,8 +158,8 @@ class CorrectTranslationError(ProjectError):
     """
     pass
 
-class RebuildTranslationDbError(ProjectError):
-    """Errors raised while rebuilding the translation database."""
+class TranslationCacheSyncError(ProjectError):
+    """Errors raised while rebuilding/syncing the translation cache."""
     pass
 
 class CorrectingTranslationError(CorrectTranslationError):
@@ -172,7 +172,7 @@ class CorrectingTranslationError(CorrectTranslationError):
 
 class ChecksumNotFoundError(CorrectTranslationError):
     """
-    Checksum not found in the database
+    Checksum not found in the cache
     """
     pass
 
