@@ -4,6 +4,8 @@ import os
 from google import genai
 from google.genai import types as g_types
 
+from loguru import logger
+
 from trans_lib.vocab_list import VocabList
 
 from .constants import INTER_FILE_TRANSLATION_DELAY_SECONDS 
@@ -20,9 +22,9 @@ import requests
 try:
     LLM_API_KEY = os.getenv("LLM_API_KEY")
     if not LLM_API_KEY:
-        print("Warning: LLM_API_KEY environment variable not set. Translation will fail.")
+        logger.warning("LLM_API_KEY environment variable not set. Translation will fail.")
 except Exception as e:
-    print(f"Error configuring LLM api key: {e}")
+    logger.error(f"Error configuring LLM api key: {e}")
 
 
 def get_default_prompt_text() -> str:
@@ -88,7 +90,7 @@ async def _ask_gemini_model(full_prompt_message: str, model_name: str = "gemini-
         return response.text or "" 
     
     except Exception as e:
-        print(f"Error communicating with Gemini API: {e}")
+        logger.error(f"Error communicating with Gemini API: {e}")
         raise TranslationProcessError(f"Gemini API call failed: {e}", original_exception=e)
 
 async def _ask_aristote(full_prompt_message: str) -> str:
@@ -115,7 +117,7 @@ async def translate_chunk_with_prompt(prompt: str, chunk: str, is_xml: bool = Fa
     final_message_to_model = finalize_prompt(prompt, chunk) if not is_xml else finalize_xml_prompt(prompt, chunk)
     
     translated_response_text = await _ask_gemini_model(final_message_to_model, "gemini-2.0-flash")
-    print(translated_response_text)
+    logger.debug("Model response received ({} chars).", len(translated_response_text))
     
     return extract_translated_from_response(translated_response_text)
 
@@ -156,5 +158,4 @@ async def translate_contents_async(contents: str, target_language: Language, lin
             print(f"Translated chunk {i+1}/{len(chunks)}. Waiting for {INTER_CHUNK_DELAY_SECONDS}s...")
             
     return "".join(translated_chunks)
-
 

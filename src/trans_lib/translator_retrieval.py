@@ -115,7 +115,7 @@ def _xml_prompt_builder(doc_type: DocumentType, chunk_type: ChunkType):
         # lang = None
         if chunk_type == ChunkType.Code:
             if isinstance(params, CodeMeta):
-                print("da")
+                logger.debug("Preparing XML chunk for code translation.")
                 xml_chunk = code_to_xml(chunk, params.prog_lang)[0]
         else:
             xml_chunk = chunk_to_xml(chunk, chunk_type)
