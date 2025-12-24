@@ -28,6 +28,8 @@ def main(
     logger.remove()
     if verbose:
         logger.add(sys.stderr, level="TRACE")
+    else:
+        logger.add(sys.stderr, level="WARNING")
 
 # Shared callback to load project (or handle not being in one)
 def get_project_from_context(ctx: typer.Context) -> Project:

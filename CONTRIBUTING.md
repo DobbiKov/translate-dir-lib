@@ -15,8 +15,8 @@ All pull requests, ideas and suggestions are welcome!
 
 This project standardizes diagnostics on Loguru and keeps user-facing CLI output as prints:
 
-- **Default CLI behavior**: show only user-facing `print` output; suppress all Loguru logs.
-- **Verbose mode (`--verbose` / `-v`)**: show both `print` output and all Loguru logs.
+- **Default CLI behavior**: show user-facing `print` output plus Loguru warnings/errors on stderr.
+- **Verbose mode (`--verbose` / `-v`)**: show both `print` output and all Loguru logs (including debug/trace).
 
 Conventions:
 
