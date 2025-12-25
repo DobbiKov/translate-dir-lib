@@ -290,6 +290,46 @@ def sync_cache_cli(ctx: typer.Context):
         typer.secho(f"An unexpected error occurred during cache sync: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
+
+@cache_app.command("clear")
+def clear_cache_cli(
+    ctx: typer.Context,
+    missing_chunks: Annotated[
+        bool,
+        typer.Option(
+            "--missing-chunks",
+            help="Remove cache entries that reference missing chunk files.",
+        ),
+    ] = False,
+):
+    """Clears translation cache entries based on cleanup flags."""
+    if not missing_chunks:
+        typer.secho(
+            "No cache clear flags provided. Use --missing-chunks.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    project = get_project_from_context(ctx)
+    try:
+        stats = project.clear_translation_cache_missing_chunks()
+        typer.secho(
+            (
+                "Cache cleanup complete: "
+                f"{stats.removed_rows} row(s) removed, "
+                f"{stats.cleared_fields} field(s) cleared, "
+                f"{stats.removed_source_chunks} source chunk(s) removed."
+            ),
+            fg=typer.colors.GREEN,
+        )
+    except errors.TranslationCacheClearError as e:
+        typer.secho(f"Error clearing translation cache: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    except Exception as e:
+        typer.secho(f"An unexpected error occurred during cache clear: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
 # --- Main execution for CLI ---
 # This callback is for global options like --project-dir if you add them
 # For now, it's not strictly needed as get_project_from_context handles loading

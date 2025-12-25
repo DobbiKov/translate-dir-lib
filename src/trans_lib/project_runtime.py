@@ -8,6 +8,7 @@ from loguru import logger
 from .doc_corrector import correct_file_translation
 from .doc_translator import translate_file_to_file_async
 from .translation_cache.translation_cache import TranslationCacheCsv
+from .translation_cache.cache_cleaner import CacheClearStats, clear_missing_chunks
 from .translation_cache.cache_rebuilder import collect_translation_pairs
 from .helpers import analyze_document_type, calculate_checksum
 from .errors import (
@@ -20,6 +21,7 @@ from .errors import (
     TargetLanguageNotInProjectError,
     TranslateFileError,
     TranslationCacheSyncError,
+    TranslationCacheClearError,
     TranslationProcessError,
     UntranslatableFileError,
 )
@@ -228,6 +230,17 @@ def sync_translation_cache(project: Project, target_lang: Language | None = None
         processed_files,
         len(target_lang_dirs),
     )
+
+
+def clear_translation_cache_missing_chunks(project: Project) -> CacheClearStats:
+    source_language = project._get_source_language()
+    if source_language is None:
+        raise TranslationCacheClearError("Cannot clear translation cache: Source language is not set.")
+
+    try:
+        return clear_missing_chunks(project.root_path, source_language)
+    except Exception as exc:
+        raise TranslationCacheClearError(f"Cannot clear translation cache: {exc}") from exc
 
 
 async def translate_single_file(

@@ -162,6 +162,10 @@ class TranslationCacheSyncError(ProjectError):
     """Errors raised while rebuilding/syncing the translation cache."""
     pass
 
+class TranslationCacheClearError(ProjectError):
+    """Errors raised while clearing the translation cache."""
+    pass
+
 class CorrectingTranslationError(CorrectTranslationError):
     """
     Correcting translation error
