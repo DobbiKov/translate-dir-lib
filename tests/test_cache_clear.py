@@ -44,12 +44,17 @@ def test_clear_missing_chunks_no_csv_deletes_source_chunks(tmp_path: Path) -> No
     path_hash = calculate_path_checksum("doc.md")
 
     src_text = "Hello"
+    fr_text = "Bonjour"
     src_checksum = calculate_checksum(src_text)
+    fr_checksum = calculate_checksum(fr_text)
     _write_chunk(cache_dir, Language.ENGLISH, path_hash, src_checksum, src_text)
+    _write_chunk(cache_dir, Language.FRENCH, path_hash, fr_checksum, fr_text)
 
     stats = project.clear_translation_cache_missing_chunks()
     assert stats.removed_source_chunks == 1
+    assert stats.removed_target_chunks == 1
     assert not (cache_dir / "English" / path_hash / src_checksum).exists()
+    assert not (cache_dir / "French" / path_hash / fr_checksum).exists()
 
 
 def test_clear_missing_chunks_empty_source_checksum_row(tmp_path: Path) -> None:
@@ -206,7 +211,8 @@ def test_clear_missing_chunks_removes_row_when_source_missing(tmp_path: Path) ->
 
     stats = project.clear_translation_cache_missing_chunks()
     assert stats.removed_rows == 1
-    assert (cache_dir / "French" / path_hash / fr_checksum).exists()
+    assert stats.removed_target_chunks == 1
+    assert not (cache_dir / "French" / path_hash / fr_checksum).exists()
 
 
 def test_clear_missing_chunks_removes_orphan_source_chunks(tmp_path: Path) -> None:
@@ -261,3 +267,166 @@ def test_clear_missing_chunks_multi_row_mixed_states(tmp_path: Path) -> None:
     _, data_list = cache_data
     assert len(data_list) == 1
     assert data_list[0][PATH_CHECKSUM_COLUMN] == path_a
+
+
+def test_clear_all_lang_deletes_lang_chunks(tmp_path: Path) -> None:
+    project = _make_project(tmp_path)
+    cache_dir = project.root_path / CONF_DIR / CACHE_DIR_NAME
+    path_hash = calculate_path_checksum("doc.md")
+
+    src_text = "Hello"
+    fr_text = "Bonjour"
+    src_checksum = calculate_checksum(src_text)
+    fr_checksum = calculate_checksum(fr_text)
+
+    _write_chunk(cache_dir, Language.ENGLISH, path_hash, src_checksum, src_text)
+    _write_chunk(cache_dir, Language.FRENCH, path_hash, fr_checksum, fr_text)
+
+    write_correspondence_cache(
+        project.root_path,
+        [{PATH_CHECKSUM_COLUMN: path_hash, "English": src_checksum, "French": fr_checksum}],
+        [PATH_CHECKSUM_COLUMN, "English", "French"],
+    )
+
+    stats = project.clear_translation_cache_all(Language.FRENCH, None)
+    assert stats.removed_chunk_files == 1
+    assert not (cache_dir / "French" / path_hash / fr_checksum).exists()
+    assert (cache_dir / "English" / path_hash / src_checksum).exists()
+
+    cache_data = read_correspondence_cache(project.root_path)
+    assert cache_data is not None
+    _, data_list = cache_data
+    assert data_list[0]["French"] == ""
+    assert data_list[0]["English"] == src_checksum
+
+
+def test_clear_all_file_removes_rows_and_chunks(tmp_path: Path) -> None:
+    project = _make_project(tmp_path)
+    cache_dir = project.root_path / CONF_DIR / CACHE_DIR_NAME
+    src_dir = project.config.get_src_dir_path()
+    assert src_dir is not None
+    file_path = src_dir / "doc.md"
+    file_path.write_text("Hello", encoding="utf-8")
+    path_hash = calculate_path_checksum("doc.md")
+
+    src_checksum = calculate_checksum("Hello")
+    fr_checksum = calculate_checksum("Bonjour")
+    _write_chunk(cache_dir, Language.ENGLISH, path_hash, src_checksum, "Hello")
+    _write_chunk(cache_dir, Language.FRENCH, path_hash, fr_checksum, "Bonjour")
+
+    write_correspondence_cache(
+        project.root_path,
+        [{PATH_CHECKSUM_COLUMN: path_hash, "English": src_checksum, "French": fr_checksum}],
+        [PATH_CHECKSUM_COLUMN, "English", "French"],
+    )
+
+    stats = project.clear_translation_cache_all(None, str(file_path))
+    assert stats.removed_rows == 1
+    assert stats.removed_chunk_files == 2
+    assert not (cache_dir / "English" / path_hash / src_checksum).exists()
+    assert not (cache_dir / "French" / path_hash / fr_checksum).exists()
+
+    cache_data = read_correspondence_cache(project.root_path)
+    assert cache_data is not None
+    _, data_list = cache_data
+    assert data_list == []
+
+
+def test_clear_all_file_accepts_target_path(tmp_path: Path) -> None:
+    project = _make_project(tmp_path)
+    cache_dir = project.root_path / CONF_DIR / CACHE_DIR_NAME
+    tgt_dir = project.root_path / "tgt_fr"
+    tgt_dir.mkdir(parents=True, exist_ok=True)
+    project.config.add_lang_dir_config(tgt_dir, Language.FRENCH)
+
+    file_path = tgt_dir / "doc.md"
+    file_path.write_text("Bonjour", encoding="utf-8")
+    path_hash = calculate_path_checksum("doc.md")
+
+    src_checksum = calculate_checksum("Hello")
+    fr_checksum = calculate_checksum("Bonjour")
+    _write_chunk(cache_dir, Language.ENGLISH, path_hash, src_checksum, "Hello")
+    _write_chunk(cache_dir, Language.FRENCH, path_hash, fr_checksum, "Bonjour")
+
+    write_correspondence_cache(
+        project.root_path,
+        [{PATH_CHECKSUM_COLUMN: path_hash, "English": src_checksum, "French": fr_checksum}],
+        [PATH_CHECKSUM_COLUMN, "English", "French"],
+    )
+
+    stats = project.clear_translation_cache_all(None, str(file_path))
+    assert stats.removed_rows == 1
+    assert stats.removed_chunk_files == 2
+    assert not (cache_dir / "English" / path_hash / src_checksum).exists()
+    assert not (cache_dir / "French" / path_hash / fr_checksum).exists()
+
+def test_clear_all_lang_and_file_clears_intersection(tmp_path: Path) -> None:
+    project = _make_project(tmp_path)
+    cache_dir = project.root_path / CONF_DIR / CACHE_DIR_NAME
+    src_dir = project.config.get_src_dir_path()
+    assert src_dir is not None
+    file_a = src_dir / "a.md"
+    file_b = src_dir / "b.md"
+    file_a.write_text("Alpha", encoding="utf-8")
+    file_b.write_text("Beta", encoding="utf-8")
+
+    path_a = calculate_path_checksum("a.md")
+    path_b = calculate_path_checksum("b.md")
+
+    src_a_checksum = calculate_checksum("Alpha")
+    src_b_checksum = calculate_checksum("Beta")
+    fr_a_checksum = calculate_checksum("Alfa")
+    fr_b_checksum = calculate_checksum("Bete")
+
+    _write_chunk(cache_dir, Language.ENGLISH, path_a, src_a_checksum, "Alpha")
+    _write_chunk(cache_dir, Language.FRENCH, path_a, fr_a_checksum, "Alfa")
+    _write_chunk(cache_dir, Language.ENGLISH, path_b, src_b_checksum, "Beta")
+    _write_chunk(cache_dir, Language.FRENCH, path_b, fr_b_checksum, "Bete")
+
+    write_correspondence_cache(
+        project.root_path,
+        [
+            {PATH_CHECKSUM_COLUMN: path_a, "English": src_a_checksum, "French": fr_a_checksum},
+            {PATH_CHECKSUM_COLUMN: path_b, "English": src_b_checksum, "French": fr_b_checksum},
+        ],
+        [PATH_CHECKSUM_COLUMN, "English", "French"],
+    )
+
+    stats = project.clear_translation_cache_all(Language.FRENCH, str(file_a))
+    assert stats.removed_chunk_files == 1
+    assert not (cache_dir / "French" / path_a / fr_a_checksum).exists()
+    assert (cache_dir / "French" / path_b / fr_b_checksum).exists()
+
+    cache_data = read_correspondence_cache(project.root_path)
+    assert cache_data is not None
+    _, data_list = cache_data
+    assert data_list[0]["French"] == ""
+    assert data_list[1]["French"] == fr_b_checksum
+
+
+def test_clear_all_without_scopes_removes_everything(tmp_path: Path) -> None:
+    project = _make_project(tmp_path)
+    cache_dir = project.root_path / CONF_DIR / CACHE_DIR_NAME
+    path_hash = calculate_path_checksum("doc.md")
+
+    src_checksum = calculate_checksum("Hello")
+    fr_checksum = calculate_checksum("Bonjour")
+    _write_chunk(cache_dir, Language.ENGLISH, path_hash, src_checksum, "Hello")
+    _write_chunk(cache_dir, Language.FRENCH, path_hash, fr_checksum, "Bonjour")
+
+    write_correspondence_cache(
+        project.root_path,
+        [{PATH_CHECKSUM_COLUMN: path_hash, "English": src_checksum, "French": fr_checksum}],
+        [PATH_CHECKSUM_COLUMN, "English", "French"],
+    )
+
+    stats = project.clear_translation_cache_all(None, None)
+    assert stats.removed_rows == 1
+    assert stats.removed_chunk_files == 2
+    assert not (cache_dir / "English" / path_hash / src_checksum).exists()
+    assert not (cache_dir / "French" / path_hash / fr_checksum).exists()
+
+    cache_data = read_correspondence_cache(project.root_path)
+    assert cache_data is not None
+    _, data_list = cache_data
+    assert data_list == []
