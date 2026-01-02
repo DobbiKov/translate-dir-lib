@@ -301,28 +301,75 @@ def clear_cache_cli(
             help="Remove cache entries that reference missing chunk files.",
         ),
     ] = False,
+    all_cache: Annotated[
+        bool,
+        typer.Option(
+            "--all",
+            help="Delete all cache entries for a language and/or file.",
+        ),
+    ] = False,
+    lang: Annotated[
+        Language | None,
+        typer.Option(
+            "--lang",
+            help="Limit cache deletion to a specific language.",
+            case_sensitive=False,
+        ),
+    ] = None,
+    file_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--file",
+            help="Limit cache deletion to a specific source file path.",
+        ),
+    ] = None,
 ):
     """Clears translation cache entries based on cleanup flags."""
-    if not missing_chunks:
+    if missing_chunks and all_cache:
         typer.secho(
-            "No cache clear flags provided. Use --missing-chunks.",
+            "Use only one cache clear action flag at a time (--missing-chunks or --all).",
             fg=typer.colors.RED,
             err=True,
         )
         raise typer.Exit(code=1)
-
+    if (lang is not None or file_path is not None) and missing_chunks:
+        typer.secho(
+            "--lang and --file can only be used with --all.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    if not missing_chunks and not all_cache:
+        typer.secho(
+            "No cache clear flags provided. Use --missing-chunks or --all.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
     project = get_project_from_context(ctx)
     try:
-        stats = project.clear_translation_cache_missing_chunks()
-        typer.secho(
-            (
-                "Cache cleanup complete: "
-                f"{stats.removed_rows} row(s) removed, "
-                f"{stats.cleared_fields} field(s) cleared, "
-                f"{stats.removed_source_chunks} source chunk(s) removed."
-            ),
-            fg=typer.colors.GREEN,
-        )
+        if missing_chunks:
+            stats = project.clear_translation_cache_missing_chunks()
+            typer.secho(
+                (
+                    "Cache cleanup complete: "
+                    f"{stats.removed_rows} row(s) removed, "
+                    f"{stats.cleared_fields} field(s) cleared, "
+                    f"{stats.removed_source_chunks} source chunk(s) removed."
+                ),
+                fg=typer.colors.GREEN,
+            )
+        else:
+            stats = project.clear_translation_cache_all(lang, str(file_path) if file_path else None)
+            typer.secho(
+                (
+                    "Cache deletion complete: "
+                    f"{stats.removed_rows} row(s) removed, "
+                    f"{stats.cleared_fields} field(s) cleared, "
+                    f"{stats.removed_chunk_files} chunk file(s) removed."
+                ),
+                fg=typer.colors.GREEN,
+            )
     except errors.TranslationCacheClearError as e:
         typer.secho(f"Error clearing translation cache: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)

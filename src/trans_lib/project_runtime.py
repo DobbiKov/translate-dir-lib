@@ -8,7 +8,7 @@ from loguru import logger
 from .doc_corrector import correct_file_translation
 from .doc_translator import translate_file_to_file_async
 from .translation_cache.translation_cache import TranslationCacheCsv
-from .translation_cache.cache_cleaner import CacheClearStats, clear_missing_chunks
+from .translation_cache.cache_cleaner import CacheClearStats, CacheDeleteStats, clear_all, clear_missing_chunks
 from .translation_cache.cache_rebuilder import collect_translation_pairs
 from .helpers import analyze_document_type, calculate_checksum
 from .errors import (
@@ -239,6 +239,56 @@ def clear_translation_cache_missing_chunks(project: Project) -> CacheClearStats:
 
     try:
         return clear_missing_chunks(project.root_path, source_language)
+    except Exception as exc:
+        raise TranslationCacheClearError(f"Cannot clear translation cache: {exc}") from exc
+
+
+def _resolve_relative_cache_path(project: Project, file_path_str: str) -> str:
+    src_dir_path = project.config.get_src_dir_path()
+    if src_dir_path is None:
+        raise TranslationCacheClearError(
+            "Cannot clear translation cache by file: Source directory is not set.",
+        )
+
+    src_dir_path = src_dir_path.resolve()
+    input_path = Path(file_path_str)
+    candidates = []
+    if input_path.is_absolute():
+        candidates.append(input_path)
+    else:
+        candidates.append(project.root_path / input_path)
+        candidates.append(src_dir_path / input_path)
+
+    target_dir_paths = []
+    for lang in project._get_target_languages():
+        target_dir = project.config.get_target_dir_path_by_lang(lang)
+        if target_dir is not None:
+            target_dir_paths.append(target_dir.resolve())
+
+    base_dirs = [src_dir_path, *target_dir_paths]
+
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        for base_dir in base_dirs:
+            if resolved.is_relative_to(base_dir):
+                return resolved.relative_to(base_dir).as_posix()
+
+    raise TranslationCacheClearError(
+        "Cannot clear translation cache: File path must be inside the source or target directories.",
+    )
+
+
+def clear_translation_cache_all(
+    project: Project,
+    lang: Language | None,
+    file_path_str: str | None,
+) -> CacheDeleteStats:
+    relative_path = None
+    if file_path_str is not None:
+        relative_path = _resolve_relative_cache_path(project, file_path_str)
+
+    try:
+        return clear_all(project.root_path, lang, relative_path)
     except Exception as exc:
         raise TranslationCacheClearError(f"Cannot clear translation cache: {exc}") from exc
 

@@ -303,6 +303,12 @@ class Project:
 
         return _project_runtime.clear_translation_cache_missing_chunks(self)
 
+    def clear_translation_cache_all(self, lang: Language | None, file_path_str: str | None):
+        """Clears translation cache for the selected language and/or file."""
+        from . import project_runtime as _project_runtime
+
+        return _project_runtime.clear_translation_cache_all(self, lang, file_path_str)
+
     def get_llm_service(self) -> str:
         return self.config.get_llm_service()
     def get_llm_model(self) -> str:
