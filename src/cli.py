@@ -355,7 +355,8 @@ def clear_cache_cli(
                     "Cache cleanup complete: "
                     f"{stats.removed_rows} row(s) removed, "
                     f"{stats.cleared_fields} field(s) cleared, "
-                    f"{stats.removed_source_chunks} source chunk(s) removed."
+                    f"{stats.removed_source_chunks} source chunk(s) removed, "
+                    f"{stats.removed_target_chunks} target chunk(s) removed."
                 ),
                 fg=typer.colors.GREEN,
             )

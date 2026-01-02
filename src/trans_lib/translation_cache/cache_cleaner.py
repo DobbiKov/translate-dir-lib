@@ -19,6 +19,7 @@ class CacheClearStats:
     removed_rows: int = 0
     cleared_fields: int = 0
     removed_source_chunks: int = 0
+    removed_target_chunks: int = 0
 
 
 @dataclass
@@ -98,15 +99,25 @@ def clear_missing_chunks(root_path: Path, source_lang: Language) -> CacheClearSt
         return stats
 
     source_lang_name = str(source_lang)
-    source_files = _iter_lang_cache_files(cache_dir, source_lang_name)
-    referenced_sources: set[tuple[str, str]] = set()
+    lang_files: dict[str, list[tuple[str, str, Path]]] = {}
+    for entry in cache_dir.iterdir():
+        if not entry.is_dir():
+            continue
+        lang_name = entry.name
+        lang_files[lang_name] = _iter_lang_cache_files(cache_dir, lang_name)
+
+    referenced_chunks: set[tuple[str, str, str]] = set()
 
     cache_data = read_correspondence_cache(root_path)
     if cache_data is None:
-        for _, _, file_path in source_files:
-            if file_path.exists():
-                file_path.unlink()
-                stats.removed_source_chunks += 1
+        for lang_name, files in lang_files.items():
+            for _, _, file_path in files:
+                if file_path.exists():
+                    file_path.unlink()
+                    if lang_name == source_lang_name:
+                        stats.removed_source_chunks += 1
+                    else:
+                        stats.removed_target_chunks += 1
         return stats
 
     fields, data_list = cache_data
@@ -143,17 +154,28 @@ def clear_missing_chunks(root_path: Path, source_lang: Language) -> CacheClearSt
             row[col] = ""
         stats.cleared_fields += len(missing_targets)
         remaining_rows.append(row)
-        referenced_sources.add((path_hash, src_checksum))
+        if _checksum_file_exists(cache_dir, src_col, path_hash, src_checksum):
+            referenced_chunks.add((src_col, path_hash, src_checksum))
+        for col in target_cols:
+            tgt_checksum = row.get(col, "")
+            if not tgt_checksum:
+                continue
+            if _checksum_file_exists(cache_dir, col, path_hash, tgt_checksum):
+                referenced_chunks.add((col, path_hash, tgt_checksum))
 
     if stats.removed_rows > 0 or stats.cleared_fields > 0:
         write_correspondence_cache(root_path, remaining_rows, fields)
 
-    for path_hash, checksum, file_path in source_files:
-        if (path_hash, checksum) in referenced_sources:
-            continue
-        if file_path.exists():
-            file_path.unlink()
-            stats.removed_source_chunks += 1
+    for lang_name, files in lang_files.items():
+        for path_hash, checksum, file_path in files:
+            if (lang_name, path_hash, checksum) in referenced_chunks:
+                continue
+            if file_path.exists():
+                file_path.unlink()
+                if lang_name == source_lang_name:
+                    stats.removed_source_chunks += 1
+                else:
+                    stats.removed_target_chunks += 1
 
     return stats
 
