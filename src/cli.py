@@ -320,7 +320,14 @@ def clear_cache_cli(
         Path | None,
         typer.Option(
             "--file",
-            help="Limit cache deletion to a specific source file path.",
+            help="Limit cache deletion to a specific project file path.",
+        ),
+    ] = None,
+    keyword: Annotated[
+        str | None,
+        typer.Option(
+            "--keyword",
+            help="Limit cache deletion to chunks containing the keyword.",
         ),
     ] = None,
 ):
@@ -335,6 +342,13 @@ def clear_cache_cli(
     if (lang is not None or file_path is not None) and missing_chunks:
         typer.secho(
             "--lang and --file can only be used with --all.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    if keyword is not None and not all_cache:
+        typer.secho(
+            "--keyword can only be used with --all.",
             fg=typer.colors.RED,
             err=True,
         )
@@ -361,7 +375,11 @@ def clear_cache_cli(
                 fg=typer.colors.GREEN,
             )
         else:
-            stats = project.clear_translation_cache_all(lang, str(file_path) if file_path else None)
+            stats = project.clear_translation_cache_all(
+                lang,
+                str(file_path) if file_path else None,
+                keyword,
+            )
             typer.secho(
                 (
                     "Cache deletion complete: "

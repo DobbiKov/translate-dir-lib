@@ -282,13 +282,14 @@ def clear_translation_cache_all(
     project: Project,
     lang: Language | None,
     file_path_str: str | None,
+    keyword: str | None,
 ) -> CacheDeleteStats:
     relative_path = None
     if file_path_str is not None:
         relative_path = _resolve_relative_cache_path(project, file_path_str)
 
     try:
-        return clear_all(project.root_path, lang, relative_path)
+        return clear_all(project.root_path, lang, relative_path, keyword)
     except Exception as exc:
         raise TranslationCacheClearError(f"Cannot clear translation cache: {exc}") from exc
 
