@@ -9,6 +9,8 @@ import typer
 from loguru import logger
 from typing_extensions import Annotated # For Typer < 0.7 or for more complex annotations
 
+from unified_model_caller.enums import Service
+
 from trans_lib.enums import Language, CLI_LANGUAGE_CHOICES
 from trans_lib.project_manager import Project, init_project, load_project
 from trans_lib import errors
@@ -211,6 +213,7 @@ def info_on_project(ctx: typer.Context):
         print("\tSource directory: {}".format(src_dir_name))
         print("\tModel for translation: {} {}".format(llm_service, llm_model))
 
+
     target_langs = project._get_target_languages()
     if len( target_langs ) == 0:
         print("\tTarget langauges: There is no target languages")
@@ -221,6 +224,21 @@ def info_on_project(ctx: typer.Context):
             tgt_dir_name = None if tgt_dir is None else tgt_dir.name
             print("\tLanguage: {:<10} | Directory: {}".format(lang, tgt_dir_name))
 
+@app.command("list-llms")
+def list_llm_services(ctx: typer.Context):
+    """Lists all available LLM services."""
+    try:
+        services = Service.get_all_services()
+        if not services:
+            typer.secho("No LLM services found.", fg=typer.colors.YELLOW)
+            return
+        typer.secho("Available LLM services:", fg=typer.colors.BLUE)
+        for service in services:
+            service_name = service.value if hasattr(service, "value") else str(service)
+            typer.echo(f"  {service_name}")
+    except Exception as e:
+        typer.secho(f"Error listing LLM services: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
 
 # --- Translation Commands ---
 translate_app = typer.Typer(name="translate", help="Translate files", no_args_is_help=True)
