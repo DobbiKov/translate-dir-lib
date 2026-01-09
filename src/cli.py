@@ -302,6 +302,112 @@ def sync_cache_cli(ctx: typer.Context):
         typer.secho(f"An unexpected error occurred during cache sync: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
+
+@cache_app.command("clear")
+def clear_cache_cli(
+    ctx: typer.Context,
+    missing_chunks: Annotated[
+        bool,
+        typer.Option(
+            "--missing-chunks",
+            help="Remove cache entries that reference missing chunk files.",
+        ),
+    ] = False,
+    all_cache: Annotated[
+        bool,
+        typer.Option(
+            "--all",
+            help="Delete all cache entries for a language and/or file.",
+        ),
+    ] = False,
+    lang: Annotated[
+        Language | None,
+        typer.Option(
+            "--lang",
+            help="Limit cache deletion to a specific language.",
+            case_sensitive=False,
+        ),
+    ] = None,
+    file_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--file",
+            help="Limit cache deletion to a specific project file path.",
+        ),
+    ] = None,
+    keyword: Annotated[
+        str | None,
+        typer.Option(
+            "--keyword",
+            help="Limit cache deletion to chunks containing the keyword.",
+        ),
+    ] = None,
+):
+    """Clears translation cache entries based on cleanup flags."""
+    if missing_chunks and all_cache:
+        typer.secho(
+            "Use only one cache clear action flag at a time (--missing-chunks or --all).",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    if (lang is not None or file_path is not None) and missing_chunks:
+        typer.secho(
+            "--lang and --file can only be used with --all.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    if keyword is not None and not all_cache:
+        typer.secho(
+            "--keyword can only be used with --all.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    if not missing_chunks and not all_cache:
+        typer.secho(
+            "No cache clear flags provided. Use --missing-chunks or --all.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    project = get_project_from_context(ctx)
+    try:
+        if missing_chunks:
+            stats = project.clear_translation_cache_missing_chunks()
+            typer.secho(
+                (
+                    "Cache cleanup complete: "
+                    f"{stats.removed_rows} row(s) removed, "
+                    f"{stats.cleared_fields} field(s) cleared, "
+                    f"{stats.removed_source_chunks} source chunk(s) removed, "
+                    f"{stats.removed_target_chunks} target chunk(s) removed."
+                ),
+                fg=typer.colors.GREEN,
+            )
+        else:
+            stats = project.clear_translation_cache_all(
+                lang,
+                str(file_path) if file_path else None,
+                keyword,
+            )
+            typer.secho(
+                (
+                    "Cache deletion complete: "
+                    f"{stats.removed_rows} row(s) removed, "
+                    f"{stats.cleared_fields} field(s) cleared, "
+                    f"{stats.removed_chunk_files} chunk file(s) removed."
+                ),
+                fg=typer.colors.GREEN,
+            )
+    except errors.TranslationCacheClearError as e:
+        typer.secho(f"Error clearing translation cache: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    except Exception as e:
+        typer.secho(f"An unexpected error occurred during cache clear: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
 # --- Main execution for CLI ---
 # This callback is for global options like --project-dir if you add them
 # For now, it's not strictly needed as get_project_from_context handles loading
