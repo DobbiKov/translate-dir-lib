@@ -2,7 +2,7 @@ from itertools import groupby
 import logging
 import xml.etree.ElementTree as ET
 
-def reconstruct_from_xml(translated_xml: str) -> str:
+def reconstruct_from_xml(translated_xml: str, phs: dict[str, str] = {}) -> str:
     """
     Rebuilds the source document from a translated XML file that uses a
     single <TEXT> tag with mixed content (text nodes and <PH> elements).
@@ -44,6 +44,9 @@ def reconstruct_from_xml(translated_xml: str) -> str:
             try:
                 # orig = element.get('original') # if the id isn't found in the PH's db, we get the source from the 'original' attribute
                 orig = element.text or ""
+                id = element.get("id")
+                if id in list(phs.keys()):
+                    orig = phs[id]
                 if orig is None:
                     logging.warning("Original contents of the <PH> tag is not found!")
                 else:
@@ -69,10 +72,15 @@ def create_translation_xml(segments: list[tuple[str, str]]) -> tuple[str, dict, 
     - Merges consecutive non-text segments into single <PH> tags.
     - Creates one top-level <TEXT> tag.
     - Places text nodes and <PH> elements inside the <TEXT> tag.
-    - Saves a mapping of placeholder IDs to their original content.
+    - Assigns sequential "id" attributes to each <PH> tag.
+    - Stores the placeholder content both as <PH> text and in the returned map.
+      (Reconstruction currently uses the <PH> text, not the id.)
 
     Returns:
-        tuple[str, dict]: A tuple containing the XML string and the placeholder dictionary.
+        tuple[str, dict, bool]:
+            - XML string for translation (<document><TEXT>...</TEXT></document>).
+            - Placeholder map: id -> original placeholder content.
+            - ph_only: True if there is no translatable text, only placeholders.
     """
     ph_only = len([1 for el in segments if el[0] == 'text']) == 0
     # -- Step 1: Coalesce consecutive placeholders --
