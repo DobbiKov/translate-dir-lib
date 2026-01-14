@@ -146,7 +146,7 @@ def read_chunks_with_metadata_from_myst(
     )
 
     parts = METADATA_BLOCK_REGEX.split(full_content)
-    print(parts)
+    logger.debug("Split MyST content into {} parts.", len(parts))
 
     current_chunk_content = ""
     current_metadata: dict[str, str] = {}

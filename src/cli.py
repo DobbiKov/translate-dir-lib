@@ -1,11 +1,15 @@
 import asyncio
 import os
 import csv
+import sys
 from pathlib import Path
 from typing import List, Optional
 
 import typer
+from loguru import logger
 from typing_extensions import Annotated # For Typer < 0.7 or for more complex annotations
+
+from unified_model_caller.enums import Service
 
 from trans_lib.enums import Language, CLI_LANGUAGE_CHOICES
 from trans_lib.project_manager import Project, init_project, load_project
@@ -18,6 +22,16 @@ app = typer.Typer(
     help="A tool for managing and translating directory structures.",
     no_args_is_help=True
 )
+
+@app.callback()
+def main(
+    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show diagnostic logs.")] = False,
+) -> None:
+    logger.remove()
+    if verbose:
+        logger.add(sys.stderr, level="TRACE")
+    else:
+        logger.add(sys.stderr, level="WARNING")
 
 # Shared callback to load project (or handle not being in one)
 def get_project_from_context(ctx: typer.Context) -> Project:
@@ -199,6 +213,7 @@ def info_on_project(ctx: typer.Context):
         print("\tSource directory: {}".format(src_dir_name))
         print("\tModel for translation: {} {}".format(llm_service, llm_model))
 
+
     target_langs = project._get_target_languages()
     if len( target_langs ) == 0:
         print("\tTarget langauges: There is no target languages")
@@ -209,6 +224,21 @@ def info_on_project(ctx: typer.Context):
             tgt_dir_name = None if tgt_dir is None else tgt_dir.name
             print("\tLanguage: {:<10} | Directory: {}".format(lang, tgt_dir_name))
 
+@app.command("list-llms")
+def list_llm_services(ctx: typer.Context):
+    """Lists all available LLM services."""
+    try:
+        services = Service.get_all_services()
+        if not services:
+            typer.secho("No LLM services found.", fg=typer.colors.YELLOW)
+            return
+        typer.secho("Available LLM services:", fg=typer.colors.BLUE)
+        for service in services:
+            service_name = service.value if hasattr(service, "value") else str(service)
+            typer.echo(f"  {service_name}")
+    except Exception as e:
+        typer.secho(f"Error listing LLM services: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
 
 # --- Translation Commands ---
 translate_app = typer.Typer(name="translate", help="Translate files", no_args_is_help=True)
@@ -288,6 +318,112 @@ def sync_cache_cli(ctx: typer.Context):
         raise typer.Exit(code=1)
     except Exception as e:
         typer.secho(f"An unexpected error occurred during cache sync: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+
+@cache_app.command("clear")
+def clear_cache_cli(
+    ctx: typer.Context,
+    missing_chunks: Annotated[
+        bool,
+        typer.Option(
+            "--missing-chunks",
+            help="Remove cache entries that reference missing chunk files.",
+        ),
+    ] = False,
+    all_cache: Annotated[
+        bool,
+        typer.Option(
+            "--all",
+            help="Delete all cache entries for a language and/or file.",
+        ),
+    ] = False,
+    lang: Annotated[
+        Language | None,
+        typer.Option(
+            "--lang",
+            help="Limit cache deletion to a specific language.",
+            case_sensitive=False,
+        ),
+    ] = None,
+    file_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--file",
+            help="Limit cache deletion to a specific project file path.",
+        ),
+    ] = None,
+    keyword: Annotated[
+        str | None,
+        typer.Option(
+            "--keyword",
+            help="Limit cache deletion to chunks containing the keyword.",
+        ),
+    ] = None,
+):
+    """Clears translation cache entries based on cleanup flags."""
+    if missing_chunks and all_cache:
+        typer.secho(
+            "Use only one cache clear action flag at a time (--missing-chunks or --all).",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    if (lang is not None or file_path is not None) and missing_chunks:
+        typer.secho(
+            "--lang and --file can only be used with --all.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    if keyword is not None and not all_cache:
+        typer.secho(
+            "--keyword can only be used with --all.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    if not missing_chunks and not all_cache:
+        typer.secho(
+            "No cache clear flags provided. Use --missing-chunks or --all.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    project = get_project_from_context(ctx)
+    try:
+        if missing_chunks:
+            stats = project.clear_translation_cache_missing_chunks()
+            typer.secho(
+                (
+                    "Cache cleanup complete: "
+                    f"{stats.removed_rows} row(s) removed, "
+                    f"{stats.cleared_fields} field(s) cleared, "
+                    f"{stats.removed_source_chunks} source chunk(s) removed, "
+                    f"{stats.removed_target_chunks} target chunk(s) removed."
+                ),
+                fg=typer.colors.GREEN,
+            )
+        else:
+            stats = project.clear_translation_cache_all(
+                lang,
+                str(file_path) if file_path else None,
+                keyword,
+            )
+            typer.secho(
+                (
+                    "Cache deletion complete: "
+                    f"{stats.removed_rows} row(s) removed, "
+                    f"{stats.cleared_fields} field(s) cleared, "
+                    f"{stats.removed_chunk_files} chunk file(s) removed."
+                ),
+                fg=typer.colors.GREEN,
+            )
+    except errors.TranslationCacheClearError as e:
+        typer.secho(f"Error clearing translation cache: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    except Exception as e:
+        typer.secho(f"An unexpected error occurred during cache clear: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
 # --- Main execution for CLI ---
