@@ -2,7 +2,7 @@ from itertools import groupby
 import logging
 import xml.etree.ElementTree as ET
 
-def reconstruct_from_xml(translated_xml: str, phs: dict[str, str] = {}) -> str:
+def reconstruct_from_xml(translated_xml: str, phs: dict[str, str] | None = None) -> str:
     """
     Rebuilds the source document from a translated XML file that uses a
     single <TEXT> tag with mixed content (text nodes and <PH> elements).
@@ -14,9 +14,12 @@ def reconstruct_from_xml(translated_xml: str, phs: dict[str, str] = {}) -> str:
     Args:
         translated_xml (str): The XML string from the translation process.
                               It is expected to contain a <document><TEXT>...</TEXT></document> structure.
+        phs (dict[str, str] | None): Placeholder map (id -> original content).
     Returns:
         str: The fully reconstructed document with translated text and original placeholders.
     """
+    if phs is None:
+        phs = {}
     try:
         root = ET.fromstring(translated_xml)
     except ET.ParseError as e:
@@ -42,15 +45,17 @@ def reconstruct_from_xml(translated_xml: str, phs: dict[str, str] = {}) -> str:
         # A. Append the content of the placeholder itself.
         if element.tag == 'PH':
             try:
-                # orig = element.get('original') # if the id isn't found in the PH's db, we get the source from the 'original' attribute
-                orig = element.text or ""
-                id = element.get("id")
-                if id in list(phs.keys()):
-                    orig = phs[id]
-                if orig is None:
-                    logging.warning("Original contents of the <PH> tag is not found!")
+                ph_id = element.get("id")
+                if ph_id and ph_id in phs:
+                    reconstructed_parts.append(phs[ph_id])
                 else:
-                    reconstructed_parts.append(orig)
+                    orig = element.text or ""
+                    if orig is None:
+                        logging.warning("Original contents of the <PH> tag is not found!")
+                    else:
+                        if ph_id:
+                            logging.warning("Original contents of the <PH> tag is not found in placeholder map!")
+                        reconstructed_parts.append(orig)
             except Exception:
                 logging.warning("Original contents of the <PH> tag is not found!")
         else:
@@ -73,8 +78,8 @@ def create_translation_xml(segments: list[tuple[str, str]]) -> tuple[str, dict, 
     - Creates one top-level <TEXT> tag.
     - Places text nodes and <PH> elements inside the <TEXT> tag.
     - Assigns sequential "id" attributes to each <PH> tag.
-    - Stores the placeholder content both as <PH> text and in the returned map.
-      (Reconstruction currently uses the <PH> text, not the id.)
+    - Stores the placeholder content in the returned map for reconstruction.
+      (The <PH> tags also keep their original text content.)
 
     Returns:
         tuple[str, dict, bool]:
