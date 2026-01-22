@@ -297,6 +297,23 @@ class Project:
 
         _project_runtime.sync_translation_cache(self, target_lang)
 
+    def clear_translation_cache_missing_chunks(self):
+        """Clears cache entries that reference missing chunks."""
+        from . import project_runtime as _project_runtime
+
+        return _project_runtime.clear_translation_cache_missing_chunks(self)
+
+    def clear_translation_cache_all(
+        self,
+        lang: Language | None,
+        file_path_str: str | None,
+        keyword: str | None,
+    ):
+        """Clears translation cache for the selected language and/or file."""
+        from . import project_runtime as _project_runtime
+
+        return _project_runtime.clear_translation_cache_all(self, lang, file_path_str, keyword)
+
     def get_llm_service(self) -> str:
         return self.config.get_llm_service()
     def get_llm_model(self) -> str:

@@ -92,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
         unescape_text=not args.literal_text,
     )
     xml_output, placeholders, _ = myst_to_xml(source)
-    reconstructed = reconstruct_from_xml(xml_output)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
 
     print("=== XML ===")
     print(xml_output)

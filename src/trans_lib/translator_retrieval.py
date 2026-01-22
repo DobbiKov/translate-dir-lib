@@ -10,7 +10,7 @@ from trans_lib.translation_cache.translation_cache import TranslationCache, Tran
 from trans_lib.translator import finalize_prompt, finalize_xml_prompt, _prepare_prompt_for_language, _prepare_prompt_for_vocab_list, _prepare_prompt_for_content_type, _prepare_prompt_for_translation_example
 from trans_lib.vocab_list import VocabList
 from trans_lib.xml_manipulator_mod.xml import reconstruct_from_xml
-from trans_lib.xml_manipulator_mod.mod import chunk_contains_ph_only, chunk_to_xml, code_to_xml
+from trans_lib.xml_manipulator_mod.mod import chunk_contains_ph_only, chunk_to_xml, chunk_to_xml_with_placeholders, code_to_xml
 from trans_lib.prompts import xml_translation_prompt
 from trans_lib.translator import _ask_gemini_model
 from trans_lib.prompts import prompt4, xml_with_previous_translation_prompt
@@ -61,6 +61,11 @@ class WithExampleMeta(Meta):
     ex_src: str
     ex_tgt: str
 
+@dataclass
+class PromptContext:
+    is_xml: bool
+    placeholders: dict[str, str] | None = None
+
 # ====================== Prompt / Strategy layer ===================== #
 
 class TranslateStrategy:
@@ -68,9 +73,9 @@ class TranslateStrategy:
 
     def __init__(
         self,
-        prompt_builder: Callable[[Meta], tuple[str, bool]],
+        prompt_builder: Callable[[Meta], tuple[str, PromptContext]],
         call_model: Callable[[str], str],
-        postprocess: Callable[[str], str],
+        postprocess: Callable[[str, PromptContext], str],
     ) -> None:
         self._prompt_builder = prompt_builder
         self._call_model = call_model
@@ -83,9 +88,9 @@ class TranslateStrategy:
         self,
         params: Meta
     ) -> str:
-        prompt, is_xml = self._prompt_builder(params)
+        prompt, context = self._prompt_builder(params)
         raw = self._call_model(prompt)
-        return self._post(raw)
+        return self._post(raw, context)
 
 
 # ---- Prompt builders ---------------------------------------------- #
@@ -99,7 +104,7 @@ def _plain_prompt_builder(template: str):
         p = _prepare_prompt_for_language(template, tgt, src)
         p = _prepare_prompt_for_vocab_list(p, vocab)
         p = finalize_prompt(p, chunk)
-        return p, False
+        return p, PromptContext(is_xml=False)
 
     return _builder
 
@@ -110,15 +115,16 @@ def _xml_prompt_builder(doc_type: DocumentType, chunk_type: ChunkType):
         tgt = params.tgt_lang
         src = params.src_lang
         xml_chunk = ""
+        placeholders: dict[str, str] = {}
         vocab = params.vocab
 
         # lang = None
         if chunk_type == ChunkType.Code:
             if isinstance(params, CodeMeta):
-                print("da")
-                xml_chunk = code_to_xml(chunk, params.prog_lang)[0]
+                logger.debug("Preparing XML chunk for code translation.")
+                xml_chunk, placeholders, _ = code_to_xml(chunk, params.prog_lang)
         else:
-            xml_chunk = chunk_to_xml(chunk, chunk_type)
+            xml_chunk, placeholders = chunk_to_xml_with_placeholders(chunk, chunk_type)
 
         prompt = xml_translation_prompt
         if isinstance(params, WithExampleMeta) and chunk_type != ChunkType.Code:
@@ -141,13 +147,13 @@ def _xml_prompt_builder(doc_type: DocumentType, chunk_type: ChunkType):
         prompt = _prepare_prompt_for_content_type(prompt, get_content_type())
         prompt = _prepare_prompt_for_vocab_list(prompt, vocab)
         prompt = finalize_xml_prompt(prompt, xml_chunk)
-        return prompt, True
+        return prompt, PromptContext(is_xml=True, placeholders=placeholders)
 
     return _builder
 
 def _identity_prompt_builder():
     def _builder(params: Meta):
-        return params.chunk, False
+        return params.chunk, PromptContext(is_xml=False)
 
     return _builder
 
@@ -161,11 +167,11 @@ def _dont_call_model(text: str) -> str:
     return text
 
 # ---- Strategies map ------------------------------------------------ #
-LATEX_STRATEGY   = TranslateStrategy(_xml_prompt_builder(DocumentType.LaTeX, ChunkType.LaTeX), _dont_call_model, lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
-MYST_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.JupyterNotebook, ChunkType.Myst), _dont_call_model,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
-PLAIN_STRATEGY   = TranslateStrategy(_plain_prompt_builder(prompt4), _dont_call_model,                    extract_translated_from_response)
-CODE_STRATEGY    = TranslateStrategy(_identity_prompt_builder(), _dont_call_model,  lambda r: r) 
-MD_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.Markdown, ChunkType.Myst), _dont_call_model,  lambda r: reconstruct_from_xml(extract_translated_from_response(r)))
+LATEX_STRATEGY   = TranslateStrategy(_xml_prompt_builder(DocumentType.LaTeX, ChunkType.LaTeX), _dont_call_model, lambda r, ctx: reconstruct_from_xml(extract_translated_from_response(r), ctx.placeholders))
+MYST_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.JupyterNotebook, ChunkType.Myst), _dont_call_model,  lambda r, ctx: reconstruct_from_xml(extract_translated_from_response(r), ctx.placeholders))
+PLAIN_STRATEGY   = TranslateStrategy(_plain_prompt_builder(prompt4), _dont_call_model,                    lambda r, ctx: extract_translated_from_response(r))
+CODE_STRATEGY    = TranslateStrategy(_identity_prompt_builder(), _dont_call_model,  lambda r, ctx: r)
+MD_STRATEGY    = TranslateStrategy(_xml_prompt_builder(DocumentType.Markdown, ChunkType.Myst), _dont_call_model,  lambda r, ctx: reconstruct_from_xml(extract_translated_from_response(r), ctx.placeholders))
 
 STRATEGY_MAP: dict[tuple[DocumentType, ChunkType], TranslateStrategy] = {
     (DocumentType.LaTeX,            ChunkType.LaTeX): LATEX_STRATEGY,
