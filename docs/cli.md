@@ -222,6 +222,55 @@ This vocabulary helps the translation tool choose more accurate terms and mainta
     Run this after manually editing translated files to ensure the cache matches
     the current contents.
 
+#### Cache clear
+
+Use cache clear to clean up stale cache entries or delete cache data for specific scopes.
+
+Command forms:
+```
+translate-dir cache clear --missing-chunks
+```
+```
+translate-dir cache clear --all [--lang <language>] [--file <path>] [--keyword <string>]
+```
+
+Rules and constraints:
+- Exactly one action flag is required: `--missing-chunks` or `--all`.
+- `--lang`, `--file`, and `--keyword` only work with `--all`.
+- `--keyword` cannot be combined with `--missing-chunks`.
+- Language names are case-insensitive and must match supported language names (e.g., English, French).
+- `--file` expects a project file path (the same path you translate), and must match the cached path hash.
+
+What `--missing-chunks` does:
+- Removes correspondence rows whose source chunk file is missing.
+- Removes correspondence rows where no target chunk files exist.
+- Clears target checksum fields for missing target chunk files (keeps the row if at least one target exists).
+- Deletes orphaned chunk files that are not referenced by any remaining correspondence row.
+- If the correspondence CSV is missing, all cache chunk files are deleted.
+
+What `--all` does (no keyword):
+- With `--lang`: clears only that language’s checksum field(s) and deletes that language’s chunk files in scope.
+- With `--file`: limits the deletion to that file’s path hash across all languages (or only `--lang` if set).
+- With no `--lang`/`--file`: deletes all cache chunk files and removes all correspondence rows.
+- Rows are removed only when all language fields are empty; otherwise the row is kept with cleared fields.
+
+What `--all --keyword <string>` does:
+- Deletes chunk files whose contents contain the keyword (literal substring match, case-sensitive).
+- Updates the correspondence CSV by clearing the matching checksum fields.
+- Rows are removed only if the keyword deletion clears all language fields for that row.
+- If the keyword does not match any chunk contents, the cache remains unchanged.
+
+Examples:
+```
+translate-dir cache clear --missing-chunks
+translate-dir cache clear --all --lang English
+translate-dir cache clear --all --file src_en/doc.md
+translate-dir cache clear --all --lang French --file src_en/doc.md
+translate-dir cache clear --all
+translate-dir cache clear --all --keyword glossary
+translate-dir cache clear --all --file src_en/doc.md --keyword glossary
+```
+
 ## Getting started for developers
 1. Ensure you have [uv](https://docs.astral.sh/uv/#__tabbed_1_1) tool installed. 
 2. Clone the library firstly, the lib's installation guide can be found [here](https://github.com/DobbiKov/translate-dir-lib?tab=readme-ov-file#installation)
