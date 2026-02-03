@@ -7,7 +7,7 @@ from trans_lib.helpers import calculate_checksum, extract_translated_from_respon
 from pathlib import Path
 from trans_lib.enums import ChunkType, DocumentType, Language
 from trans_lib.translation_cache.translation_cache import TranslationCache, TranslationCacheCsv
-from trans_lib.translator import finalize_prompt, finalize_xml_prompt, _prepare_prompt_for_language, _prepare_prompt_for_vocab_list, _prepare_prompt_for_content_type, _prepare_prompt_for_translation_example
+from trans_lib.translator import finalize_prompt, finalize_xml_prompt, _prepare_prompt_for_language, _prepare_prompt_for_vocab_list, _prepare_prompt_for_content_type, _prepare_prompt_for_translation_example, _prepare_prompt_for_project_description
 from trans_lib.vocab_list import VocabList
 from trans_lib.xml_manipulator_mod.xml import reconstruct_from_xml
 from trans_lib.xml_manipulator_mod.mod import chunk_contains_ph_only, chunk_to_xml, chunk_to_xml_with_placeholders, code_to_xml
@@ -28,7 +28,7 @@ except ImportError:  # pragma: no cover - unified_model_caller may not expose th
 def is_whitespace(text: str) -> bool:
     return not text or text.isspace()
 
-@dataclass
+@dataclass(kw_only=True)
 class Meta:
     chunk: str
     src_lang: Language
@@ -37,8 +37,9 @@ class Meta:
     chunk_type: ChunkType
     vocab: VocabList | None
     rel_path: str
+    project_description: str = ""
 
-@dataclass
+@dataclass(kw_only=True)
 class CodeMeta(Meta):
     chunk: str
     src_lang: Language
@@ -47,9 +48,9 @@ class CodeMeta(Meta):
     chunk_type: ChunkType
     vocab: VocabList | None
     rel_path: str
-    prog_lang: str
+    prog_lang: str = "python"
 
-@dataclass
+@dataclass(kw_only=True)
 class WithExampleMeta(Meta):
     chunk: str
     src_lang: Language
@@ -89,6 +90,7 @@ class TranslateStrategy:
         params: Meta
     ) -> str:
         prompt, context = self._prompt_builder(params)
+        # logger.trace("Prompt to model:\n{}", prompt)
         raw = self._call_model(prompt)
         return self._post(raw, context)
 
@@ -102,6 +104,7 @@ def _plain_prompt_builder(template: str):
         src = params.src_lang
         vocab = params.vocab
         p = _prepare_prompt_for_language(template, tgt, src)
+        p = _prepare_prompt_for_project_description(p, params.project_description)
         p = _prepare_prompt_for_vocab_list(p, vocab)
         p = finalize_prompt(p, chunk)
         return p, PromptContext(is_xml=False)
@@ -134,6 +137,7 @@ def _xml_prompt_builder(doc_type: DocumentType, chunk_type: ChunkType):
             prompt = _prepare_prompt_for_translation_example(prompt, ex_src, ex_tgt)
 
         prompt = _prepare_prompt_for_language(prompt, tgt, src)
+        prompt = _prepare_prompt_for_project_description(prompt, params.project_description)
         def get_content_type() -> str:
             if doc_type == DocumentType.LaTeX:
                 return "LaTeX"
@@ -230,15 +234,16 @@ class ChunkTranslator:
             if score > 0.7:
                 logger.debug("Found an example for a chunk")
                 meta = WithExampleMeta(
-                    meta.chunk,
-                    meta.src_lang,
-                    meta.tgt_lang,
-                    meta.doc_type,
-                    meta.chunk_type,
-                    meta.vocab,
-                    meta.rel_path,
-                    src_ex,
-                    tgt_ex,
+                    chunk=meta.chunk,
+                    src_lang=meta.src_lang,
+                    tgt_lang=meta.tgt_lang,
+                    doc_type=meta.doc_type,
+                    chunk_type=meta.chunk_type,
+                    vocab=meta.vocab,
+                    rel_path=meta.rel_path,
+                    ex_src=src_ex,
+                    ex_tgt=tgt_ex,
+                    project_description=meta.project_description,
                 )
 
         if ph_only:

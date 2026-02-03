@@ -57,6 +57,13 @@ def _prepare_prompt_for_vocab_list(prompt: str, vocab_list: VocabList | None) ->
         str_to_put = vocab_list.compile_into_llm_vocab_list()
     return _paste_vocabulary_into_prompt(prompt, str_to_put)
 
+def _prepare_prompt_for_project_description(prompt_template: str, project_description: str | None) -> str:
+    """Replaces the project description placeholder in the prompt."""
+    description = (project_description or "").strip()
+    if not description:
+        description = "Not provided."
+    return prompt_template.replace("[PROJECT_DESCRIPTION]", description)
+
 def _paste_vocabulary_into_prompt(prompt_template: str, vocabulary: str) -> str:
     return prompt_template.replace("[CUSTOM_VOCABULARY]", str(vocabulary))
 
@@ -122,14 +129,26 @@ async def translate_chunk_with_prompt(prompt: str, chunk: str, is_xml: bool = Fa
     return extract_translated_from_response(translated_response_text)
 
 
-async def translate_chunk_async(text_chunk: str, target_language: Language, vocab_list: VocabList | None) -> str:
+async def translate_chunk_async(
+    text_chunk: str,
+    target_language: Language,
+    vocab_list: VocabList | None,
+    project_description: str | None = None,
+) -> str:
     """Translates a single chunk of text asynchronously."""
     prompt_for_lang = _prepare_prompt_for_language(def_prompt_template, target_language)
+    prompt_for_lang = _prepare_prompt_for_project_description(prompt_for_lang, project_description)
     prompt_for_lang = _prepare_prompt_for_vocab_list(prompt_for_lang, vocab_list)
     
     return await translate_chunk_with_prompt(prompt_for_lang, text_chunk)
 
-async def translate_contents_async(contents: str, target_language: Language, lines_per_chunk: int = 50, vocab_list: VocabList | None = None) -> str:
+async def translate_contents_async(
+    contents: str,
+    target_language: Language,
+    lines_per_chunk: int = 50,
+    vocab_list: VocabList | None = None,
+    project_description: str | None = None,
+) -> str:
     """
     Translates the given string contents asynchronously, handling chunking.
     Includes a delay between chunk translations for rate limiting.
@@ -151,11 +170,10 @@ async def translate_contents_async(contents: str, target_language: Language, lin
             translated_chunks.append(chunk) # Preserve empty lines if they form a chunk
             continue
 
-        translated_chunk = await translate_chunk_async(chunk, target_language, vocab_list)
+        translated_chunk = await translate_chunk_async(chunk, target_language, vocab_list, project_description)
         translated_chunks.append(translated_chunk)
         
         if i < len(chunks) - 1: # If not the last chunk
             print(f"Translated chunk {i+1}/{len(chunks)}. Waiting for {INTER_CHUNK_DELAY_SECONDS}s...")
             
     return "".join(translated_chunks)
-

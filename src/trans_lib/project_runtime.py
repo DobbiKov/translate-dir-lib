@@ -353,6 +353,7 @@ async def translate_single_file(
             vocab_list,
             project.get_llm_service(),
             project.get_llm_model(),
+            project.config.get_description(),
         )
     except TranslationProcessError as e:
         raise TranslateFileError(f"Translation process failed for {file_path.name}: {e}", e)
