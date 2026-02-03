@@ -50,6 +50,10 @@ class NoConfigFoundError(LoadProjectError):
 class SetLLMServiceError(ProjectError):
     """Errors when setting the llm service."""
     pass
+
+class SetProjectDescriptionError(ProjectError):
+    """Errors when setting the project description."""
+    pass
 class SetSourceDirError(ProjectError):
     """Errors when setting the source directory."""
     pass

@@ -82,6 +82,7 @@ class ProjectConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     name: str
+    description: str = ""
     lang_dirs: List[LangDir] = Field(default_factory=list)
     src_dir: Optional[LangDir] = None
     translatable_files: List[Path] = Field(default_factory=list)
@@ -91,15 +92,22 @@ class ProjectConfig(BaseModel):
     llm_model: str = "gemini-2.0-flash"
 
     @classmethod
-    def new(cls, project_name: str) -> ProjectConfig:
+    def new(cls, project_name: str, description: str = "") -> ProjectConfig:
         return cls(
             name=project_name,
+            description=description,
             lang_dirs=[],
             src_dir=None,
         )
 
     def get_name(self) -> str:
         return self.name
+
+    def get_description(self) -> str:
+        return self.description
+
+    def set_description(self, description: str) -> None:
+        self.description = description
 
     def get_src_dir(self) -> Optional[LangDir]:
         return self.src_dir
