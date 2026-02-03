@@ -107,7 +107,7 @@ class CustomRenderer(RendererProtocol):
                     ('placeholder', markup),
                     ('placeholder', '\n'),
                 ],  idx + 1
-            case "{attention}" | "{caution}" | "{danger}" | "{error}" | "{hint}" | "{important}" | "{note}" | "{seealso}" | "{tip}" | "{warning}" | "{admonition}" | "{versionadded}" | "{versionchanged}" | "{deprecated}" | "{aside}" | "{sidebar}" | "{topic}" | "{dropdown}" | "{tab-set}" | "{toctree}" | "{table}" | "{list-table}":
+            case "{attention}" | "{caution}" | "{danger}" | "{error}" | "{hint}" | "{important}" | "{note}" | "{seealso}" | "{tip}" | "{warning}" | "{admonition}" | "{versionadded}" | "{versionchanged}" | "{deprecated}" | "{aside}" | "{sidebar}" | "{topic}" | "{dropdown}" | "{tab-set}" | "{toctree}" | "{table}" | "{list-table}" | "{todo}" | "{TODO}":
                 content_parsed = parse_myst(content)
                 return [
                     ('placeholder', markup),
