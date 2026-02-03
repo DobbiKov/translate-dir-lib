@@ -256,6 +256,8 @@ class ChunkTranslator:
 
         if ph_only:
             logger.trace("ph only")
+            logger.trace(chunk)
+            logger.trace("=======")
 
         self._store.persist_pair(
             src_checksum,
