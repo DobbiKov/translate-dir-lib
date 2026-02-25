@@ -410,6 +410,19 @@ def clear_cache_cli(
                 str(file_path) if file_path else None,
                 keyword,
             )
+            if (
+                file_path is not None
+                and stats.removed_rows == 0
+                and stats.cleared_fields == 0
+                and stats.removed_chunk_files == 0
+            ):
+                typer.secho(
+                    f"Warning: no cache entries found for '{file_path}'. "
+                    "Make sure the path is relative to the source directory "
+                    "or points to the file directly.",
+                    fg=typer.colors.YELLOW,
+                    err=True,
+                )
             typer.secho(
                 (
                     "Cache deletion complete: "
