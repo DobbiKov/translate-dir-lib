@@ -18,11 +18,12 @@ async def translate_notebook_async(
     vocab_list: VocabList | None,
     llm_caller: LLMCaller,
     relative_path: str,
+    reasoning_caller: LLMCaller | None = None,
 ) -> None:
     nb = jupytext.read(source_file_path)
     # TODO: read target file
     for i in range(len(nb.cells)):
-        nb.cells[i] = await translate_jupyter_cell_async(root_path, nb.cells[i], source_language, target_language, vocab_list, llm_caller, relative_path)
+        nb.cells[i] = await translate_jupyter_cell_async(root_path, nb.cells[i], source_language, target_language, vocab_list, llm_caller, relative_path, reasoning_caller=reasoning_caller)
     jupytext.write(nb, target_file_path)
 
 async def translate_jupyter_cell_async(
@@ -33,6 +34,7 @@ async def translate_jupyter_cell_async(
     vocab_list: VocabList | None,
     llm_caller: LLMCaller,
     relative_path: str,
+    reasoning_caller: LLMCaller | None = None,
 ) -> dict:
     src_txt = cell["source"]
     cell_type = cell["cell_type"]
@@ -45,9 +47,9 @@ async def translate_jupyter_cell_async(
 
     try:
         if cell_type == "code":
-            cell["source"] = await translate_code_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller, relative_path)
+            cell["source"] = await translate_code_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller, relative_path, reasoning_caller=reasoning_caller)
         else:
-            cell["source"] = await translate_markdown_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller, relative_path)
+            cell["source"] = await translate_markdown_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller, relative_path, reasoning_caller=reasoning_caller)
     except ChunkTranslationFailed as exc:
         tags = cell["metadata"].setdefault("tags", [])
         if "not-translated-due-to-exception" not in tags:
@@ -74,8 +76,9 @@ async def translate_markdown_cell_async(
     vocab_list: VocabList | None,
     llm_caller: LLMCaller,
     relative_path: str,
+    reasoning_caller: LLMCaller | None = None,
 ) -> str:
-    tr = build_translator_with_model(root_path, llm_caller)
+    tr = build_translator_with_model(root_path, llm_caller, reasoning_caller)
     meta = Meta(contents, source_language, target_language, DocumentType.JupyterNotebook, ChunkType.Myst, vocab_list, relative_path)
     return await tr.translate_or_fetch(meta)
 
@@ -88,7 +91,8 @@ async def translate_code_cell_async(
     vocab_list: VocabList | None,
     llm_caller: LLMCaller,
     relative_path: str,
+    reasoning_caller: LLMCaller | None = None,
 ) -> str:
-    tr = build_translator_with_model(root_path, llm_caller)
+    tr = build_translator_with_model(root_path, llm_caller, reasoning_caller)
     meta = CodeMeta(contents, source_language, target_language, DocumentType.JupyterNotebook, ChunkType.Code, vocab_list, relative_path, "python") # TODO: the language must be set accordingly to the cell
     return await tr.translate_or_fetch(meta)

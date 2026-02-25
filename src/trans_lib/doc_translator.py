@@ -27,21 +27,26 @@ async def translate_file_to_file_async(
     vocab_list: VocabList | None,
     llm_service: str,
     llm_model: str,
+    llm_reasoning_service: str | None = None,
+    llm_reasoning_model: str | None = None,
 ) -> None:
     """Translates a file and writes the result to another file asynchronously."""
     doc_type = analyze_document_type(source_path)
     logger.trace(doc_type)
     try:
         llm_caller = LLMCaller(llm_service, llm_model, LLM_API_KEY or "")
+        reasoning_caller = None
+        if llm_reasoning_service and llm_reasoning_model:
+            reasoning_caller = LLMCaller(llm_reasoning_service, llm_reasoning_model, LLM_API_KEY or "")
         if doc_type == DocumentType.JupyterNotebook:
             logger.debug("translate jupyter")
-            await translate_notebook_async(root_path, source_path, source_language, target_path, target_language, vocab_list, llm_caller, relative_path)
+            await translate_notebook_async(root_path, source_path, source_language, target_path, target_language, vocab_list, llm_caller, relative_path, reasoning_caller=reasoning_caller)
         elif doc_type == DocumentType.Markdown:
             logger.debug("translate markdown")
-            await myst_file_translator.translate_file_async(root_path, source_path, source_language, target_path, target_language, relative_path, vocab_list, llm_caller)
+            await myst_file_translator.translate_file_async(root_path, source_path, source_language, target_path, target_language, relative_path, vocab_list, llm_caller, reasoning_caller=reasoning_caller)
         elif doc_type == DocumentType.LaTeX:
             logger.trace("translate latex")
-            await latex_file_translator.translate_file_async(root_path, source_path, source_language, target_path, target_language, relative_path, vocab_list, llm_caller)
+            await latex_file_translator.translate_file_async(root_path, source_path, source_language, target_path, target_language, relative_path, vocab_list, llm_caller, reasoning_caller=reasoning_caller)
         else: # any other type
             logger.debug("other type? lol")
             translated_content = await translate_file_async(source_path, target_language, vocab_list)

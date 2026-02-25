@@ -261,8 +261,16 @@ class Project:
         try:
             self.config.set_llm_service_with_model(service, model)
             self.save_config()
-        except Exception as e: # Other errors from build_tree or Pydantic
+        except Exception as e:
             raise SetLLMServiceError(f"Error while setting llm service: {e}")
+
+    def set_llm_reasoning_service_and_model(self, service: str, model: str) -> None:
+        """Sets the service and the model that will be used for reasoning translation."""
+        try:
+            self.config.set_llm_reasoning_service_with_model(service, model)
+            self.save_config()
+        except Exception as e:
+            raise SetLLMServiceError(f"Error while setting reasoning llm service: {e}")
 
     def _find_correspondent_translatable_file(self, target_path: Path) -> Path | None:
         """
@@ -316,8 +324,15 @@ class Project:
 
     def get_llm_service(self) -> str:
         return self.config.get_llm_service()
+
     def get_llm_model(self) -> str:
         return self.config.get_llm_model()
+
+    def get_llm_reasoning_service(self) -> Optional[str]:
+        return self.config.get_llm_reasoning_service()
+
+    def get_llm_reasoning_model(self) -> Optional[str]:
+        return self.config.get_llm_reasoning_model()
 
     async def translate_single_file(self, file_path_str: str, target_lang: Language, vocab_list: VocabList | None) -> None:
         """Translates a single specified file to the target language."""
