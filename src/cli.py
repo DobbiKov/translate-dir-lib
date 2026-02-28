@@ -170,6 +170,20 @@ def set_source_dir(
         typer.secho(f"Error setting service and model: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
+@app.command("set-description")
+def set_project_description(
+    ctx: typer.Context,
+    description: Annotated[str, typer.Argument(help="Short project description (use quotes for multi-word).")],
+):
+    """Sets a short project description used to guide translations."""
+    project = get_project_from_context(ctx)
+    try:
+        project.set_project_description(description)
+        typer.secho("Project description updated.", fg=typer.colors.GREEN)
+    except errors.SetProjectDescriptionError as e:
+        typer.secho(f"Error setting project description: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
 @app.command("list")
 def list_translatable_files(ctx: typer.Context):
     """Lists all files marked as translatable in the source directory."""
@@ -199,6 +213,8 @@ def info_on_project(ctx: typer.Context):
     project = get_project_from_context(ctx)
     print("Project Information:");
     print("\tProject Name: {}".format(project.config.get_name()) )
+    description = project.config.get_description().strip()
+    print("\tProject Description: {}".format(description if description else "(not set)"))
     print("\tRoot Path: {}".format(project.root_path))
 
     src_dir = project.config.get_src_dir()

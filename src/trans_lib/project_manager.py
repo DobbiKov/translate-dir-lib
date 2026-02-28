@@ -15,7 +15,7 @@ from .project_config_io import (
 from .helpers import find_dir_upwards
 from .constants import CONF_DIR, CONFIG_FILENAME
 from .errors import (
-    InitProjectError, InvalidPathError, ProjectAlreadyInitializedError, SetLLMServiceError, WriteConfigError as ConfigWriteError,
+    InitProjectError, InvalidPathError, ProjectAlreadyInitializedError, SetLLMServiceError, SetProjectDescriptionError, WriteConfigError as ConfigWriteError,
     LoadProjectError, NoConfigFoundError, LoadConfigError as ConfigLoadError,
     SetSourceDirError, DirectoryDoesNotExistError, NotADirectoryError as PathNotADirectoryError,
     AnalyzeDirError, LangAlreadyInProjectError,
@@ -264,6 +264,14 @@ class Project:
         except Exception as e: # Other errors from build_tree or Pydantic
             raise SetLLMServiceError(f"Error while setting llm service: {e}")
 
+    def set_project_description(self, description: str) -> None:
+        """Sets the project description used to guide translation."""
+        try:
+            self.config.set_description(description)
+            self.save_config()
+        except Exception as e:
+            raise SetProjectDescriptionError(f"Error while setting project description: {e}")
+
     def _find_correspondent_translatable_file(self, target_path: Path) -> Path | None:
         """
         Returns a correspondent source language translatable file for the given translated one or None
@@ -379,8 +387,10 @@ def load_project(path_str: str) -> Project:
     
     try:
         config_model = load_project_config(config_file_path)
+        fields_set = getattr(config_model, "model_fields_set", getattr(config_model, "__fields_set__", set()))
+        description_missing = "description" not in fields_set
         project = Project(project_root, config_model)
-        if project.paths_normalized_on_load:
+        if project.paths_normalized_on_load or description_missing:
             project.save_config()
         print(f"Project '{project.config.name}' loaded from {project_root}")
         return project

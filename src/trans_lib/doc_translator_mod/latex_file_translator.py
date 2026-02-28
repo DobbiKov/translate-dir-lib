@@ -57,13 +57,14 @@ async def translate_file_async(
     relative_path: str,
     vocab_list: VocabList | None,
     llm_caller: LLMCaller,
+    project_description: str = "",
 ) -> None:
     """Handler for a latex file-to-file translation"""
     cells = get_latex_cells(source_file_path)
 
     for i in range(len(cells)):
         cell = cells[i]
-        cells[i] = await translate_chunk_async(root_path, cell, source_language, target_language, relative_path, vocab_list, llm_caller)
+        cells[i] = await translate_chunk_async(root_path, cell, source_language, target_language, relative_path, vocab_list, llm_caller, project_description)
 
     with open(target_file_path, "w") as f:
         f.write(compile_latex_cells(cells))
@@ -77,6 +78,7 @@ async def translate_chunk_async(
     relative_path: str,
     vocab_list: VocabList | None,
     llm_caller: LLMCaller,
+    project_description: str = "",
 ) -> dict:
    """Handler for a latex chunk translation"""
    src_txt = cell["source"] 
@@ -87,7 +89,7 @@ async def translate_chunk_async(
    cell["metadata"]["src_checksum"] = checksum
 
    try:
-       cell["source"] = await translate_any_chunk_async(root_path, src_txt, source_language, target_language, relative_path, vocab_list, llm_caller)
+       cell["source"] = await translate_any_chunk_async(root_path, src_txt, source_language, target_language, relative_path, vocab_list, llm_caller, project_description)
    except ChunkTranslationFailed as exc:
        cell["metadata"]["not-translated-due-to-exception"] = "True"
        cell["source"] = exc.chunk
@@ -106,7 +108,17 @@ async def translate_any_chunk_async(
     relative_path: str,
     vocab_list: VocabList | None,
     llm_caller: LLMCaller,
+    project_description: str = "",
 ) -> str:
     tr = build_translator_with_model(root_path, llm_caller)
-    meta = Meta(contents, source_language, target_language, DocumentType.LaTeX, ChunkType.LaTeX, vocab_list, relative_path)
+    meta = Meta(
+        chunk=contents,
+        src_lang=source_language,
+        tgt_lang=target_language,
+        doc_type=DocumentType.LaTeX,
+        chunk_type=ChunkType.LaTeX,
+        vocab=vocab_list,
+        rel_path=relative_path,
+        project_description=project_description,
+    )
     return await tr.translate_or_fetch(meta)

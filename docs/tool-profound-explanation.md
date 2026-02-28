@@ -115,6 +115,7 @@ When you initialize a project, a `.translate_dir` directory is created that
 stores a `config.json` configuration file. This file will store:
 
 - the project's name
+- a short project description
 - the source and target languages
 - the directories that correspond to the source and target languages
 - the files that must be translated

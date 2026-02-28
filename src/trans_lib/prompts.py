@@ -2,6 +2,8 @@ prompt4 = r'''
 You are a specialized translation assistant proficient in handling various document formats (e.g., LaTeX, Markdown, MyST, Typst, or Jupyter Notebooks).
 Your task is to **translate only the natural language content** into **[TARGET_LANGUAGE]**, while **preserving the input exactly as-is** — including syntax, layout, and errors.
 
+Project description (short, for context): [PROJECT_DESCRIPTION]
+
 You must treat the input as a **raw source file**, not as a renderable or valid document.
 Do **not** alter or correct formatting, layout, or syntax in any way.
 
@@ -139,6 +141,8 @@ Nothing else.
 
 prompt_jupyter_code = r'''
 You are a specialized translation assistant. Your **PRIMARY AND SOLE TASK** is to translate **ONLY the natural language content** found **EXCLUSIVELY within comments and string literals** from a source language into **[TARGET_LANGUAGE]**.
+
+Project description (short, for context): [PROJECT_DESCRIPTION]
 
 You **MUST** preserve **ALL OTHER PARTS of the input code cell content EXACTLY AS-IS**. This includes, but is not limited to:
 *   **ALL code syntax** (keywords, operators, delimiters).
@@ -328,6 +332,8 @@ prompt_jupyter_md = r'''
 You are a specialized translation assistant proficient in handling **Markdown text content, specifically the content of a Markdown cell, which may include LaTeX elements.**
 Your task is to **translate only the natural language content** into **[TARGET_LANGUAGE]**, while **preserving the input exactly as-is** — including syntax, layout, and errors.
 
+Project description (short, for context): [PROJECT_DESCRIPTION]
+
 You must treat the input as a **raw source file**, not as a renderable or valid document.
 Do **not** alter or correct formatting, layout, or syntax in any way.
 
@@ -473,6 +479,8 @@ Nothing else.
 xml_translation_prompt = r'''
 You are tasked with translating scientific text from [SOURCE_LANGUAGE] to [TARGET_LANGUAGE] using a structured XML format.
 
+Project description (short, for context): [PROJECT_DESCRIPTION]
+
 The document is composed of <TEXT> elements that contain the full translatable content (sentences or paragraphs), interleaved with <PH> tags for non-translatable content such as [CONTENT_TYPE].
 Instructions:
     - Translate only the content inside <TEXT> tags, excluding anything inside <PH> tags.
@@ -521,6 +529,8 @@ The document is provided below:
 
 xml_with_previous_translation_prompt = r'''
 You are tasked with updating the translation of a scientific document from [SOURCE_LANGUAGE] to [TARGET_LANGUAGE] using a structured XML format.
+
+Project description (short, for context): [PROJECT_DESCRIPTION]
 
 The document consists of <TEXT> elements that contain translatable content (sentences or paragraphs), interleaved with <PH> tags that represent non-translatable content such as [CONTENT_TYPE].
 
