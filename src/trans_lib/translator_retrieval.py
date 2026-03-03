@@ -264,6 +264,11 @@ class ChunkTranslator:
                             f"Chunk translation failed after 3 attempts due to {exc.__class__.__name__}: {exc}",
                         )
                         raise ChunkTranslationFailed(chunk, exc) from exc
+                except Exception as exc:  # noqa: BLE001 - non-ParseError on attempt 2
+                    logger.error(
+                        f"Chunk translation failed on attempt 2 due to {exc.__class__.__name__}: {exc}",
+                    )
+                    raise ChunkTranslationFailed(chunk, exc) from exc
             except Exception as exc:  # noqa: BLE001
                 logger.error(
                     f"Chunk translation failed due to {exc.__class__.__name__}: {exc}",
