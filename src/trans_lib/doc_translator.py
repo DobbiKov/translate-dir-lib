@@ -5,7 +5,7 @@ from unified_model_caller.enums import Service
 from trans_lib.doc_translator_mod import myst_file_translator
 from trans_lib.vocab_list import VocabList
 from .enums import DocumentType, Language
-from .translator import LLM_API_KEY, translate_contents_async
+from .translator import LLM_API_KEY, LLM_REASONING_API_KEY, translate_contents_async
 from .helpers import read_string_from_file, analyze_document_type
 from .errors import TranslationProcessError
 from .doc_translator_mod.notebook_file_translator import translate_notebook_async
@@ -36,11 +36,13 @@ async def translate_file_to_file_async(
     logger.trace(doc_type)
     if not LLM_API_KEY and Service.from_str(llm_service).requires_token():
         raise TranslationProcessError(f"LLM_API_KEY environment variable is not set but is required for service '{llm_service}'.", original_exception=None)
+    if llm_reasoning_service and llm_reasoning_model and not LLM_REASONING_API_KEY and Service.from_str(llm_reasoning_service).requires_token():
+        raise TranslationProcessError(f"LLM_REASONING_API_KEY (and LLM_API_KEY) environment variable is not set but is required for reasoning service '{llm_reasoning_service}'.", original_exception=None)
     try:
         llm_caller = LLMCaller(llm_service, llm_model, LLM_API_KEY or "")
         reasoning_caller = None
         if llm_reasoning_service and llm_reasoning_model:
-            reasoning_caller = LLMCaller(llm_reasoning_service, llm_reasoning_model, LLM_API_KEY or "")
+            reasoning_caller = LLMCaller(llm_reasoning_service, llm_reasoning_model, LLM_REASONING_API_KEY or "")
         if doc_type == DocumentType.JupyterNotebook:
             logger.debug("translate jupyter")
             await translate_notebook_async(root_path, source_path, source_language, target_path, target_language, vocab_list, llm_caller, relative_path, reasoning_caller=reasoning_caller)
