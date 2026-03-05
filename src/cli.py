@@ -161,13 +161,28 @@ def set_source_dir(
     service: Annotated[str, typer.Argument(help="Name of the service providing a model")],
     model: Annotated[str, typer.Argument(help="Name of the model", case_sensitive=True)] # Typer handles Enum conversion
 ):
-    """Sets or changes an LLM and the service providing the model."""
+    """Sets or changes the standard LLM and the service providing the model."""
     project = get_project_from_context(ctx)
     try:
         project.set_llm_service_and_model(service, model)
         typer.secho(f"The service set to '{service}' with the model {model}", fg=typer.colors.GREEN)
     except errors.SetSourceDirError as e:
         typer.secho(f"Error setting service and model: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+@app.command("set-reasoning-model")
+def set_reasoning_model(
+    ctx: typer.Context,
+    service: Annotated[str, typer.Argument(help="Name of the service providing the reasoning model")],
+    model: Annotated[str, typer.Argument(help="Name of the reasoning model", case_sensitive=True)],
+):
+    """Sets or changes the reasoning LLM and the service providing the model."""
+    project = get_project_from_context(ctx)
+    try:
+        project.set_llm_reasoning_service_and_model(service, model)
+        typer.secho(f"Reasoning model set to '{model}' on service '{service}'", fg=typer.colors.GREEN)
+    except errors.SetLLMServiceError as e:
+        typer.secho(f"Error setting reasoning model: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
 @app.command("list")
@@ -209,9 +224,15 @@ def info_on_project(ctx: typer.Context):
         src_dir_lang = src_dir.get_lang()
         llm_service = project.get_llm_service()
         llm_model = project.get_llm_model()
+        llm_reasoning_service = project.get_llm_reasoning_service()
+        llm_reasoning_model = project.get_llm_reasoning_model()
         print("\tSource language: {}".format(src_dir_lang))
         print("\tSource directory: {}".format(src_dir_name))
-        print("\tModel for translation: {} {}".format(llm_service, llm_model))
+        print("\tStandard model: {} {}".format(llm_service, llm_model))
+        if llm_reasoning_model:
+            print("\tReasoning model: {} {}".format(llm_reasoning_service, llm_reasoning_model))
+        else:
+            print("\tReasoning model: Not set")
 
 
     target_langs = project._get_target_languages()

@@ -57,13 +57,14 @@ async def translate_file_async(
     relative_path: str,
     vocab_list: VocabList | None,
     llm_caller: LLMCaller,
+    reasoning_caller: LLMCaller | None = None,
 ) -> None:
     """Handler for a latex file-to-file translation"""
     cells = get_latex_cells(source_file_path)
 
     for i in range(len(cells)):
         cell = cells[i]
-        cells[i] = await translate_chunk_async(root_path, cell, source_language, target_language, relative_path, vocab_list, llm_caller)
+        cells[i] = await translate_chunk_async(root_path, cell, source_language, target_language, relative_path, vocab_list, llm_caller, reasoning_caller=reasoning_caller)
 
     with open(target_file_path, "w") as f:
         f.write(compile_latex_cells(cells))
@@ -77,9 +78,10 @@ async def translate_chunk_async(
     relative_path: str,
     vocab_list: VocabList | None,
     llm_caller: LLMCaller,
+    reasoning_caller: LLMCaller | None = None,
 ) -> dict:
    """Handler for a latex chunk translation"""
-   src_txt = cell["source"] 
+   src_txt = cell["source"]
    logger.debug(f"{src_txt}")
    checksum = calculate_checksum(src_txt)
 
@@ -87,7 +89,7 @@ async def translate_chunk_async(
    cell["metadata"]["src_checksum"] = checksum
 
    try:
-       cell["source"] = await translate_any_chunk_async(root_path, src_txt, source_language, target_language, relative_path, vocab_list, llm_caller)
+       cell["source"] = await translate_any_chunk_async(root_path, src_txt, source_language, target_language, relative_path, vocab_list, llm_caller, reasoning_caller=reasoning_caller)
    except ChunkTranslationFailed as exc:
        cell["metadata"]["not-translated-due-to-exception"] = "True"
        cell["source"] = exc.chunk
@@ -106,7 +108,8 @@ async def translate_any_chunk_async(
     relative_path: str,
     vocab_list: VocabList | None,
     llm_caller: LLMCaller,
+    reasoning_caller: LLMCaller | None = None,
 ) -> str:
-    tr = build_translator_with_model(root_path, llm_caller)
+    tr = build_translator_with_model(root_path, llm_caller, reasoning_caller)
     meta = Meta(contents, source_language, target_language, DocumentType.LaTeX, ChunkType.LaTeX, vocab_list, relative_path)
     return await tr.translate_or_fetch(meta)

@@ -89,6 +89,8 @@ class ProjectConfig(BaseModel):
 
     llm_service: str = "google"
     llm_model: str = "gemini-2.0-flash"
+    llm_reasoning_service: Optional[str] = None
+    llm_reasoning_model: Optional[str] = None
 
     @classmethod
     def new(cls, project_name: str) -> ProjectConfig:
@@ -118,6 +120,12 @@ class ProjectConfig(BaseModel):
 
     def get_llm_model(self) -> str:
         return self.llm_model
+
+    def get_llm_reasoning_service(self) -> Optional[str]:
+        return self.llm_reasoning_service
+
+    def get_llm_reasoning_model(self) -> Optional[str]:
+        return self.llm_reasoning_model
 
     def get_target_dir_path_by_lang(self, lang: Language) -> Optional[Path]:
         for lang_dir_obj in self.lang_dirs:
@@ -174,6 +182,12 @@ class ProjectConfig(BaseModel):
         corr_service = unif_enums.Service.from_str(service)
         self.llm_service = service
         self.llm_model = model
+
+    def set_llm_reasoning_service_with_model(self, service: str, model: str) -> None:
+        """Sets the reasoning LLM service and model."""
+        unif_enums.Service.from_str(service)
+        self.llm_reasoning_service = service
+        self.llm_reasoning_model = model
 
     def make_file_translatable(self, path: Path, translatable: bool) -> None:
         """Marks a file as translatable or untranslatable."""

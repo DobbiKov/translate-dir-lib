@@ -333,6 +333,11 @@ class CustomRenderer(RendererProtocol):
             ('math', "$$" + token.content + "$$")
         ], idx + 1
 
+    @_handler("math_block")
+    def renderMathblock(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [('math', "$$"+token.content+"$$")], idx + 1
+
     @_handler("amsmath")
     def renderAmsmath(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         token = tokens[idx]
