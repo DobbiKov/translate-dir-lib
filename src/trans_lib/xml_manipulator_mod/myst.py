@@ -319,6 +319,13 @@ class CustomRenderer(RendererProtocol):
             ('math', "$" + token.content + "$")
         ], idx + 1
 
+    @_handler("html_block")
+    def renderHtmlBlock(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        return [
+            ('placeholder', token.content)
+        ], idx + 1
+
     @_handler("math_inline_double")
     def renderDoubleInlineMath(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
         token = tokens[idx]
