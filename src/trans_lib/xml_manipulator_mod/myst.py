@@ -415,6 +415,8 @@ class CustomRenderer(RendererProtocol):
     def renderSubsetOutOfContext(self, tokens: Sequence[Token]) -> Chunk:
         res = []
         idx = 0
+        if tokens is None:
+            return []
         for token in tokens:
             res.extend(self.renderToken(tokens, idx)[0])
             idx += 1
