@@ -396,6 +396,22 @@ class CustomRenderer(RendererProtocol):
         return [
             ('placeholder', token.content)
         ], idx + 1
+
+    @_handler("image")
+    def renderImage(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
+        token = tokens[idx]
+        src = token.attrs['src']
+        text_cont = self.renderSubsetOutOfContext(token.children)
+        return [('placeholder', "![") ] + text_cont + [ ('placeholder', f']({src})') ], idx + 1
+
+    # a method to render children of a token
+    def renderSubsetOutOfContext(self, tokens: Sequence[Token]) -> Chunk:
+        res = []
+        idx = 0
+        for token in tokens:
+            res.extend(self.renderToken(tokens, idx)[0])
+            idx += 1
+        return res
         
 
     def _renderOrderedList(self, tokens: Sequence[Token], idx: int, level: int = 0) -> tuple[Chunk, int]:
