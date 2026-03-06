@@ -27,10 +27,6 @@ _PLACEHOLDER_ONLY_KINDS = {
     SyntaxKind.LINK,
     SyntaxKind.CODE_BLOCK,
     SyntaxKind.CODE,
-    SyntaxKind.FUNC_CALL,
-    SyntaxKind.LET_BINDING,
-    SyntaxKind.SET_RULE,
-    SyntaxKind.SHOW_RULE,
     SyntaxKind.MODULE_IMPORT,
     SyntaxKind.MODULE_INCLUDE,
     SyntaxKind.HASH,
@@ -39,6 +35,13 @@ _PLACEHOLDER_ONLY_KINDS = {
     SyntaxKind.SHOW,
     SyntaxKind.IMPORT,
     SyntaxKind.INCLUDE,
+}
+
+_COMMAND_KINDS_WITH_CONTENT = {
+    SyntaxKind.FUNC_CALL,
+    SyntaxKind.LET_BINDING,
+    SyntaxKind.SET_RULE,
+    SyntaxKind.SHOW_RULE,
 }
 
 
@@ -75,6 +78,14 @@ def _walk_typst_node(node: Any) -> Iterable[tuple[str, str]]:
         yield ("math", node.full_text())
         return
 
+    if kind in _COMMAND_KINDS_WITH_CONTENT:
+        if _contains_content_block(node):
+            for child in node.children():
+                yield from _walk_typst_node(child)
+            return
+        yield ("placeholder", node.full_text())
+        return
+
     if kind in _PLACEHOLDER_ONLY_KINDS:
         yield ("placeholder", node.full_text())
         return
@@ -100,6 +111,12 @@ def _contains_translatable_math_call(node: Any) -> bool:
     if node.kind() == SyntaxKind.FUNC_CALL and _is_math_text_function_call(node):
         return True
     return any(_contains_translatable_math_call(child) for child in node.children())
+
+
+def _contains_content_block(node: Any) -> bool:
+    if node.kind() == SyntaxKind.CONTENT_BLOCK:
+        return True
+    return any(_contains_content_block(child) for child in node.children())
 
 
 def _is_math_text_function_call(node: Any) -> bool:

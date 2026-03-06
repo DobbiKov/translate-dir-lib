@@ -136,3 +136,28 @@ def test_typst_ph_only_math_chunk():
     source = "$ a + b = c $\n"
     _, _, ph_only = typst_to_xml_mod(source)
     assert ph_only is True
+
+
+def test_typst_command_with_content_block_translates_inner_text():
+    source = '#figure(caption: [A small caption])[Body text]\n'
+    xml_output, placeholders, ph_only = typst_to_xml_mod(source)
+    root = ET.fromstring(xml_output)
+    text_content = _get_non_placeholder_text(root)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+
+    assert "A small caption" in text_content
+    assert "Body text" in text_content
+    assert ph_only is False
+    assert reconstructed == source
+
+
+def test_typst_show_rule_with_content_block_translates_inner_text():
+    source = "#show heading: it => [Section #it.body]\n"
+    xml_output, placeholders, ph_only = typst_to_xml_mod(source)
+    root = ET.fromstring(xml_output)
+    text_content = _get_non_placeholder_text(root)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+
+    assert "Section" in text_content
+    assert ph_only is False
+    assert reconstructed == source
