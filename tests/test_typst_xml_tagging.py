@@ -1,0 +1,138 @@
+import xml.etree.ElementTree as ET
+
+from trans_lib.enums import ChunkType
+from trans_lib.xml_manipulator_mod.mod import chunk_to_xml_with_placeholders, typst_to_xml_mod
+from trans_lib.xml_manipulator_mod.xml import reconstruct_from_xml
+
+
+TYPST_SAMPLE = """= Heading
+== Subheading
+
+Plain text paragraph with *bold* and _italic_.
+
+Inline math: $E = m c^2$.
+
+$ a + b = c $
+
+```python
+print("hi")
+```
+
+<intro> reference @intro.
+#let x = 1
+Inline code: `val`
+// line comment
+"""
+
+
+def _get_text_content(root: ET.Element) -> str:
+    return "".join(root.itertext())
+
+
+def _get_non_placeholder_text(root: ET.Element) -> str:
+    text_container = root.find("TEXT")
+    if text_container is None:
+        return ""
+
+    parts: list[str] = []
+    if text_container.text:
+        parts.append(text_container.text)
+    for element in text_container:
+        if element.tail:
+            parts.append(element.tail)
+    return "".join(parts)
+
+
+def test_typst_chunk_to_xml_produces_valid_xml():
+    xml_output, placeholders = chunk_to_xml_with_placeholders(TYPST_SAMPLE, ChunkType.Typst)
+    root = ET.fromstring(xml_output)
+
+    assert root.tag == "document"
+    assert root.findall(".//PH"), "Expected placeholder tags in Typst XML output"
+
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert "Plain text paragraph" in reconstructed
+
+
+def test_typst_to_xml_preserves_text_segments():
+    xml_output, placeholders, ph_only = typst_to_xml_mod(TYPST_SAMPLE)
+    root = ET.fromstring(xml_output)
+    text_content = _get_text_content(root)
+
+    assert "Heading" in text_content
+    assert "Subheading" in text_content
+    assert "Plain text paragraph" in text_content
+    assert placeholders
+    assert ph_only is False
+
+
+def test_typst_to_xml_placeholders_not_in_text():
+    xml_output, _, _ = typst_to_xml_mod(TYPST_SAMPLE)
+    root = ET.fromstring(xml_output)
+    text_content = _get_non_placeholder_text(root)
+
+    assert "$E = m c^2$" not in text_content
+    assert "```python" not in text_content
+    assert "@intro" not in text_content
+    assert "<intro>" not in text_content
+    assert "`val`" not in text_content
+
+
+def test_typst_round_trip_plain_text():
+    source = "Plain text paragraph.\n"
+    xml_output, placeholders, _ = typst_to_xml_mod(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_typst_round_trip_bold_italic():
+    source = "This is *bold* and _italic_.\n"
+    xml_output, placeholders, _ = typst_to_xml_mod(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_typst_round_trip_heading():
+    source = "= Heading\n"
+    xml_output, placeholders, _ = typst_to_xml_mod(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_typst_round_trip_math():
+    source = "$E = m c^2$\n"
+    xml_output, placeholders, _ = typst_to_xml_mod(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_typst_round_trip_raw_block():
+    source = "```python\nprint(\"hi\")\n```\n"
+    xml_output, placeholders, _ = typst_to_xml_mod(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_typst_round_trip_label_ref():
+    source = "<intro> @intro\n"
+    xml_output, placeholders, _ = typst_to_xml_mod(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_typst_round_trip_full_sample():
+    xml_output, placeholders, _ = typst_to_xml_mod(TYPST_SAMPLE)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == TYPST_SAMPLE
+
+
+def test_typst_ph_only_code_chunk():
+    source = "#let x = 1\n"
+    _, _, ph_only = typst_to_xml_mod(source)
+    assert ph_only is True
+
+
+def test_typst_ph_only_math_chunk():
+    source = "$ a + b = c $\n"
+    _, _, ph_only = typst_to_xml_mod(source)
+    assert ph_only is True
