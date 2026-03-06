@@ -274,6 +274,8 @@ def analyze_document_type(path: Path) -> DocumentType:
         if is_jupyter_markdown(path):
             return DocumentType.JupyterNotebook
         return DocumentType.Markdown
+    if extension == "typ":
+        return DocumentType.Typst
     return DocumentType.Other
 
 def get_config_dir_from_root(root_path: Path) -> Path:
