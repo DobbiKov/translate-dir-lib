@@ -185,6 +185,43 @@ def set_reasoning_model(
         typer.secho(f"Error setting reasoning model: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
+
+@app.command("set-typst-func-args")
+def set_typst_function_args(
+    ctx: typer.Context,
+    function_name: Annotated[str, typer.Argument(help="Typst function name, e.g. ex")],
+    arg_names: Annotated[list[str], typer.Argument(help="Translatable string argument names, e.g. info caption")],
+):
+    """Sets translatable Typst string argument names for a function."""
+    project = get_project_from_context(ctx)
+    try:
+        project.set_typst_translatable_string_args_for_function(function_name, arg_names)
+        typer.secho(
+            f"Typst function '{function_name}' translatable string args set to: {', '.join(arg_names)}",
+            fg=typer.colors.GREEN,
+        )
+    except errors.SetLLMServiceError as e:
+        typer.secho(f"Error setting Typst function args: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+
+@app.command("unset-typst-func-args")
+def unset_typst_function_args(
+    ctx: typer.Context,
+    function_name: Annotated[str, typer.Argument(help="Typst function name to remove from config")],
+):
+    """Removes Typst function string-arg translation settings for a function."""
+    project = get_project_from_context(ctx)
+    try:
+        project.remove_typst_translatable_string_args_for_function(function_name)
+        typer.secho(
+            f"Typst function '{function_name}' settings removed.",
+            fg=typer.colors.GREEN,
+        )
+    except errors.SetLLMServiceError as e:
+        typer.secho(f"Error removing Typst function args: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
 @app.command("list")
 def list_translatable_files(ctx: typer.Context):
     """Lists all files marked as translatable in the source directory."""
@@ -233,6 +270,13 @@ def info_on_project(ctx: typer.Context):
             print("\tReasoning model: {} {}".format(llm_reasoning_service, llm_reasoning_model))
         else:
             print("\tReasoning model: Not set")
+        typst_string_args = project.get_typst_translatable_string_args_by_function()
+        if typst_string_args:
+            print("\tTypst translatable string args:")
+            for func, args in sorted(typst_string_args.items()):
+                print("\t  {}: {}".format(func, ", ".join(args)))
+        else:
+            print("\tTypst translatable string args: Not set")
 
 
     target_langs = project._get_target_languages()

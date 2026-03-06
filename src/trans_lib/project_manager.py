@@ -272,6 +272,33 @@ class Project:
         except Exception as e:
             raise SetLLMServiceError(f"Error while setting reasoning llm service: {e}")
 
+    def set_typst_translatable_string_args_for_function(
+        self,
+        function_name: str,
+        arg_names: list[str],
+    ) -> None:
+        """Sets translatable Typst string arguments for a function."""
+        try:
+            self.config.set_typst_translatable_string_args_for_function(function_name, arg_names)
+            self.save_config()
+        except Exception as e:
+            raise SetLLMServiceError(
+                f"Error while setting Typst translatable string arguments for function '{function_name}': {e}"
+            )
+
+    def remove_typst_translatable_string_args_for_function(self, function_name: str) -> None:
+        """Removes Typst string argument translation settings for a function."""
+        try:
+            self.config.remove_typst_translatable_string_args_for_function(function_name)
+            self.save_config()
+        except Exception as e:
+            raise SetLLMServiceError(
+                f"Error while removing Typst translatable string arguments for function '{function_name}': {e}"
+            )
+
+    def get_typst_translatable_string_args_by_function(self) -> dict[str, list[str]]:
+        return self.config.get_typst_translatable_string_args_by_function()
+
     def _find_correspondent_translatable_file(self, target_path: Path) -> Path | None:
         """
         Returns a correspondent source language translatable file for the given translated one or None

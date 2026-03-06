@@ -140,3 +140,23 @@ def test_load_project_rewrites_config_file(tmp_path):
 
     contents = json.loads(config_path.read_text(encoding="utf-8"))
     assert contents["src_dir"]["path"] == "src"
+
+
+def test_typst_translatable_string_args_config_round_trip(tmp_path):
+    root = tmp_path / "proj"
+    root.mkdir()
+
+    config = ProjectConfig.new(project_name="proj")
+    config.set_runtime_root_path(root)
+    config.set_typst_translatable_string_args_for_function("ex", ["info", "title"])
+    config.set_typst_translatable_string_args_for_function("figure", ["caption"])
+
+    assert config.get_typst_translatable_string_args_by_function() == {
+        "ex": ["info", "title"],
+        "figure": ["caption"],
+    }
+
+    config.remove_typst_translatable_string_args_for_function("figure")
+    assert config.get_typst_translatable_string_args_by_function() == {
+        "ex": ["info", "title"],
+    }

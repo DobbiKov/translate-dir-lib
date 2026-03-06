@@ -39,6 +39,14 @@ def _require_source_language(project: Project) -> Language:
     return source_language
 
 
+def _apply_typst_translation_settings(project: Project) -> None:
+    from .xml_manipulator_mod.typst import configure_typst_translatable_string_args_by_function
+
+    configure_typst_translatable_string_args_by_function(
+        project.get_typst_translatable_string_args_by_function()
+    )
+
+
 def _get_target_dir_config(project: Project, target_lang: Language):
     for lang_dir in project.config.lang_dirs:
         if lang_dir.language == target_lang:
@@ -303,6 +311,8 @@ async def translate_single_file(
     target_lang: Language,
     vocab_list: VocabList | None,
 ) -> None:
+    _apply_typst_translation_settings(project)
+
     try:
         file_path = Path(file_path_str).resolve(strict=True)
     except FileNotFoundError:

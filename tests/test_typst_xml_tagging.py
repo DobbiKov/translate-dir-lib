@@ -2,6 +2,10 @@ import xml.etree.ElementTree as ET
 
 from trans_lib.enums import ChunkType
 from trans_lib.xml_manipulator_mod.mod import chunk_to_xml_with_placeholders, typst_to_xml_mod
+from trans_lib.xml_manipulator_mod.typst import (
+    configure_typst_translatable_string_args_by_function,
+    reset_typst_translatable_string_args_by_function,
+)
 from trans_lib.xml_manipulator_mod.xml import reconstruct_from_xml
 
 
@@ -187,3 +191,20 @@ def test_typst_command_named_string_lang_stays_placeholder():
     assert "en" not in text_content
     assert ph_only is False
     assert reconstructed == source
+
+
+def test_typst_configurable_function_string_args():
+    source = '#custom(note: "Visible text")[Body]\n'
+    try:
+        configure_typst_translatable_string_args_by_function({"custom": ["note"]})
+        xml_output, placeholders, ph_only = typst_to_xml_mod(source)
+        root = ET.fromstring(xml_output)
+        text_content = _get_non_placeholder_text(root)
+        reconstructed = reconstruct_from_xml(xml_output, placeholders)
+
+        assert "Visible text" in text_content
+        assert "Body" in text_content
+        assert ph_only is False
+        assert reconstructed == source
+    finally:
+        reset_typst_translatable_string_args_by_function()

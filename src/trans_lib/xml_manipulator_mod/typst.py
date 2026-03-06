@@ -67,7 +67,11 @@ _NON_TRANSLATABLE_STRING_ARG_NAMES = {
 }
 
 _FUNCTION_TRANSLATABLE_STRING_ARGS = {
-    "ex": {"info"},
+}
+
+_runtime_function_translatable_string_args: dict[str, set[str]] = {
+    function_name: set(arg_names)
+    for function_name, arg_names in _FUNCTION_TRANSLATABLE_STRING_ARGS.items()
 }
 
 
@@ -188,11 +192,43 @@ def _is_translatable_string_argument(function_name: str | None, arg_name: str | 
 
     if function_name is not None:
         function_name_l = function_name.lower()
-        allowed = _FUNCTION_TRANSLATABLE_STRING_ARGS.get(function_name_l)
+        allowed = _runtime_function_translatable_string_args.get(function_name_l)
         if allowed is not None:
             return arg_name_l in allowed
 
     return arg_name_l in _TRANSLATABLE_STRING_ARG_NAMES
+
+
+def configure_typst_translatable_string_args_by_function(
+    function_arg_map: dict[str, list[str] | set[str] | tuple[str, ...]],
+) -> None:
+    global _runtime_function_translatable_string_args
+
+    normalized: dict[str, set[str]] = {}
+    for function_name, arg_names in function_arg_map.items():
+        function_name_norm = function_name.strip().lower()
+        if not function_name_norm:
+            continue
+
+        args_norm = {
+            arg_name.strip().lower()
+            for arg_name in arg_names
+            if arg_name and arg_name.strip()
+        }
+        if not args_norm:
+            continue
+        normalized[function_name_norm] = args_norm
+
+    _runtime_function_translatable_string_args = normalized
+
+
+def reset_typst_translatable_string_args_by_function() -> None:
+    configure_typst_translatable_string_args_by_function(
+        {
+            function_name: sorted(arg_names)
+            for function_name, arg_names in _FUNCTION_TRANSLATABLE_STRING_ARGS.items()
+        }
+    )
 
 
 def _contains_content_block(node: Any) -> bool:
