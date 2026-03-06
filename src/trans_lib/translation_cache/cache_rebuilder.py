@@ -13,6 +13,8 @@ from trans_lib.doc_translator_mod.myst_file_translator import (
     get_myst_cells,
     read_chunks_with_metadata_from_myst,
 )
+from trans_lib.doc_translator_mod.typst_chunker import read_chunks_with_metadata_from_typst
+from trans_lib.doc_translator_mod.typst_file_translator import get_typst_cells
 from trans_lib.enums import DocumentType
 from trans_lib.helpers import calculate_checksum
 
@@ -64,6 +66,7 @@ def _build_source_chunk_map(source_path: Path, doc_type: DocumentType) -> Dict[s
         DocumentType.JupyterNotebook: _build_notebook_source_map,
         DocumentType.Markdown: _build_myst_source_map,
         DocumentType.LaTeX: _build_latex_source_map,
+        DocumentType.Typst: _build_typst_source_map,
     }
     builder = builders.get(doc_type)
     if builder is None:
@@ -99,11 +102,21 @@ def _build_latex_source_map(source_path: Path) -> Dict[str, str]:
     return chunks
 
 
+def _build_typst_source_map(source_path: Path) -> Dict[str, str]:
+    chunks: Dict[str, str] = {}
+    for cell in get_typst_cells(source_path):
+        src_txt = cell.get("source", "")
+        checksum = calculate_checksum(src_txt)
+        chunks.setdefault(checksum, src_txt)
+    return chunks
+
+
 def _iter_target_chunks(target_path: Path, doc_type: DocumentType) -> Iterable[Tuple[str, str]]:
     readers: dict[DocumentType, callable[[Path], Iterable[Tuple[str, str]]]] = {
         DocumentType.JupyterNotebook: _iter_notebook_target_chunks,
         DocumentType.Markdown: _iter_myst_target_chunks,
         DocumentType.LaTeX: _iter_latex_target_chunks,
+        DocumentType.Typst: _iter_typst_target_chunks,
     }
     reader = readers.get(doc_type)
     if reader is None:
@@ -131,6 +144,14 @@ def _iter_myst_target_chunks(target_path: Path) -> Iterable[Tuple[str, str]]:
 
 def _iter_latex_target_chunks(target_path: Path) -> Iterable[Tuple[str, str]]:
     for cell in read_chunks_with_metadata_from_latex(target_path):
+        checksum = cell.get("src_checksum")
+        if not checksum:
+            continue
+        yield checksum, cell.get("source", "")
+
+
+def _iter_typst_target_chunks(target_path: Path) -> Iterable[Tuple[str, str]]:
+    for cell in read_chunks_with_metadata_from_typst(target_path):
         checksum = cell.get("src_checksum")
         if not checksum:
             continue
