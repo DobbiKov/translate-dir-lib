@@ -88,6 +88,10 @@ def _walk_typst_node(node: Any) -> Iterable[tuple[str, str]]:
         yield ("text", node.text())
         return
 
+    if kind == SyntaxKind.SMART_QUOTE:
+        yield ("text", node.text())
+        return
+
     if kind == SyntaxKind.SPACE:
         yield ("placeholder", node.text())
         return

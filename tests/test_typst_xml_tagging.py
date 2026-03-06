@@ -208,3 +208,16 @@ def test_typst_configurable_function_string_args():
         assert reconstructed == source
     finally:
         reset_typst_translatable_string_args_by_function()
+
+
+def test_typst_apostrophe_is_translatable_text():
+    source = "l'estimateur\n"
+    xml_output, placeholders, ph_only = typst_to_xml_mod(source)
+    root = ET.fromstring(xml_output)
+    text_content = _get_non_placeholder_text(root)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+
+    assert "l'estimateur" in text_content
+    assert "'" not in "".join(placeholders.values())
+    assert ph_only is False
+    assert reconstructed == source
