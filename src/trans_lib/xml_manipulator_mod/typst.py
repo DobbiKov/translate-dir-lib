@@ -44,6 +44,32 @@ _COMMAND_KINDS_WITH_CONTENT = {
     SyntaxKind.SHOW_RULE,
 }
 
+_TRANSLATABLE_STRING_ARG_NAMES = {
+    "caption",
+    "description",
+    "info",
+    "subtitle",
+    "summary",
+    "title",
+}
+
+_NON_TRANSLATABLE_STRING_ARG_NAMES = {
+    "file",
+    "id",
+    "key",
+    "label",
+    "lang",
+    "language",
+    "path",
+    "ref",
+    "target",
+    "url",
+}
+
+_FUNCTION_TRANSLATABLE_STRING_ARGS = {
+    "ex": {"info"},
+}
+
 
 def parse_typst(source: str) -> list[tuple[str, str]]:
     syntax_source = parse_source(source)
@@ -80,8 +106,7 @@ def _walk_typst_node(node: Any) -> Iterable[tuple[str, str]]:
 
     if kind in _COMMAND_KINDS_WITH_CONTENT:
         if _contains_content_block(node):
-            for child in node.children():
-                yield from _walk_typst_node(child)
+            yield from _walk_command_with_content(node)
             return
         yield ("placeholder", node.full_text())
         return
@@ -111,6 +136,63 @@ def _contains_translatable_math_call(node: Any) -> bool:
     if node.kind() == SyntaxKind.FUNC_CALL and _is_math_text_function_call(node):
         return True
     return any(_contains_translatable_math_call(child) for child in node.children())
+
+
+def _walk_command_with_content(node: Any) -> Iterable[tuple[str, str]]:
+    function_name = _extract_function_name(node)
+    for child in node.children():
+        if child.kind() == SyntaxKind.ARGS:
+            yield from _walk_command_args(child, function_name)
+        else:
+            yield from _walk_typst_node(child)
+
+
+def _walk_command_args(node: Any, function_name: str | None) -> Iterable[tuple[str, str]]:
+    for child in node.children():
+        if child.kind() == SyntaxKind.NAMED:
+            yield from _walk_named_pair(child, function_name)
+        else:
+            yield from _walk_typst_node(child)
+
+
+def _walk_named_pair(node: Any, function_name: str | None) -> Iterable[tuple[str, str]]:
+    arg_name = _extract_named_arg_name(node)
+    for child in node.children():
+        if child.kind() == SyntaxKind.STR and _is_translatable_string_argument(function_name, arg_name):
+            yield from _split_string_literal(child.full_text())
+        else:
+            yield from _walk_typst_node(child)
+
+
+def _extract_function_name(node: Any) -> str | None:
+    for child in node.children():
+        if child.kind() in (SyntaxKind.IDENT, SyntaxKind.MATH_IDENT):
+            return child.text()
+    return None
+
+
+def _extract_named_arg_name(node: Any) -> str | None:
+    for child in node.children():
+        if child.kind() == SyntaxKind.IDENT:
+            return child.text()
+    return None
+
+
+def _is_translatable_string_argument(function_name: str | None, arg_name: str | None) -> bool:
+    if arg_name is None:
+        return False
+
+    arg_name_l = arg_name.lower()
+    if arg_name_l in _NON_TRANSLATABLE_STRING_ARG_NAMES:
+        return False
+
+    if function_name is not None:
+        function_name_l = function_name.lower()
+        allowed = _FUNCTION_TRANSLATABLE_STRING_ARGS.get(function_name_l)
+        if allowed is not None:
+            return arg_name_l in allowed
+
+    return arg_name_l in _TRANSLATABLE_STRING_ARG_NAMES
 
 
 def _contains_content_block(node: Any) -> bool:

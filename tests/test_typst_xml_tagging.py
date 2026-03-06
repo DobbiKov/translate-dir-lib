@@ -161,3 +161,29 @@ def test_typst_show_rule_with_content_block_translates_inner_text():
     assert "Section" in text_content
     assert ph_only is False
     assert reconstructed == source
+
+
+def test_typst_command_named_string_info_is_translatable():
+    source = '#ex(info: "Familles de lois")[Body text]\n'
+    xml_output, placeholders, ph_only = typst_to_xml_mod(source)
+    root = ET.fromstring(xml_output)
+    text_content = _get_non_placeholder_text(root)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+
+    assert "Familles de lois" in text_content
+    assert "Body text" in text_content
+    assert ph_only is False
+    assert reconstructed == source
+
+
+def test_typst_command_named_string_lang_stays_placeholder():
+    source = '#set text(lang: "en")[Body text]\n'
+    xml_output, placeholders, ph_only = typst_to_xml_mod(source)
+    root = ET.fromstring(xml_output)
+    text_content = _get_non_placeholder_text(root)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+
+    assert "Body text" in text_content
+    assert "en" not in text_content
+    assert ph_only is False
+    assert reconstructed == source
