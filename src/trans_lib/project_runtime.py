@@ -256,6 +256,7 @@ def _resolve_relative_cache_path(project: Project, file_path_str: str) -> str:
     if input_path.is_absolute():
         candidates.append(input_path)
     else:
+        candidates.append(input_path.resolve())
         candidates.append(project.root_path / input_path)
         candidates.append(src_dir_path / input_path)
 
@@ -269,6 +270,8 @@ def _resolve_relative_cache_path(project: Project, file_path_str: str) -> str:
 
     for candidate in candidates:
         resolved = candidate.resolve()
+        if not resolved.exists():
+            continue
         for base_dir in base_dirs:
             if resolved.is_relative_to(base_dir):
                 return resolved.relative_to(base_dir).as_posix()
@@ -353,6 +356,8 @@ async def translate_single_file(
             vocab_list,
             project.get_llm_service(),
             project.get_llm_model(),
+            project.get_llm_reasoning_service(),
+            project.get_llm_reasoning_model(),
         )
     except TranslationProcessError as e:
         raise TranslateFileError(f"Translation process failed for {file_path.name}: {e}", e)

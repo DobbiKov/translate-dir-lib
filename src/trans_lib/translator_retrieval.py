@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import dataclass
 import time
 from typing import Callable
+import xml.etree.ElementTree as ET
 from loguru import logger
 from trans_lib.helpers import calculate_checksum, extract_translated_from_response
 from pathlib import Path
@@ -189,6 +190,7 @@ class ChunkTranslator:
         self,
         store: TranslationCache,
         model_caller: LLMCaller | None = None,
+        reasoning_caller: LLMCaller | None = None,
         *,
         overload_retry_attempts: int = 5,
         overload_retry_initial_delay: float = 1.0,
@@ -196,9 +198,20 @@ class ChunkTranslator:
     ):
         self._store = store
         self._caller: LLMCaller | None = model_caller
+        self._reasoning_caller: LLMCaller | None = reasoning_caller
         self._overload_attempts = max(1, overload_retry_attempts)
         self._overload_initial_delay = max(0.0, overload_retry_initial_delay)
         self._overload_max_delay = max(self._overload_initial_delay, overload_retry_max_delay)
+
+    async def _run_with_caller(self, strategy: TranslateStrategy, meta: Meta, caller: LLMCaller | None) -> str:
+        """Sets up the caller on the strategy and runs it with overload retry."""
+        if caller is not None and strategy != CODE_STRATEGY:
+            def f_call_model(t):
+                res = caller.call(t)
+                caller.wait_cooldown()
+                return res
+            strategy.set_call_model(f_call_model)
+        return await self._translate_with_retry(strategy, meta)
 
     async def translate_or_fetch(self, meta: Meta) -> str:
         chunk = meta.chunk
@@ -214,15 +227,6 @@ class ChunkTranslator:
         strategy = STRATEGY_MAP[(meta.doc_type, meta.chunk_type)]
         ph_only = chunk_contains_ph_only(chunk, meta.chunk_type)
         caller = self._caller
-        if caller is not None and strategy != CODE_STRATEGY: # we don't want to call model on code, we leave it unchanged
-            strategy.set_call_model(lambda t: caller.call(t))
-
-            def f_call_model(t):
-                res = caller.call(t)
-                caller.wait_cooldown()
-                return res
-
-            strategy.set_call_model(f_call_model)
 
         example = self._store.get_best_pair_example_from_cache(meta.src_lang, meta.tgt_lang, meta.chunk, meta.rel_path)
         if example is not None:
@@ -245,8 +249,27 @@ class ChunkTranslator:
             translated = chunk
         else:
             try:
-                translated = await self._translate_with_retry(strategy, meta)
-            except Exception as exc:  # noqa: BLE001 - we intentionally downgrade translation errors
+                translated = await self._run_with_caller(strategy, meta, caller)
+            except ET.ParseError:
+                logger.warning("Broken XML on attempt 1, retrying with standard model...")
+                try:
+                    translated = await self._run_with_caller(strategy, meta, caller)
+                except ET.ParseError:
+                    reasoning_caller = self._reasoning_caller if self._reasoning_caller is not None else caller
+                    logger.warning("Broken XML on attempt 2, retrying with reasoning model...")
+                    try:
+                        translated = await self._run_with_caller(strategy, meta, reasoning_caller)
+                    except Exception as exc:
+                        logger.error(
+                            f"Chunk translation failed after 3 attempts due to {exc.__class__.__name__}: {exc}",
+                        )
+                        raise ChunkTranslationFailed(chunk, exc) from exc
+                except Exception as exc:  # noqa: BLE001 - non-ParseError on attempt 2
+                    logger.error(
+                        f"Chunk translation failed on attempt 2 due to {exc.__class__.__name__}: {exc}",
+                    )
+                    raise ChunkTranslationFailed(chunk, exc) from exc
+            except Exception as exc:  # noqa: BLE001
                 logger.error(
                     f"Chunk translation failed due to {exc.__class__.__name__}: {exc}",
                 )
@@ -289,6 +312,6 @@ class ChunkTranslator:
                 await asyncio.sleep(wait_seconds)
                 delay = min(delay * 2, self._overload_max_delay)
 
-def build_translator_with_model(root_path: Path, caller: LLMCaller | None = None) -> ChunkTranslator:
+def build_translator_with_model(root_path: Path, caller: LLMCaller | None = None, reasoning_caller: LLMCaller | None = None) -> ChunkTranslator:
     """Constructs default translation factory with a particular model"""
-    return ChunkTranslator(TranslationCacheCsv(root_path), caller)
+    return ChunkTranslator(TranslationCacheCsv(root_path), caller, reasoning_caller)
