@@ -25,6 +25,8 @@ _INLINE_ACCUMULATION_KINDS = {
     SyntaxKind.STRONG,
     SyntaxKind.EMPH,
     SyntaxKind.SPACE,
+    SyntaxKind.MATH,
+    SyntaxKind.MATH_DELIMITED,
 }
 
 _HASH_PREFIXABLE_KINDS = {
@@ -33,7 +35,6 @@ _HASH_PREFIXABLE_KINDS = {
     SyntaxKind.LET_BINDING,
     SyntaxKind.MODULE_IMPORT,
     SyntaxKind.MODULE_INCLUDE,
-    SyntaxKind.FUNC_CALL,
     SyntaxKind.CODE_BLOCK,
 }
 
@@ -108,6 +109,16 @@ def _typst_to_simple_chunks(source_text: str) -> list[dict[str, Any]]:
     while idx < len(root_children):
         node = root_children[idx]
         kind = node.kind()
+
+        if (
+            kind == SyntaxKind.HASH
+            and idx + 1 < len(root_children)
+            and root_children[idx + 1].kind() == SyntaxKind.FUNC_CALL
+        ):
+            append_inline(node)
+            append_inline(root_children[idx + 1])
+            idx += 2
+            continue
 
         if (
             kind == SyntaxKind.HASH
