@@ -234,3 +234,18 @@ def test_typst_math_quoted_text_is_translatable():
     assert " est une matrice " in text_content
     assert ph_only is False
     assert reconstructed == source
+
+
+def test_typst_inline_math_keeps_surrounding_sentence_spacing_as_text():
+    source = "Before $x + y$ after.\n"
+    xml_output, placeholders, ph_only = typst_to_xml_mod(source)
+    root = ET.fromstring(xml_output)
+    text_content = _get_non_placeholder_text(root)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+
+    assert "Before " in text_content
+    assert " after." in text_content
+    assert "$x + y$" not in text_content
+    assert "$x + y$" in "".join(placeholders.values())
+    assert ph_only is False
+    assert reconstructed == source

@@ -93,7 +93,9 @@ def _walk_typst_node(node: Any) -> Iterable[tuple[str, str]]:
         return
 
     if kind == SyntaxKind.SPACE:
-        yield ("placeholder", node.text())
+        # Keep natural word spacing translatable so inline placeholders
+        # (e.g. math/code) do not split sentence context into isolated words.
+        yield ("text", node.text())
         return
 
     if kind == SyntaxKind.PARBREAK:
@@ -344,4 +346,6 @@ def typst_to_xml(source: str) -> tuple[str, dict, bool]:
         ("placeholder", content) if segment_type == "math" else (segment_type, content)
         for segment_type, content in segments
     ]
-    return create_translation_xml(segments)
+    xml_output, placeholders, _ = create_translation_xml(segments)
+    ph_only = len([1 for seg_type, content in segments if seg_type == "text" and content.strip() != ""]) == 0
+    return xml_output, placeholders, ph_only
