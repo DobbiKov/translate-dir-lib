@@ -24,6 +24,8 @@ def _format_metadata_block(metadata: dict[str, str]) -> str:
 def compile_typst_cells(cells: list[dict]) -> str:
     result = ""
     for cell in cells:
+        if result and not result.endswith("\n"):
+            result += "\n"
         result += _format_metadata_block(cell["metadata"])
         result += cell["source"]
     return result
