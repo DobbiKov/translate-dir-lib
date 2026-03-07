@@ -11,7 +11,6 @@ MAX_INLINE_CHUNK_LENGTH = 600
 _BLOCK_LEVEL_KINDS = {
     SyntaxKind.HEADING,
     SyntaxKind.RAW,
-    SyntaxKind.EQUATION,
     SyntaxKind.CODE_BLOCK,
     SyntaxKind.SHOW_RULE,
     SyntaxKind.SET_RULE,
@@ -25,6 +24,7 @@ _INLINE_ACCUMULATION_KINDS = {
     SyntaxKind.STRONG,
     SyntaxKind.EMPH,
     SyntaxKind.SPACE,
+    SyntaxKind.EQUATION,
     SyntaxKind.MATH,
     SyntaxKind.MATH_DELIMITED,
 }
@@ -212,9 +212,84 @@ def _complete_section_chunks(
 ) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
 
+    def _split_long_text(long_text: str) -> list[str]:
+        if not long_text:
+            return []
+        if len(long_text) <= max_chars_num:
+            return [long_text]
+
+        # Prefer splitting near the size limit at natural boundaries.
+        min_split = max(1, int(max_chars_num * 0.6))
+        boundary = re.compile(r"\n\s*\n+|\n|(?<=\.)\s+|\s+")
+
+        pieces: list[str] = []
+        rest = long_text
+        while len(rest) > max_chars_num:
+            candidate = 0
+            for match in boundary.finditer(rest[: max_chars_num + 1]):
+                split_idx = match.end()
+                if split_idx >= min_split:
+                    candidate = split_idx
+            if candidate == 0:
+                candidate = max_chars_num
+            pieces.append(rest[:candidate])
+            rest = rest[candidate:]
+
+        if rest:
+            pieces.append(rest)
+
+        return [piece for piece in pieces if piece]
+
+    def _split_section_by_paragraphs(content: str) -> list[str]:
+        if len(content) <= max_chars_num:
+            return [content] if content else []
+
+        paragraph_sep = re.compile(r"\n\s*\n+")
+        paragraph_units: list[str] = []
+        start = 0
+        for match in paragraph_sep.finditer(content):
+            end = match.end()
+            paragraph_units.append(content[start:end])
+            start = end
+        if start < len(content):
+            paragraph_units.append(content[start:])
+
+        packed: list[str] = []
+        current = ""
+        for unit in paragraph_units:
+            if not current:
+                if len(unit) <= max_chars_num:
+                    current = unit
+                else:
+                    packed.extend(_split_long_text(unit))
+                continue
+
+            if len(current) + len(unit) <= max_chars_num:
+                current += unit
+                continue
+
+            packed.append(current)
+            if len(unit) <= max_chars_num:
+                current = unit
+            else:
+                packed.extend(_split_long_text(unit))
+                current = ""
+
+        if current:
+            packed.append(current)
+
+        return [piece for piece in packed if piece]
+
     for chunk in section_chunks:
         if len(chunk["content"]) > max_chars_num:
-            result.extend(chunk["elems"])
+            for piece in _split_section_by_paragraphs(chunk["content"]):
+                result.append(
+                    {
+                        "type": chunk["elems"][0]["type"] if chunk["elems"] else "SECTION",
+                        "byte_range": chunk["byte_range"],
+                        "content": piece,
+                    }
+                )
             continue
 
         first_type = chunk["elems"][0]["type"] if chunk["elems"] else "SECTION"
