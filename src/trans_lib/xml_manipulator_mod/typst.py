@@ -106,7 +106,7 @@ def _walk_typst_node(node: Any) -> Iterable[tuple[str, str]]:
         return
 
     if kind in (SyntaxKind.MATH, SyntaxKind.EQUATION):
-        if _contains_translatable_math_call(node):
+        if _contains_translatable_math_content(node):
             yield from _walk_math_node_with_text_calls(node)
             return
         yield ("math", node.full_text())
@@ -140,10 +140,12 @@ def _walk_typst_node(node: Any) -> Iterable[tuple[str, str]]:
     yield ("placeholder", node.full_text())
 
 
-def _contains_translatable_math_call(node: Any) -> bool:
+def _contains_translatable_math_content(node: Any) -> bool:
     if node.kind() == SyntaxKind.FUNC_CALL and _is_math_text_function_call(node):
         return True
-    return any(_contains_translatable_math_call(child) for child in node.children())
+    if node.kind() == SyntaxKind.STR:
+        return True
+    return any(_contains_translatable_math_content(child) for child in node.children())
 
 
 def _walk_command_with_content(node: Any) -> Iterable[tuple[str, str]]:
@@ -253,6 +255,10 @@ def _walk_math_node_with_text_calls(node: Any) -> Iterable[tuple[str, str]]:
 
     if kind == SyntaxKind.FUNC_CALL and _is_math_text_function_call(node):
         yield from _walk_translatable_math_function_call(node)
+        return
+
+    if kind == SyntaxKind.STR:
+        yield from _split_string_literal(node.full_text())
         return
 
     if kind in (SyntaxKind.EQUATION, SyntaxKind.MATH, SyntaxKind.MATH_DELIMITED):

@@ -221,3 +221,16 @@ def test_typst_apostrophe_is_translatable_text():
     assert "'" not in "".join(placeholders.values())
     assert ph_only is False
     assert reconstructed == source
+
+
+def test_typst_math_quoted_text_is_translatable():
+    source = '$Ax = b " où " A " est une matrice "$\n'
+    xml_output, placeholders, ph_only = typst_to_xml_mod(source)
+    root = ET.fromstring(xml_output)
+    text_content = _get_non_placeholder_text(root)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+
+    assert " où " in text_content
+    assert " est une matrice " in text_content
+    assert ph_only is False
+    assert reconstructed == source
