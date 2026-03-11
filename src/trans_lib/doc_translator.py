@@ -10,7 +10,7 @@ from .helpers import read_string_from_file, analyze_document_type
 from .errors import TranslationProcessError
 from .doc_translator_mod.notebook_file_translator import translate_notebook_async
 from pathlib import Path
-from .doc_translator_mod import latex_file_translator
+from .doc_translator_mod import latex_file_translator, typst_file_translator
 
 async def translate_file_async(source_path: Path, target_language: Language, vocab_list: VocabList | None) -> str:
     """Reads a file, translates its content asynchronously, and returns the translated content."""
@@ -52,6 +52,19 @@ async def translate_file_to_file_async(
         elif doc_type == DocumentType.LaTeX:
             logger.trace("translate latex")
             await latex_file_translator.translate_file_async(root_path, source_path, source_language, target_path, target_language, relative_path, vocab_list, llm_caller, reasoning_caller=reasoning_caller)
+        elif doc_type == DocumentType.Typst:
+            logger.debug("translate typst")
+            await typst_file_translator.translate_file_async(
+                root_path,
+                source_path,
+                source_language,
+                target_path,
+                target_language,
+                relative_path,
+                vocab_list,
+                llm_caller,
+                reasoning_caller=reasoning_caller,
+            )
         else: # any other type
             logger.debug("other type? lol")
             translated_content = await translate_file_async(source_path, target_language, vocab_list)
