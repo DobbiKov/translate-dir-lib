@@ -115,7 +115,10 @@ def _render_inline_node(node: SyntaxTreeNode, out: Chunk, softbreak_indent: str 
             out.append(('text', node.content))
 
         case "softbreak":
-            out.append(('placeholder', '\n' + softbreak_indent))
+            if softbreak_indent:
+                out.append(('placeholder', '\n' + softbreak_indent))
+            else:
+                out.append(('text', '\n'))
 
         case "hardbreak":
             out.append(('placeholder', '\\\n' + softbreak_indent))
