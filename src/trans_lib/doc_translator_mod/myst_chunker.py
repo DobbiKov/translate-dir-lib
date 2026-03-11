@@ -1,12 +1,11 @@
 from typing import Any
-from markdown_it import MarkdownIt
+from trans_lib.xml_manipulator_mod.myst import _parser
 
 def _myst_to_simple_chunks(source_text: str) -> list[dict]:
     """
     Parses MyST/Markdown document into simple chunks
     """
-    md = MarkdownIt("commonmark", {"sourceMap": True})
-    tokens = md.parse(source_text)
+    tokens = _parser.parse(source_text)
     chunks = []
     maps = []
     

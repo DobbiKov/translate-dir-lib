@@ -1,655 +1,516 @@
-from myst_parser.parsers.mdit import create_md_parser
-from markdown_it.renderer import RendererProtocol
-from markdown_it.utils import OptionsDict
-from typing import Sequence, MutableMapping, Any, TypeAlias
-from markdown_it.token import Token
-from copy import deepcopy
-from myst_parser.config.main import MdParserConfig
+"""MyST/Markdown source splitter.
+
+parse_myst(source) → Chunk
+    Splits MyST source into ('text', ...) and ('placeholder', ...) segments.
+
+    'text'        — translatable content, sent to the translator
+    'placeholder' — MyST/Markdown syntax, preserved verbatim
+"""
+
+from markdown_it import MarkdownIt
+from markdown_it.tree import SyntaxTreeNode
+from mdit_py_plugins.dollarmath import dollarmath_plugin
+from mdit_py_plugins.amsmath import amsmath_plugin
+from mdit_py_plugins.colon_fence import colon_fence_plugin
+from mdit_py_plugins.front_matter import front_matter_plugin
+from mdit_py_plugins.myst_role import myst_role_plugin
+from mdit_py_plugins.myst_blocks import myst_block_plugin
+from mdit_py_plugins.footnote import footnote_plugin
+from mdit_py_plugins.deflist import deflist_plugin
+from mdit_py_plugins.field_list import fieldlist_plugin
+from mdit_py_plugins.attrs import attrs_plugin, attrs_block_plugin
+from mdit_py_plugins.substitution import substitution_plugin
+from typing import TypeAlias
 
 Chunk: TypeAlias = list[tuple[str, str]]
 
-def _collect_handlers(cls):
-    cls._handlers = {}
-    for name, member in cls.__dict__.items():
-        tokens = getattr(member, "_token_types", None)
-        if tokens is not None:
-            for token in tokens:
-                cls._handlers[token] = member
-    return cls
 
-def _handler(token_type_s: str | list[str]):
-    def decorator(fn):
-        if isinstance(token_type_s, str):
-            fn._token_types = [token_type_s]
-        else:
-            fn._token_types = token_type_s
-        return fn
-    return decorator
+# ---------------------------------------------------------------------------
+# Parser singleton
+# ---------------------------------------------------------------------------
 
-@_collect_handlers
-class CustomRenderer(RendererProtocol):
-    __output__ = "xml"
-    _handlers = {}
-    process_list = False
-
-    def __init__(self):
-        self.process_list = False
-        self.list_indent_stack: list[str] = []
-
-    # for content: cut the fields, and then parse content properly: for math and code
-
-    def _dispatch(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        """Route *tokens[idx]* to the appropriate renderer."""
-        tok_type = tokens[idx].type
-        handler = self._handlers.get(tok_type, CustomRenderer.renderUnknown)
-        return handler(self, tokens, idx)
-
-    @_handler(["colon_fence", "fence"])
-    def renderColonFence(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        table_type = ""
-        info = token.info
-        content = token.content
-        markup = token.markup
-
-        table_type_end = info.find("}")
-        if table_type_end != -1: # if there's such } then we need to extract fence type and then the title
-            table_type = info[:table_type_end+1]
-            if table_type_end + 1 == len(info):
-                info = ""
-            else:
-                info = info[table_type_end+1:]
-        match table_type:
-            case "{eval-rst}":
-                return [
-                    ('placeholder', markup),
-                    ('placeholder', table_type),
-                    ('text', info),
-                    ('placeholder', '\n'),
-                    ('placeholder', content),
-                    ('placeholder', '\n'),
-                    ('placeholder', markup)
-                ],  idx + 1
-                
-            case "{figure}" | "{image}" | "{iframe}" | "{embed}" | "{include}" | "{literalinclude}":
-                content_parsed = parse_myst(content)
-                return [
-                    ('placeholder', markup),
-                    ('placeholder', table_type),
-                    ('placeholder', info),
-                    ('placeholder', '\n'),
-                    ] + content_parsed + [
-                    ('placeholder', '\n'),
-                    ('placeholder', markup),
-                    ('placeholder', '\n'),
-                ],  idx + 1
-
-            case "{math}" | "{amsmath}": # TODO: handle math
-                return [
-                    ('placeholder', markup),
-                    ('placeholder', table_type),
-                    ('text', info),
-                    ('placeholder', '\n'),
-                    ('placeholder', content),
-                    ('placeholder', '\n'),
-                    ('placeholder', markup),
-                    ('placeholder', '\n'),
-                ],  idx + 1
-            case "{code}" | "{code-block}" | "{sourcecode}" | "{code-cell}":
-                # lang = info
-                return [
-                    ('placeholder', markup),
-                    ('placeholder', table_type),
-                    ('placeholder', info),
-                    ('placeholder', '\n'),
-                    ('placeholder', content), # TODO: handle code
-                    ('placeholder', '\n'),
-                    ('placeholder', markup),
-                    ('placeholder', '\n'),
-                ],  idx + 1
-            case "{attention}" | "{caution}" | "{danger}" | "{error}" | "{hint}" | "{important}" | "{note}" | "{seealso}" | "{tip}" | "{warning}" | "{admonition}" | "{versionadded}" | "{versionchanged}" | "{deprecated}" | "{aside}" | "{sidebar}" | "{topic}" | "{dropdown}" | "{tab-set}" | "{toctree}" | "{table}" | "{list-table}" | "{todo}" | "{TODO}":
-                content_parsed = parse_myst(content)
-                return [
-                    ('placeholder', markup),
-                    ('placeholder', table_type),
-                    ('text', info),
-                    ('placeholder', '\n'),
-                ] + content_parsed + [
-                    ('placeholder', '\n'),
-                    ('placeholder', markup),
-                    ('placeholder', '\n'),
-                ],  idx + 1
-            case _:
-                return [
-                    ('placeholder', markup),
-                    ('placeholder', table_type),
-                    ('placeholder', info),
-                    ('placeholder', '\n'),
-                    ('placeholder', content), 
-                    ('placeholder', '\n'),
-                    ('placeholder', markup),
-                    ('placeholder', '\n'),
-                ],  idx + 1
-                
-
-    @_handler("field_list_open")
-    def renderFieldList(self, tokens: Sequence[Token], start_idx: int) -> tuple[Chunk, int]:
-        end_idx = find_tag_id(tokens, "field_list_close", start_idx)
-        if end_idx == -1:
-            return [], start_idx + 1
-        res = []
-        idx = start_idx
-        
-        line = "" # string that collects a line of the field list from multiple tokens
-        
-        while idx <= end_idx:
-            token = tokens[idx]
-            token_type = token.type
-            if token_type == "fieldlist_body_close":
-                line += "\n"
-                res.append(('placeholder', line))
-                line = ""
-            elif token_type in ["fieldlist_name_open"]:
-                line += ":"
-            elif token_type in ["fieldlist_name_close"]:
-                line += ": "
-            elif token_type == "inline":
-                line += token.content
-            elif token_type == "field_list_close":
-                res.append(('placeholder', '\n'))
-            
-            idx += 1
-                
-        return res, end_idx + 1
-
-    @_handler("table_open")
-    def renderMdTable(self, tokens: Sequence[Token], start_idx: int) -> tuple[Chunk, int]:
-        end_idx = find_tag_id(tokens, "table_close", start_idx) 
-        if end_idx == -1:
-            return [], start_idx + 1
-        res = []
-        table = interprete_table(tokens, start_idx, end_idx)
-
-        # header elements
-        res.append(('placeholder', '|'))
-        for elem in table['header']:
-            res.append(('text', elem['content']))
-            res.append(('placeholder', '|'))
-        res.append(('placeholder', '\n'))
-
-        # lines after header
-        res.append(('placeholder', '|'))
-        for elem in table['header']:
-            if elem.get("align") is None:
-                res.append(('placeholder', '---'))
-            else:
-                match elem["align"]:
-                    case "left":
-                        res.append(('placeholder', ':---'))
-                    case "center":
-                        res.append(('placeholder', ':---:'))
-                    case "right":
-                        res.append(('placeholder', '---:'))
-            
-            res.append(('placeholder', '|'))
-        res.append(('placeholder', '\n'))
-
-        # elements
-        for line in table['lines']:
-            res.append(('placeholder', '|'))
-            for elem in line:
-                res.append(('text', elem))
-                res.append(('placeholder', '|'))
-            res.append(('placeholder', '\n'))
-        return res, end_idx + 1   
-
-    @_handler("link_open")
-    def renderLink(self, tokens: Sequence[Token], start_idx: int) -> tuple[Chunk, int]:
-        end_idx = find_tag_id(tokens, "link_close", start_idx)
-        if end_idx == -1:
-            return [], start_idx + 1
-
-        idx = start_idx
-
-        href = ""
-        text_tokens = []
-        
-        while idx <= end_idx:
-            token = tokens[idx]
-            if token.type == "link_open":
-                href = token.attrs['href']
-            elif token.type == "link_close":
-                pass
-            else:
-                text_tokens = text_tokens + self.renderToken(tokens, idx)[0]
-            idx += 1
-        return [
-            ('placeholder', '['),
-        ] + text_tokens + [
-            ('placeholder', ']'),
-            ('placeholder', f'({href})')
-        ], end_idx + 1
-
-    @_handler("footnote_reference_open")
-    def renderFootnoteReference(self, tokens: Sequence[Token], start_idx: int) -> tuple[Chunk, int]:
-        end_idx = find_tag_id(tokens, "footnote_reference_close", start_idx)
-        if end_idx == -1:
-            return [], start_idx + 1
-        idx = start_idx
-
-        label = ""
-        text_tokens = []
-        
-        while idx <= end_idx:
-            token = tokens[idx]
-            if token.type == "footnote_reference_open":
-                label = token.meta['label']
-            elif token.type == "footnote_reference_close":
-                pass
-            else:
-                text_tokens = text_tokens + self.renderToken(tokens, idx)[0]
-            idx += 1
-        return [
-            ('placeholder', '['),
-            ('placeholder', f'^{label}'),
-            ('placeholder', ']'),
-            ('placeholder', ': ')
-        ] + text_tokens, end_idx + 1
-
-        
-    @_handler("inline")
-    def renderInline(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        if token.children:
-            return self.renderInlineChildren(token.children), idx + 1
-        else:
-            return [], idx + 1
-    @_handler("heading_open")
-    def renderHeading(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        token_markup = token.markup
-        if token_markup == "=":
-            token_markup = "#"
-        if token_markup == "-":
-            token_markup = "##"
-        return [('placeholder', token_markup + " ")], idx + 1
-         
-    @_handler(["heading_close", "blockquote_close"])
-    def renderLineBrake(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        return [('placeholder', "\n")], idx + 1
-    
-    @_handler(["list_item_close"])
-    def renderListItemClose(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        if len(tokens) > idx+1 and (tokens[idx+1].type == "bullet_list_close" or tokens[idx+1].type == "ordered_list_close"):
-            return [], idx + 1
-        return [('placeholder', "\n")], idx + 1
-
-    @_handler(["softbreak"])
-    def renderSoftBreak(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        indent = self.list_indent_stack[-1] if self.list_indent_stack else ""
-        return [('placeholder', "\n" + indent)], idx + 1
-
-    @_handler(["paragraph_close", "hardbreak"])
-    def renderBigLineBrake(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        if token.type == "hardbreak":
-            indent = self.list_indent_stack[-1] if self.list_indent_stack else ""
-            return [('placeholder', "\n" + indent)], idx + 1
-        if not self.process_list:
-            return [('placeholder', "\n\n")], idx + 1
-        return [], idx + 1
-
-    @_handler(["em_open", "em_close"])
-    def renderEmphasize(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        return [('placeholder', "*")], idx + 1
-
-    @_handler(["strong_open", "strong_close"])
-    def renderStrong(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        return [('placeholder', "**")], idx + 1
-
-    @_handler("text")
-    def renderText(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        return [('text', token.content)], idx + 1
-
-    @_handler("math_inline")
-    def renderInlineMath(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        return [
-            ('math', "$" + token.content + "$")
-        ], idx + 1
-
-    @_handler("html_block")
-    def renderHtmlBlock(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        return [
-            ('placeholder', token.content)
-        ], idx + 1
-
-    @_handler("math_inline_double")
-    def renderDoubleInlineMath(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        return [
-            ('math', "$$" + token.content + "$$")
-        ], idx + 1
-
-    @_handler("math_block")
-    def renderMathblock(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        return [('math', "$$"+token.content+"$$")], idx + 1
-
-    @_handler("amsmath")
-    def renderAmsmath(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        return [('math', token.content)], idx + 1
-
-    @_handler("footnote_ref")
-    def renderFootnoteRef(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        return [('placeholder', "[^" + token.meta["label"] + "]")], idx + 1
-
-    @_handler("paragraph_open")
-    def renderOpenParagraph(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        return [], idx + 1
-    @_handler("front_matter")
-    def renderFrontMatter(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        return [('placeholder', f"---\n{token.content}\n---\n")], idx + 1
-    @_handler("myst_target")
-    def renderMystTarget(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        return [('placeholder', f"({token.content})=\n")], idx + 1
-    @_handler("blockquote_open")
-    def renderQuote(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        return [('placeholder', "> ")], idx + 1
-    @_handler("hr")
-    def renderDelimiter(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        return [('placeholder', "---\n")], idx + 1
-
-    @_handler("myst_role")
-    def renderRole(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        return [('placeholder', f"{{{token.meta["name"]}}}`{token.content}`")], idx + 1
-
-    @_handler("code_inline")
-    def renderInlineCode(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        return [('placeholder', f"`{token.content}`")], idx + 1
-
-    @_handler("myst_block_break")
-    def renderBlockBreak(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        return [('placeholder', f"+++ {token.content}\n")], idx + 1
-
-
-        
-
-    @_handler("myst_line_comment")
-    def renderLineComment(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        return [
-            ('placeholder', '% '),
-            ('text', token.content),
-            ('placeholder', '\n')
-        ], idx + 1
-
-    @_handler("ordered_list_open")
-    def renderOrderedList(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        return self._renderOrderedList(tokens, idx)
-    
-    @_handler("bullet_list_open")
-    def renderBulletList(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        return self._renderBulletList(tokens, idx)
-        # return [('placeholder', f"{{{token.meta["name"]}}}`{token.content}`")], idx + 1
-
-    @_handler("html_inline")
-    def renderHtmlInline(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        return [
-            ('placeholder', token.content)
-        ], idx + 1
-
-    @_handler("image")
-    def renderImage(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        src = token.attrs['src']
-        text_cont = self.renderSubsetOutOfContext(token.children)
-        return [('placeholder', "![") ] + text_cont + [ ('placeholder', f']({src})') ], idx + 1
-
-    # a method to render children of a token
-    def renderSubsetOutOfContext(self, tokens: Sequence[Token]) -> Chunk:
-        res = []
-        idx = 0
-        if tokens is None:
-            return []
-        for token in tokens:
-            res.extend(self.renderToken(tokens, idx)[0])
-            idx += 1
-        return res
-        
-
-    def _renderOrderedList(self, tokens: Sequence[Token], idx: int, level: int = 0) -> tuple[Chunk, int]:
-        res = []
-        idx += 1
-        while idx < len(tokens):
-            token = tokens[idx]
-            if token.type == "ordered_list_close":
-                idx += 1
-                if level == 0:
-                    res = res + [('placeholder', '\n\n')]
-                break
-            elif token.type == "bullet_list_open":
-                self.process_list = True
-                res = res + [('placeholder', '\n')]
-                temp_res, new_idx = self._renderBulletList(tokens, idx, level+1)
-                res = res + temp_res
-                idx = new_idx
-            elif token.type == "ordered_list_open":
-                self.process_list = True
-                res = res + [('placeholder', '\n')]
-                temp_res, new_idx = self._renderOrderedList(tokens, idx, level+1)
-                res = res + temp_res
-                idx = new_idx
-            elif token.type == "list_item_open":
-                self.process_list = True
-                prefix = "\t" * level
-                marker = f"{token.info}. "
-                res.append(('placeholder', prefix + marker))
-                self.list_indent_stack.append(prefix + (" " * len(marker)))
-                idx += 1
-            elif token.type == "list_item_close":
-                if self.list_indent_stack:
-                    self.list_indent_stack.pop()
-                temp_res, new_idx = self.renderToken(tokens, idx)
-                res = res + temp_res
-                idx = new_idx
-            else:
-                temp_res, new_idx = self.renderToken(tokens, idx)
-                res = res + temp_res
-                idx = new_idx
-        self.process_list = False
-        return res, idx
-
-    def _renderBulletList(self, tokens: Sequence[Token], idx: int, level: int = 0) -> tuple[Chunk, int]:
-        res = []
-        idx += 1
-        self.process_list = True
-        while idx < len(tokens):
-            token = tokens[idx]
-            if token.type == "bullet_list_close":
-                idx += 1
-                if level == 0:
-                    res = res + [('placeholder', '\n\n')]
-                break
-            elif token.type == "ordered_list_open":
-                self.process_list = True
-                res = res + [('placeholder', '\n')]
-                temp_res, new_idx = self._renderOrderedList(tokens, idx, level+1)
-                res = res + temp_res
-                idx = new_idx
-            elif token.type == "bullet_list_open":
-                self.process_list = True
-                res = res + [('placeholder', '\n')]
-                temp_res, new_idx = self._renderBulletList(tokens, idx, level+1)
-                res = res + temp_res
-                idx = new_idx
-            elif token.type == "list_item_open":
-                self.process_list = True
-                prefix = "\t" * level
-                marker = "- "
-                res.append(('placeholder', prefix + marker))
-                self.list_indent_stack.append(prefix + (" " * len(marker)))
-                idx += 1
-            elif token.type == "list_item_close":
-                if self.list_indent_stack:
-                    self.list_indent_stack.pop()
-                temp_res, new_idx = self.renderToken(tokens, idx)
-                res = res + temp_res
-                idx = new_idx
-            else:
-                temp_res, new_idx = self.renderToken(tokens, idx)
-                res = res + temp_res
-                idx = new_idx
-        self.process_list = False
-        return res, idx
-                
-                
-        
-    def renderUnknown(self, tokens: Sequence[Token], idx: int) -> tuple[Chunk, int]:
-        token = tokens[idx]
-        return [('unknown', token.content + "^^^" +token.type or f"[hank: {token.type}]")], idx + 1
-
-    def renderToken(self, tokens: Sequence[Token], idx: int) -> tuple[list[tuple[str, str]], int]:
-        return self._dispatch(tokens, idx)
-
-    def renderInlineChildren(self, tokens: Sequence[Token]) -> list[tuple[str, str]]:
-        res = []
-        idx = 0
-        while idx < len(tokens):
-            temp_res, new_idx = self.renderToken(tokens, idx)
-            res = res + temp_res
-            idx = new_idx
-        return res
-
-    def render(self, tokens: Sequence[Token], options: OptionsDict, env: MutableMapping[str, Any]):
-        self.list_indent_stack = []
-        self.process_list = False
-        res = []
-        idx = 0
-        while idx < len(tokens):
-            temp_res, new_idx = self._dispatch(tokens, idx)
-            res = res + temp_res
-            idx = new_idx
-        return res
-
-def find_tag_id(tokens: Sequence[Token], token_type: str, start_id: int = 0) -> int:
-    """
-    Looks for the first occurence of the token of the provided type `tag` in the provided sequence of Tokens.
-    Start from the first token in the sequence, or from the provided one (optional argument).
-
-    Returns:
-        id in the list of the first occurence or -1 if there's no such occurence
-    """
-    curr = start_id
-    while curr < len(tokens):
-        token = tokens[curr]
-        if token.type == token_type:
-            return curr
-        curr += 1
-    
-    return -1
-
-def interprete_table(tokens: Sequence[Token], start_idx: int, end_idx: int) -> dict:
-    """
-    Takes tokens of a table and interpretes it into more convenient format.
-
-    Returns:
-        {
-            header: list[{content, style}],
-            lines: list[list[str]]
-        }
-    """
-    header = [] # {content: str, align: str}
-    lines = []
-    line = []
-    idx = start_idx
-
-    head_closed = False
-
-    curr_style = None
-
-    # attrs={'style': 'text-align:right'}
-    # tr_close
-    while idx <= end_idx:
-        token = tokens[idx]
-        token_type = token.type
-        if token_type == "thead_close":
-            head_closed = True
-            header = deepcopy(line)
-            line = []
-        elif head_closed and token_type == 'tr_close':
-            lines.append(deepcopy(line))
-            line = []
-        elif token_type == "th_open" and token.attrs.get('style') is not None:
-            curr_style = token.attrs['style']
-        elif token_type == "inline":
-            if head_closed:
-                line.append(token.content)
-            else: # head is not closed
-                style = None
-                if curr_style is not None:
-                    match curr_style:
-                        case 'text-align:right':
-                            style = "right"
-                        case 'text-align:left':
-                            style = "left"
-                        case _: 
-                            style = "center"
-                    curr_style = None
-                element = {'content': token.content}
-                if style is not None:
-                    element['align'] = style
-                line.append(element)
-                
-        
-        idx += 1
-    return {'header': header, 'lines': lines}
-
-def parse_myst(source: str) -> list[tuple[str, str]]:
-    cfg = MdParserConfig(                   
-        enable_extensions=set([
-            "amsmath",
-            "attrs_block",
-            "attrs_inline",
-            "colon_fence",
-            "deflist",
-            "dollarmath",
-            "fieldlist",
-            "html_admonition",
-            "html_image",
-            # "linkify",
-            "replacements",
-            "smartquotes",
-            "substitution",
-        ]),  
-        dmath_allow_labels = True,
-        dmath_allow_space = True,
-        dmath_allow_digits = True,
-        dmath_double_inline = True,
+def _make_parser() -> MarkdownIt:
+    return (
+        MarkdownIt("commonmark", {"sourceMap": True, "typographer": True, "html": True})
+        .use(dollarmath_plugin, allow_labels=True, allow_space=True, allow_digits=True, double_inline=True)
+        .use(amsmath_plugin)
+        .use(colon_fence_plugin)
+        .use(front_matter_plugin)
+        .use(myst_role_plugin)
+        .use(myst_block_plugin)
+        .use(footnote_plugin)
+        .use(deflist_plugin)
+        .use(fieldlist_plugin)
+        .use(attrs_plugin)
+        .use(attrs_block_plugin)
+        .use(substitution_plugin)
     )
-    # parser = create_md_parser(cfg, renderer=lambda md: RendererHTML(md))
-    parser = create_md_parser(cfg, renderer=lambda md: CustomRenderer())
-    parser.options["sourceMap"] = True
-    opt_dict = OptionsDict({    
-        "maxNesting": 20,
-        "html": True,
-        "linkify": False,
-        "typographer": True,
-        "quotes": '“”‘’',
-        "xhtmlOut": False,
-        "breaks": True,
-        "langPrefix": "language-",
-        "highlight": None 
-    })
 
-    return parser.render(source, opt_dict)
+
+_parser = _make_parser()
+
+
+# ---------------------------------------------------------------------------
+# Directive classification
+# ---------------------------------------------------------------------------
+
+# Directives whose info/title after the type name is translatable text
+_DIRECTIVES_TRANSLATABLE_TITLE = {
+    "{admonition}", "{attention}", "{caution}", "{danger}", "{error}",
+    "{hint}", "{important}", "{note}", "{seealso}", "{tip}", "{warning}",
+    "{versionadded}", "{versionchanged}", "{deprecated}",
+    "{aside}", "{sidebar}", "{topic}", "{dropdown}",
+    "{tab-set}", "{toctree}", "{table}", "{list-table}",
+    "{todo}", "{TODO}", "{eval-rst}", "{math}", "{amsmath}",
+}
+
+# Directives whose body is MyST and should be parsed recursively
+_DIRECTIVES_RECURSIVE_BODY = {
+    "{admonition}", "{attention}", "{caution}", "{danger}", "{error}",
+    "{hint}", "{important}", "{note}", "{seealso}", "{tip}", "{warning}",
+    "{versionadded}", "{versionchanged}", "{deprecated}",
+    "{aside}", "{sidebar}", "{topic}", "{dropdown}",
+    "{tab-set}", "{toctree}", "{table}", "{list-table}",
+    "{todo}", "{TODO}",
+    "{figure}", "{image}", "{iframe}", "{embed}", "{include}", "{literalinclude}",
+}
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _opening_token(node: SyntaxTreeNode):
+    return node.nester_tokens.opening if node.nester_tokens else node.token
+
+
+def _find_inline(node: SyntaxTreeNode) -> SyntaxTreeNode | None:
+    return next((c for c in node.children if c.type == "inline"), None)
+
+
+def _src(node: SyntaxTreeNode, lines: list[str]) -> Chunk:
+    """Return exact source lines for a node as a single placeholder."""
+    if node.map:
+        start, end = node.map
+        return [('placeholder', ''.join(lines[start:end]))]
+    return []
+
+
+# ---------------------------------------------------------------------------
+# Inline rendering
+# ---------------------------------------------------------------------------
+
+def _render_inline(node: SyntaxTreeNode, out: Chunk, softbreak_indent: str = '') -> None:
+    """Recursively render an inline (or inline container) node."""
+    for child in node.children:
+        _render_inline_node(child, out, softbreak_indent)
+
+
+def _render_inline_node(node: SyntaxTreeNode, out: Chunk, softbreak_indent: str = '') -> None:
+    match node.type:
+        case "inline":
+            _render_inline(node, out, softbreak_indent)
+
+        case "text":
+            out.append(('text', node.content))
+
+        case "softbreak":
+            out.append(('placeholder', '\n' + softbreak_indent))
+
+        case "hardbreak":
+            out.append(('placeholder', '\\\n' + softbreak_indent))
+
+        case "code_inline":
+            out.append(('placeholder', f'`{node.content}`'))
+
+        case "html_inline":
+            out.append(('placeholder', node.content))
+
+        case "math_inline":
+            out.append(('placeholder', '$' + node.content + '$'))
+
+        case "math_inline_double":
+            out.append(('placeholder', '$$' + node.content + '$$'))
+
+        case "em":
+            tok = _opening_token(node)
+            markup = tok.markup if tok else '*'
+            out.append(('placeholder', markup))
+            for child in node.children:
+                _render_inline_node(child, out, softbreak_indent)
+            out.append(('placeholder', markup))
+
+        case "strong":
+            tok = _opening_token(node)
+            markup = tok.markup if tok else '**'
+            out.append(('placeholder', markup))
+            for child in node.children:
+                _render_inline_node(child, out, softbreak_indent)
+            out.append(('placeholder', markup))
+
+        case "link":
+            tok = _opening_token(node)
+            href = tok.attrs.get('href', '') if tok and tok.attrs else ''
+            title = tok.attrs.get('title', '') if tok and tok.attrs else ''
+            out.append(('placeholder', '['))
+            for child in node.children:
+                _render_inline_node(child, out, softbreak_indent)
+            suffix = f']({href} "{title}")' if title else f']({href})'
+            out.append(('placeholder', suffix))
+
+        case "image":
+            tok = _opening_token(node)
+            src = tok.attrs.get('src', '') if tok and tok.attrs else ''
+            title = tok.attrs.get('title', '') if tok and tok.attrs else ''
+            out.append(('placeholder', '!['))
+            for child in node.children:
+                _render_inline_node(child, out, softbreak_indent)
+            suffix = f']({src} "{title}")' if title else f']({src})'
+            out.append(('placeholder', suffix))
+
+        case "myst_role":
+            name = node.meta.get('name', '') if node.meta else ''
+            out.append(('placeholder', f'{{{name}}}`{node.content}`'))
+
+        case "footnote_ref":
+            label = node.meta.get('label', '') if node.meta else ''
+            out.append(('placeholder', f'[^{label}]'))
+
+        case "substitution_inline":
+            out.append(('placeholder', '{{' + node.content + '}}'))
+
+        case "attrs_inline":
+            pass  # attribute metadata, no output
+
+        case _:
+            out.append(('placeholder', node.content or ''))
+
+
+# ---------------------------------------------------------------------------
+# Table rendering
+# ---------------------------------------------------------------------------
+
+def _get_align(node: SyntaxTreeNode) -> str | None:
+    tok = _opening_token(node)
+    if tok and tok.attrs:
+        style = tok.attrs.get('style', '')
+        if 'right' in style:
+            return 'right'
+        if 'center' in style:
+            return 'center'
+        if 'left' in style:
+            return 'left'
+    return None
+
+
+def _align_marker(align: str | None) -> str:
+    return {'left': ':---', 'center': ':---:', 'right': '---:'}.get(align or '', '---')
+
+
+def _render_table(node: SyntaxTreeNode, out: Chunk) -> None:
+    thead = next((c for c in node.children if c.type == "thead"), None)
+    tbody = next((c for c in node.children if c.type == "tbody"), None)
+
+    if thead:
+        header_row = next((c for c in thead.children if c.type == "tr"), None)
+        if header_row:
+            out.append(('placeholder', '|'))
+            aligns = []
+            for th in header_row.children:
+                if th.type != "th":
+                    continue
+                inline = _find_inline(th)
+                if inline:
+                    _render_inline(inline, out)
+                aligns.append(_get_align(th))
+                out.append(('placeholder', '|'))
+            out.append(('placeholder', '\n|'))
+            for align in aligns:
+                out.append(('placeholder', _align_marker(align) + '|'))
+            out.append(('placeholder', '\n'))
+
+    if tbody:
+        for tr in tbody.children:
+            if tr.type != "tr":
+                continue
+            out.append(('placeholder', '|'))
+            for td in tr.children:
+                if td.type != "td":
+                    continue
+                inline = _find_inline(td)
+                if inline:
+                    _render_inline(inline, out)
+                out.append(('placeholder', '|'))
+            out.append(('placeholder', '\n'))
+
+
+# ---------------------------------------------------------------------------
+# Deflist rendering
+# ---------------------------------------------------------------------------
+
+def _render_deflist(node: SyntaxTreeNode, out: Chunk) -> None:
+    for child in node.children:
+        if child.type == "dt":
+            inline = _find_inline(child)
+            if inline:
+                _render_inline(inline, out)
+            out.append(('placeholder', '\n'))
+        elif child.type == "dd":
+            out.append(('placeholder', ':   '))
+            for subchild in child.children:
+                if subchild.type == "paragraph":
+                    inline = _find_inline(subchild)
+                    if inline:
+                        _render_inline(inline, out)
+            out.append(('placeholder', '\n'))
+    out.append(('placeholder', '\n'))
+
+
+# ---------------------------------------------------------------------------
+# Field list rendering
+# ---------------------------------------------------------------------------
+
+def _render_field_list(node: SyntaxTreeNode, out: Chunk) -> None:
+    children = node.children
+    i = 0
+    while i < len(children):
+        child = children[i]
+        if child.type == "fieldlist_name":
+            inline = _find_inline(child)
+            name_text = inline.content if inline else ""
+            line = f":{name_text}:"
+            i += 1
+            if i < len(children) and children[i].type == "fieldlist_body":
+                body = children[i]
+                para = next((c for c in body.children if c.type == "paragraph"), None)
+                if para:
+                    inline_body = _find_inline(para)
+                    body_text = inline_body.content if inline_body else ""
+                else:
+                    body_text = ""
+                line += f" {body_text}"
+                i += 1
+            out.append(('placeholder', line + '\n'))
+        else:
+            i += 1
+    out.append(('placeholder', '\n'))
+
+
+# ---------------------------------------------------------------------------
+# Fence rendering
+# ---------------------------------------------------------------------------
+
+def _render_fence(node: SyntaxTreeNode, lines: list[str], out: Chunk) -> None:
+    tok = node.token
+    info = tok.info
+    content = tok.content  # already ends with '\n' or is empty
+    markup = tok.markup
+
+    # Extract directive type from info string
+    table_type = ''
+    if info and '{' in info:
+        end = info.find('}')
+        if end != -1:
+            table_type = info[:end + 1]
+            info = info[end + 1:]
+
+    # For non-directive and opaque directive fences: use source lines verbatim
+    if table_type not in _DIRECTIVES_TRANSLATABLE_TITLE and table_type not in _DIRECTIVES_RECURSIVE_BODY:
+        out.extend(_src(node, lines))
+        return
+
+    # Directive fence: extract indentation prefix from source
+    indent_prefix = ''
+    if node.map and lines:
+        first_line = lines[node.map[0]]
+        indent_prefix = first_line[:len(first_line) - len(first_line.lstrip())]
+
+    # Opening line: [indent][markup][table_type][info]
+    out.append(('placeholder', indent_prefix + markup + table_type))
+    if info and table_type in _DIRECTIVES_TRANSLATABLE_TITLE:
+        out.append(('text', info))
+    else:
+        out.append(('placeholder', info))
+    out.append(('placeholder', '\n'))
+
+    # Body: recurse for directives with MyST content
+    if table_type in _DIRECTIVES_RECURSIVE_BODY and content:
+        inner = parse_myst(content)
+        out.extend(inner)
+
+    # Closing line: [indent][markup]
+    out.append(('placeholder', indent_prefix + markup + '\n'))
+
+
+# ---------------------------------------------------------------------------
+# List rendering
+# ---------------------------------------------------------------------------
+
+def _render_list(node: SyntaxTreeNode, lines: list[str], out: Chunk, level: int = 0) -> None:
+    items = [c for c in node.children if c.type == "list_item"]
+    for i, item in enumerate(items):
+        _render_list_item(item, lines, out, level)
+        if i < len(items) - 1:
+            out.append(('placeholder', '\n'))
+    if level == 0:
+        out.append(('placeholder', '\n'))
+
+
+def _render_list_item(item: SyntaxTreeNode, lines: list[str], out: Chunk, level: int) -> None:
+    tok = _opening_token(item)
+    prefix = '\t' * level
+
+    # Determine marker from token
+    if item.parent and item.parent.type == "ordered_list":
+        info = tok.info if tok and tok.info else "1"
+        marker = f"{info}. "
+    else:
+        marker = "- "
+
+    continuation_indent = prefix + ' ' * len(marker)
+    out.append(('placeholder', prefix + marker))
+
+    for child in item.children:
+        if child.type == "paragraph":
+            # Render inline content (no trailing '\n' — list handles separators)
+            inline = _find_inline(child)
+            if inline:
+                _render_inline(inline, out, softbreak_indent=continuation_indent)
+        elif child.type in ("bullet_list", "ordered_list"):
+            out.append(('placeholder', '\n'))
+            _render_list(child, lines, out, level + 1)
+        elif child.type in ("fence", "colon_fence"):
+            out.append(('placeholder', '\n'))
+            _render_fence(child, lines, out)
+        else:
+            _render_block(child, lines, out)
+
+
+# ---------------------------------------------------------------------------
+# Footnote reference rendering
+# ---------------------------------------------------------------------------
+
+def _render_footnote_reference(node: SyntaxTreeNode, lines: list[str], out: Chunk) -> None:
+    label = node.meta.get('label', '') if node.meta else ''
+    out.extend([
+        ('placeholder', '['),
+        ('placeholder', f'^{label}'),
+        ('placeholder', ']'),
+        ('placeholder', ': '),
+    ])
+    for child in node.children:
+        _render_block(child, lines, out)
+
+
+# ---------------------------------------------------------------------------
+# Block rendering
+# ---------------------------------------------------------------------------
+
+def _render_block(node: SyntaxTreeNode, lines: list[str], out: Chunk) -> None:
+    match node.type:
+        case "paragraph":
+            inline = _find_inline(node)
+            if inline:
+                _render_inline(inline, out)
+            out.append(('placeholder', '\n'))
+
+        case "heading":
+            tok = _opening_token(node)
+            markup = tok.markup if tok else '#'
+            if markup == '=':
+                markup = '#'
+            elif markup == '-':
+                markup = '##'
+            out.append(('placeholder', markup + ' '))
+            inline = _find_inline(node)
+            if inline:
+                _render_inline(inline, out)
+            out.append(('placeholder', '\n'))
+
+        case "fence" | "colon_fence":
+            _render_fence(node, lines, out)
+
+        case "bullet_list" | "ordered_list":
+            _render_list(node, lines, out)
+
+        case "table":
+            _render_table(node, out)
+
+        case "blockquote":
+            out.append(('placeholder', '> '))
+            for child in node.children:
+                _render_block(child, lines, out)
+
+        case "hr":
+            out.extend(_src(node, lines))
+
+        case "html_block" | "html_inline":
+            out.append(('placeholder', node.content))
+
+        case "math_block":
+            out.append(('placeholder', '$$' + node.content + '$$'))
+
+        case "amsmath":
+            out.append(('placeholder', node.content))
+
+        case "myst_target":
+            out.append(('placeholder', f'({node.content})=\n'))
+
+        case "myst_line_comment":
+            out.append(('placeholder', '% '))
+            out.append(('text', node.content))
+            out.append(('placeholder', '\n'))
+
+        case "myst_block_break":
+            out.append(('placeholder', f'+++ {node.content}\n'))
+
+        case "front_matter":
+            out.append(('placeholder', f'---\n{node.content}\n---\n'))
+
+        case "footnote_reference":
+            _render_footnote_reference(node, lines, out)
+
+        case "field_list":
+            _render_field_list(node, out)
+
+        case "dl":
+            _render_deflist(node, out)
+
+        case "substitution_block":
+            out.append(('placeholder', '{{' + node.content + '}}'))
+
+        case "attrs_block":
+            out.extend(_src(node, lines))
+
+        case _:
+            out.extend(_src(node, lines))
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def parse_myst(source: str) -> Chunk:
+    """
+    Split MyST markdown source into ('text'|'placeholder', content) segments.
+
+    'text' segments contain translatable content.
+    'placeholder' segments contain MyST syntax that must be preserved verbatim.
+    """
+    lines = source.splitlines(keepends=True)
+    tokens = _parser.parse(source)
+    tree = SyntaxTreeNode(tokens)
+
+    out: Chunk = []
+    children = tree.children
+    for i, child in enumerate(children):
+        _render_block(child, lines, out)
+        # Preserve blank lines between top-level blocks using source maps
+        if i < len(children) - 1:
+            nxt = children[i + 1]
+            gap_start = child.map[1] if child.map else 0
+            gap_end = nxt.map[0] if nxt.map else gap_start
+            blanks = gap_end - gap_start
+            if blanks > 0:
+                out.append(('placeholder', '\n' * blanks))
+    return out
