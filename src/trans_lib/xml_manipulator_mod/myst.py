@@ -68,12 +68,14 @@ _DIRECTIVES_TRANSLATABLE_TITLE = {
 # Opaque-body directives ({eval-rst}, {math}, {amsmath}, {figure}, etc.) must NOT
 # appear here — their content is RST / LaTeX / paths, not MyST, so recursive
 # parsing would silently drop it.  They fall through to _src instead.
+# {list-table} body uses strict '  * ' cell indentation that tab-based rendering
+# can't reproduce, so it also falls through to _src.
 _DIRECTIVES_RECURSIVE_BODY = {
     "{admonition}", "{attention}", "{caution}", "{danger}", "{error}",
     "{hint}", "{important}", "{note}", "{seealso}", "{tip}", "{warning}",
     "{versionadded}", "{versionchanged}", "{deprecated}",
     "{aside}", "{sidebar}", "{topic}", "{dropdown}",
-    "{tab-set}", "{toctree}", "{table}", "{list-table}",
+    "{tab-set}", "{toctree}", "{table}",
     "{todo}", "{TODO}",
 }
 
@@ -343,10 +345,13 @@ def _render_fence(node: SyntaxTreeNode, lines: list[str], out: Chunk, list_level
         out.append(('placeholder', info))
     out.append(('placeholder', '\n'))
 
-    # Body: recurse for directives with MyST content, passing current list level and indent
+    # Body: recurse for directives with MyST content, passing current list level and indent;
+    # for title-only directives the body is opaque — emit it verbatim as a placeholder.
     if table_type in _DIRECTIVES_RECURSIVE_BODY and content:
         inner = _parse_myst(content, list_level, indent_prefix)
         out.extend(inner)
+    elif content:
+        out.append(('placeholder', content))
 
     # Closing line: [indent][markup]
     out.append(('placeholder', indent_prefix + markup + '\n'))
@@ -416,7 +421,8 @@ def _render_list_item(item: SyntaxTreeNode, lines: list[str], out: Chunk,
         info = tok.info if tok and tok.info else "1"
         marker = f"{info}. "
     else:
-        marker = "- "
+        markup = tok.markup if tok and tok.markup else "-"
+        marker = f"{markup} "
 
     continuation_indent = prefix + ' ' * len(marker)
     out.append(('placeholder', prefix + marker))
