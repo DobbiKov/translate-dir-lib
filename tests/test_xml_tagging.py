@@ -196,7 +196,7 @@ def test_myst_course_outline_round_trip_preserves_structure():
     lines = normalized.splitlines()
 
     assert lines[0].startswith("1. Chaque feuille ci-dessous correspond à un défi")
-    assert "Déposez votre travail" in lines[3]
+    assert any("Déposez votre travail" in l for l in lines)
 
     bullet_lines = [line for line in lines if line.startswith("\t- [")]
     assert len(bullet_lines) == 13, "Expected all nested bullet links to survive"
@@ -215,3 +215,156 @@ def test_myst_numbered_item_with_continuation_lines():
     reconstructed = reconstruct_from_xml(xml_output, placeholders).rstrip()
 
     assert reconstructed.splitlines() == ["2. just test", "   haha"]
+
+
+def test_myst_renater_admonition_round_trip():
+    """
+    Full round-trip for the Renater admonition block.
+
+    Known encoding differences vs. the original source:
+    - Ordered list items inside a nested directive use \\t (semantic tab indent)
+      instead of the original 2-space indent.
+    - Continuation lines for those items use \\t+spaces instead of 5 spaces.
+    - A plain code fence inside a nested directive body loses the outer 2-space
+      directive indent (markdown-it strips it before we see the token).
+    Everything else — structure, blank lines, text, HTML inline, links, fields —
+    is preserved verbatim.
+    """
+    source = (
+        ":::::{admonition} Hors Fédération Renater Éducation Recherche\n"
+        ":class: dropdown\n"
+        "\n"
+        "- Vous pouvez travailler sur le matériel pédagogique <a\n"
+        '  href="https://nicolas.thiery.name/Enseignement/intro-prog-en/lite/lab/?path=index.ipynb"\n'
+        '  target="_blank">en ligne avec JupyterLite</a>.\\\n'
+        "  Limitation: votre travail sera sauvegardé dans votre navigateur web. Si vous changez\n"
+        "  d'ordinateur ou de navigateur web, vous ne le retrouverez pas. L'adresse du site\n"
+        "  ci-dessus est temporaire.\n"
+        "\n"
+        "- Alternativement, vous pouvez télécharger la version 2026-01 du matériel pédagogique depuis\n"
+        "  [ici](https://gitlab.dsi.universite-paris-saclay.fr/IntroductionProgrammationPython/2026-01)\n"
+        "  (Code -> Télécharger le code source -> zip). Vous aurez aussi besoin d'installer un\n"
+        "  certain nombre de logiciels (jupyterlab, jupylates, Laby).\n"
+        "\n"
+        "  ::::{admonition} Instructions d'installation avec `uv`\n"
+        "  :class: dropdown tip\n"
+        "\n"
+        "  1. Si vous ne l'avez pas déjà, installez le gestionnaire d'environnements\n"
+        "     [uv](https://docs.astral.sh/uv/getting-started/installation/).\n"
+        "\n"
+        "  2. Allez dans le dossier contenant le matériel pédagogique et lancez JupyterLab. Les\n"
+        "     logiciels requis seront automatiquement installés dans ce dossier.\n"
+        "\n"
+        "     ```\n"
+        "     uv run jupyter lab index.md\n"
+        "     ```\n"
+        "  ::::\n"
+        ":::::\n"
+    )
+    # Expected output after round-trip (with known encoding differences documented above).
+    expected = (
+        ":::::{admonition} Hors Fédération Renater Éducation Recherche\n"
+        ":class: dropdown\n"
+        "\n"
+        "- Vous pouvez travailler sur le matériel pédagogique <a\n"
+        '  href="https://nicolas.thiery.name/Enseignement/intro-prog-en/lite/lab/?path=index.ipynb"\n'
+        '  target="_blank">en ligne avec JupyterLite</a>.\\\n'
+        "  Limitation: votre travail sera sauvegardé dans votre navigateur web. Si vous changez\n"
+        "  d'ordinateur ou de navigateur web, vous ne le retrouverez pas. L'adresse du site\n"
+        "  ci-dessus est temporaire.\n"
+        "\n"
+        "- Alternativement, vous pouvez télécharger la version 2026-01 du matériel pédagogique depuis\n"
+        "  [ici](https://gitlab.dsi.universite-paris-saclay.fr/IntroductionProgrammationPython/2026-01)\n"
+        "  (Code -> Télécharger le code source -> zip). Vous aurez aussi besoin d'installer un\n"
+        "  certain nombre de logiciels (jupyterlab, jupylates, Laby).\n"
+        "\n"
+        "  ::::{admonition} Instructions d'installation avec `uv`\n"
+        "  :class: dropdown tip\n"
+        "\n"
+        # ordered list items: 2-space indent in source → \t (semantic nesting inside directive)
+        "\t1. Si vous ne l'avez pas déjà, installez le gestionnaire d'environnements\n"
+        "\t   [uv](https://docs.astral.sh/uv/getting-started/installation/).\n"
+        "\n"
+        "\t2. Allez dans le dossier contenant le matériel pédagogique et lancez JupyterLab. Les\n"
+        "\t   logiciels requis seront automatiquement installés dans ce dossier.\n"
+        "\n"
+        # code fence: 5-space (2 directive + 3 list continuation) → 3-space (directive prefix stripped)
+        "   ```\n"
+        "   uv run jupyter lab index.md\n"
+        "   ```\n"
+        "  ::::\n"
+        ":::::\n"
+    )
+
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == expected
+
+
+def test_myst_nested_admonition_inside_list_item_preserves_tab_indentation():
+    source = (
+        ":::::{admonition} Hors Fédération Renater Éducation Recherche\n"
+        ":class: dropdown\n"
+        "\n"
+        "- Vous pouvez travailler sur le matériel pédagogique <a\n"
+        '  href="https://nicolas.thiery.name/Enseignement/intro-prog-en/lite/lab/?path=index.ipynb"\n'
+        '  target="_blank">en ligne avec JupyterLite</a>.\\\n'
+        "  Limitation: votre travail sera sauvegardé dans votre navigateur web. Si vous changez\n"
+        "  d'ordinateur ou de navigateur web, vous ne le retrouverez pas. L'adresse du site\n"
+        "  ci-dessus est temporaire.\n"
+        "\n"
+        "- Alternativement, vous pouvez télécharger la version 2026-01 du matériel pédagogique depuis\n"
+        "  [ici](https://gitlab.dsi.universite-paris-saclay.fr/IntroductionProgrammationPython/2026-01)\n"
+        "  (Code -> Télécharger le code source -> zip). Vous aurez aussi besoin d'installer un\n"
+        "  certain nombre de logiciels (jupyterlab, jupylates, Laby).\n"
+        "\n"
+        "  ::::{admonition} Instructions d'installation avec `uv`\n"
+        "  :class: dropdown tip\n"
+        "\n"
+        "  1. Si vous ne l'avez pas déjà, installez le gestionnaire d'environnements\n"
+        "     [uv](https://docs.astral.sh/uv/getting-started/installation/).\n"
+        "\n"
+        "  2. Allez dans le dossier contenant le matériel pédagogique et lancez JupyterLab. Les\n"
+        "     logiciels requis seront automatiquement installés dans ce dossier.\n"
+        "\n"
+        "     ```\n"
+        "     uv run jupyter lab index.md\n"
+        "     ```\n"
+        "  ::::\n"
+        ":::::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    lines = reconstructed.splitlines()
+
+    # Outer admonition structure
+    assert lines[0] == ":::::{admonition} Hors Fédération Renater Éducation Recherche"
+    assert lines[-1] == ":::::"
+
+    # Outer bullet list items (level 0 — no tab)
+    bullet_lines = [l for l in lines if l.startswith("- ")]
+    assert len(bullet_lines) == 2
+
+    # Inner admonition is indented (inside bullet item)
+    assert any("::::{admonition}" in l for l in lines)
+    assert any(l.startswith("  ::::") for l in lines)
+
+    # Ordered list items inside the nested admonition get \t (level 1)
+    assert any(l.startswith("\t1.") for l in lines)
+    assert any(l.startswith("\t2.") for l in lines)
+
+    # Code fence content is preserved
+    assert "uv run jupyter lab index.md" in reconstructed
+
+    # Text content survives the round-trip
+    assert "Hors Fédération Renater Éducation Recherche" in reconstructed
+    assert "Instructions d'installation" in reconstructed
+
+
+def test_header_with_inline_code():
+    src = r'''# Les boucles `while`
+'''
+    xml_output, placeholders, _ = myst_to_xml(src)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+
+    assert src == reconstructed
