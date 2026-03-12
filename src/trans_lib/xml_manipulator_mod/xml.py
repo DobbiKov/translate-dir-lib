@@ -1,4 +1,3 @@
-from itertools import groupby
 import logging
 import xml.etree.ElementTree as ET
 
@@ -89,21 +88,33 @@ def create_translation_xml(segments: list[tuple[str, str]]) -> tuple[str, dict, 
     """
     ph_only = len([1 for el in segments if el[0] == 'text']) == 0
     # -- Step 1: Coalesce consecutive placeholders --
-    # We group segments by their type. If consecutive segments are placeholders,
-    # they will be grouped together and we can join their content.
+    # Consecutive placeholder segments are merged into one <PH> tag, EXCEPT for
+    # bare '\n' placeholders which are kept as individual tags so that structural
+    # line breaks are never silently absorbed into surrounding syntax.
     merged_segments = []
-    for seg_type, group in groupby(segments, key=lambda x: x[0]):
-        content_parts = [item[1] for item in group]
+    pending: list[str] = []   # accumulates non-'\n' placeholder content
+
+    def _flush_pending() -> None:
+        if pending:
+            merged = "".join(pending)
+            if merged:
+                merged_segments.append(('placeholder', merged))
+            pending.clear()
+
+    for seg_type, content in segments:
         if seg_type == 'text':
-            # For text, we don't merge, we just add each part.
-            # This preserves whitespace between text segments if any.
-            for content in content_parts:
-                merged_segments.append(('text', content))
+            _flush_pending()
+            merged_segments.append(('text', content))
+        elif content == '\n':
+            # Bare newline placeholder: flush any accumulated content first,
+            # then emit this newline as its own placeholder.
+            _flush_pending()
+            merged_segments.append(('placeholder', '\n'))
         else:
-            # For placeholders, we join the content of all consecutive items.
-            merged_content = "".join(content_parts)
-            if merged_content: # Only add if there's content
-                merged_segments.append(('placeholder', merged_content))
+            # Regular placeholder: accumulate for merging with neighbours.
+            pending.append(content)
+
+    _flush_pending()
 
 
     # -- Step 2: Build the Mixed-Content XML --
