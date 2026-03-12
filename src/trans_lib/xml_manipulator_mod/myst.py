@@ -61,10 +61,13 @@ _DIRECTIVES_TRANSLATABLE_TITLE = {
     "{versionadded}", "{versionchanged}", "{deprecated}",
     "{aside}", "{sidebar}", "{topic}", "{dropdown}",
     "{tab-set}", "{toctree}", "{table}", "{list-table}",
-    "{todo}", "{TODO}", "{eval-rst}", "{math}", "{amsmath}",
+    "{todo}", "{TODO}",
 }
 
-# Directives whose body is MyST and should be parsed recursively
+# Directives whose body is MyST and should be parsed recursively.
+# Opaque-body directives ({eval-rst}, {math}, {amsmath}, {figure}, etc.) must NOT
+# appear here — their content is RST / LaTeX / paths, not MyST, so recursive
+# parsing would silently drop it.  They fall through to _src instead.
 _DIRECTIVES_RECURSIVE_BODY = {
     "{admonition}", "{attention}", "{caution}", "{danger}", "{error}",
     "{hint}", "{important}", "{note}", "{seealso}", "{tip}", "{warning}",
@@ -72,7 +75,6 @@ _DIRECTIVES_RECURSIVE_BODY = {
     "{aside}", "{sidebar}", "{topic}", "{dropdown}",
     "{tab-set}", "{toctree}", "{table}", "{list-table}",
     "{todo}", "{TODO}",
-    "{figure}", "{image}", "{iframe}", "{embed}", "{include}", "{literalinclude}",
 }
 
 
@@ -518,9 +520,10 @@ def _render_block(node: SyntaxTreeNode, lines: list[str], out: Chunk,
             out.append(('placeholder', indent_prefix + f'({node.content})=\n'))
 
         case "myst_line_comment":
-            out.append(('placeholder', indent_prefix + '% '))
-            out.append(('text', node.content))
-            out.append(('placeholder', '\n'))
+            # Use verbatim source lines — consecutive comment lines collapse into
+            # one token by the parser, so reconstructing from content would lose
+            # the '% ' prefix on each continuation line.
+            out.extend(_src(node, lines))
 
         case "myst_block_break":
             out.append(('placeholder', indent_prefix + f'+++ {node.content}\n'))
