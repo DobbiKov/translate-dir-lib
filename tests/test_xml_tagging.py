@@ -382,6 +382,92 @@ def test_myst_directive_fence_bodies_round_trip(source):
   assert reconstructed == source
 
 
+@pytest.mark.parametrize("source", [
+    # versionadded — version number and description must not be translated
+    pytest.param(
+        "```{versionadded} 2.0\nAdded support for foo.\n```\n",
+        id="versionadded",
+    ),
+    # versionchanged
+    pytest.param(
+        "```{versionchanged} 1.5\nChanged the behaviour of bar.\n```\n",
+        id="versionchanged",
+    ),
+    # deprecated
+    pytest.param(
+        "```{deprecated} 3.0\nUse baz() instead.\n```\n",
+        id="deprecated",
+    ),
+    # toctree — file paths must not be translated
+    pytest.param(
+        "```{toctree}\n:maxdepth: 2\n\nchapter1\nchapter2\n```\n",
+        id="toctree",
+    ),
+    # toctree with titled entries
+    pytest.param(
+        "```{toctree}\nMy Chapter <chapter1>\nOther <chapter2>\n```\n",
+        id="toctree_titled_entries",
+    ),
+    # tab-set — body is structural, not plain MyST prose
+    pytest.param(
+        "```{tab-set}\nsome content\n```\n",
+        id="tab_set",
+    ),
+    # table directive
+    pytest.param(
+        "```{table} My Table\n| A | B |\n|---|---|\n| 1 | 2 |\n```\n",
+        id="table",
+    ),
+    # todo / TODO
+    pytest.param(
+        "```{todo}\nFix this later.\n```\n",
+        id="todo",
+    ),
+    pytest.param(
+        "```{TODO}\nFix this later.\n```\n",
+        id="TODO",
+    ),
+])
+def test_myst_opaque_directive_round_trip(source):
+    """Opaque directives must be preserved verbatim — nothing dropped, nothing translated."""
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+@pytest.mark.parametrize("source,hidden_texts", [
+    # versionadded body text must not reach the translator
+    pytest.param(
+        "```{versionadded} 2.0\nAdded support for foo.\n```\n",
+        ["Added support for foo", "2.0"],
+        id="versionadded_body_is_placeholder",
+    ),
+    # toctree file paths must not reach the translator
+    pytest.param(
+        "```{toctree}\nchapter1\nchapter2\n```\n",
+        ["chapter1", "chapter2"],
+        id="toctree_paths_are_placeholder",
+    ),
+    # toctree titled entries: neither title nor path should reach translator
+    pytest.param(
+        "```{toctree}\nMy Chapter <chapter1>\n```\n",
+        ["My Chapter", "chapter1"],
+        id="toctree_titled_entry_is_placeholder",
+    ),
+])
+def test_myst_opaque_directive_body_not_translated(source, hidden_texts):
+    """Body content of opaque directives must not appear as translator-visible text."""
+    xml_output, placeholders, _ = myst_to_xml(source)
+    root = ET.fromstring(xml_output)
+    text_el = root.find("TEXT")
+    # Collect only what the translator sees: TEXT.text and each PH's tail
+    translator_text = (text_el.text or "") + "".join(
+        (ph.tail or "") for ph in text_el
+    )
+    for text in hidden_texts:
+        assert text not in translator_text
+
+
 @pytest.mark.parametrize(
     "source",
     [
