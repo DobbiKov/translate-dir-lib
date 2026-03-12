@@ -201,10 +201,10 @@ def test_myst_course_outline_round_trip_preserves_structure():
     bullet_lines = [line for line in lines if line.startswith("\t- [")]
     assert len(bullet_lines) == 13, "Expected all nested bullet links to survive"
 
-    assert "%  boucles while" in normalized
-    assert "%  boucles for et variables" in normalized
-    assert "% - ♣ [Encore un zigzag <status>](premiers-pas/24-encore-un-zigzag.md)" in normalized
-    assert "% - [Le caillou et la toile <status>](premiers-pas/31-le-caillou-et-la-toile.md)" in normalized
+    assert "% boucles while" in normalized
+    assert "% boucles for et variables" in normalized
+    assert "%- ♣ [Encore un zigzag <status>](premiers-pas/24-encore-un-zigzag.md)" in normalized
+    assert "%- [Le caillou et la toile <status>](premiers-pas/31-le-caillou-et-la-toile.md)" in normalized
     assert "S'adapter :" in normalized
     assert "Compter :" in normalized
 
@@ -368,3 +368,39 @@ def test_header_with_inline_code():
     reconstructed = reconstruct_from_xml(xml_output, placeholders)
 
     assert src == reconstructed
+
+@pytest.mark.parametrize(
+  "source",
+  [
+      "```{math}\na^2 + b^2 = c^2\n```\n",
+      "```{amsmath}\n\\begin{align}\nE &= mc^2 \\\\\nF &= ma\n\\end{align}\n```\n",
+      "```{eval-rst}\n.. note:: Hello\n\n   Body text that must survive.\n```\n",
+  ],
+)
+def test_myst_directive_fence_bodies_round_trip(source):
+  xml_output, placeholders, _ = myst_to_xml(source)
+  reconstructed = reconstruct_from_xml(xml_output, placeholders)
+
+  assert reconstructed == source
+
+
+def test_myst_mixed_directive_fences_round_trip():
+  source = (
+      "# Example\n\n"
+      "```{eval-rst}\n"
+      ".. note::\n"
+      "   This warning is important and must not disappear.\n"
+      "```\n\n"
+      "```{amsmath}\n"
+      "\\begin{align}\n"
+      "E &= mc^2 \\\\\n"
+      "F &= ma\n"
+      "\\end{align}\n"
+      "```\n"
+  )
+
+  xml_output, placeholders, _ = myst_to_xml(source)
+  reconstructed = reconstruct_from_xml(xml_output, placeholders)
+
+  assert reconstructed == source
+
