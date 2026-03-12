@@ -127,7 +127,12 @@ def _render_inline_node(node: SyntaxTreeNode, out: Chunk, softbreak_indent: str 
             out.append(('placeholder', f'`{node.content}`'))
 
         case "html_inline":
-            out.append(('placeholder', node.content))
+            content = node.content
+            # Continuation lines inside html_inline have their leading indent stripped by
+            # the list-item parser; re-add the softbreak indent so the content round-trips.
+            if softbreak_indent and '\n' in content:
+                content = content.replace('\n', '\n' + softbreak_indent)
+            out.append(('placeholder', content))
 
         case "math_inline":
             out.append(('placeholder', '$' + node.content + '$'))
@@ -273,7 +278,7 @@ def _render_deflist(node: SyntaxTreeNode, out: Chunk) -> None:
 # Field list rendering
 # ---------------------------------------------------------------------------
 
-def _render_field_list(node: SyntaxTreeNode, out: Chunk) -> None:
+def _render_field_list(node: SyntaxTreeNode, out: Chunk, indent_prefix: str = '') -> None:
     children = node.children
     i = 0
     while i < len(children):
@@ -293,7 +298,7 @@ def _render_field_list(node: SyntaxTreeNode, out: Chunk) -> None:
                     body_text = ""
                 line += f" {body_text}"
                 i += 1
-            out.append(('placeholder', line + '\n'))
+            out.append(('placeholder', indent_prefix + line + '\n'))
         else:
             i += 1
     out.append(('placeholder', '\n'))
@@ -303,7 +308,7 @@ def _render_field_list(node: SyntaxTreeNode, out: Chunk) -> None:
 # Fence rendering
 # ---------------------------------------------------------------------------
 
-def _render_fence(node: SyntaxTreeNode, lines: list[str], out: Chunk) -> None:
+def _render_fence(node: SyntaxTreeNode, lines: list[str], out: Chunk, list_level: int = 0) -> None:
     tok = node.token
     info = tok.info
     content = tok.content  # already ends with '\n' or is empty
@@ -336,9 +341,9 @@ def _render_fence(node: SyntaxTreeNode, lines: list[str], out: Chunk) -> None:
         out.append(('placeholder', info))
     out.append(('placeholder', '\n'))
 
-    # Body: recurse for directives with MyST content
+    # Body: recurse for directives with MyST content, passing current list level and indent
     if table_type in _DIRECTIVES_RECURSIVE_BODY and content:
-        inner = parse_myst(content)
+        inner = _parse_myst(content, list_level, indent_prefix)
         out.extend(inner)
 
     # Closing line: [indent][markup]
@@ -349,19 +354,60 @@ def _render_fence(node: SyntaxTreeNode, lines: list[str], out: Chunk) -> None:
 # List rendering
 # ---------------------------------------------------------------------------
 
-def _render_list(node: SyntaxTreeNode, lines: list[str], out: Chunk, level: int = 0) -> None:
+def _is_loose_list(node: SyntaxTreeNode) -> bool:
+    """Return True if any list_item contains a non-hidden paragraph (loose list)."""
+    for item in node.children:
+        if item.type != "list_item":
+            continue
+        for child in item.children:
+            if child.type == "paragraph":
+                tok = _opening_token(child)
+                if tok and not tok.hidden:
+                    return True
+    return False
+
+
+def _render_list(node: SyntaxTreeNode, lines: list[str], out: Chunk,
+                 outer_level: int = 0, local_level: int = 0) -> None:
+    """
+    outer_level: nesting depth inherited from parent contexts (e.g. directive inside a list).
+    local_level: nesting depth within the current render context (0 = top of this context).
+    Total \\t prefix = outer_level + local_level.
+    Trailing \\n is only added when local_level == 0 (top of context).
+    """
     items = [c for c in node.children if c.type == "list_item"]
+    is_loose = _is_loose_list(node)
     for i, item in enumerate(items):
-        _render_list_item(item, lines, out, level)
+        _render_list_item(item, lines, out, outer_level, local_level)
         if i < len(items) - 1:
+            # Adjust separator so we don't duplicate a \n already present at the end
+            # of the item (e.g. when the last child was a fence block).
+            ends_with_nl = bool(out and out[-1][1].endswith('\n'))
+            if is_loose:
+                sep = '\n' if ends_with_nl else '\n\n'
+            else:
+                sep = '' if ends_with_nl else '\n'
+            if sep:
+                out.append(('placeholder', sep))
+    if local_level == 0:
+        # Add trailing newline only if the last segment doesn't already end with one
+        # (avoids a spurious blank line when the last item ended with a fence block).
+        if not (out and out[-1][1].endswith('\n')):
             out.append(('placeholder', '\n'))
-    if level == 0:
-        out.append(('placeholder', '\n'))
 
 
-def _render_list_item(item: SyntaxTreeNode, lines: list[str], out: Chunk, level: int) -> None:
+def _child_gap(prev: SyntaxTreeNode, nxt: SyntaxTreeNode) -> int:
+    """Return the number of blank lines between two sibling nodes via source maps."""
+    if prev.map and nxt.map:
+        return max(0, nxt.map[0] - prev.map[1])
+    return 0
+
+
+def _render_list_item(item: SyntaxTreeNode, lines: list[str], out: Chunk,
+                      outer_level: int = 0, local_level: int = 0) -> None:
     tok = _opening_token(item)
-    prefix = '\t' * level
+    actual_level = outer_level + local_level
+    prefix = '\t' * actual_level
 
     # Determine marker from token
     if item.parent and item.parent.type == "ordered_list":
@@ -373,27 +419,34 @@ def _render_list_item(item: SyntaxTreeNode, lines: list[str], out: Chunk, level:
     continuation_indent = prefix + ' ' * len(marker)
     out.append(('placeholder', prefix + marker))
 
-    for child in item.children:
+    block_children = item.children
+    for j, child in enumerate(block_children):
+        if j > 0:
+            # Use source-map gap to produce correct number of newlines between siblings.
+            # gap=0 → one newline (tight), gap=1 → blank line between blocks, etc.
+            gap = _child_gap(block_children[j - 1], child)
+            out.append(('placeholder', '\n' * (gap + 1)))
+
         if child.type == "paragraph":
             # Render inline content (no trailing '\n' — list handles separators)
             inline = _find_inline(child)
             if inline:
                 _render_inline(inline, out, softbreak_indent=continuation_indent)
         elif child.type in ("bullet_list", "ordered_list"):
-            out.append(('placeholder', '\n'))
-            _render_list(child, lines, out, level + 1)
+            _render_list(child, lines, out, outer_level, local_level + 1)
         elif child.type in ("fence", "colon_fence"):
-            out.append(('placeholder', '\n'))
-            _render_fence(child, lines, out)
+            # Directive inside a list item: inner lists start one level deeper
+            _render_fence(child, lines, out, actual_level + 1)
         else:
-            _render_block(child, lines, out)
+            _render_block(child, lines, out, actual_level)
 
 
 # ---------------------------------------------------------------------------
 # Footnote reference rendering
 # ---------------------------------------------------------------------------
 
-def _render_footnote_reference(node: SyntaxTreeNode, lines: list[str], out: Chunk) -> None:
+def _render_footnote_reference(node: SyntaxTreeNode, lines: list[str], out: Chunk,
+                               list_level: int = 0) -> None:
     label = node.meta.get('label', '') if node.meta else ''
     out.extend([
         ('placeholder', '['),
@@ -402,16 +455,19 @@ def _render_footnote_reference(node: SyntaxTreeNode, lines: list[str], out: Chun
         ('placeholder', ': '),
     ])
     for child in node.children:
-        _render_block(child, lines, out)
+        _render_block(child, lines, out, list_level)
 
 
 # ---------------------------------------------------------------------------
 # Block rendering
 # ---------------------------------------------------------------------------
 
-def _render_block(node: SyntaxTreeNode, lines: list[str], out: Chunk) -> None:
+def _render_block(node: SyntaxTreeNode, lines: list[str], out: Chunk,
+                  list_level: int = 0, indent_prefix: str = '') -> None:
     match node.type:
         case "paragraph":
+            if indent_prefix:
+                out.append(('placeholder', indent_prefix))
             inline = _find_inline(node)
             if inline:
                 _render_inline(inline, out)
@@ -424,63 +480,65 @@ def _render_block(node: SyntaxTreeNode, lines: list[str], out: Chunk) -> None:
                 markup = '#'
             elif markup == '-':
                 markup = '##'
-            out.append(('placeholder', markup + ' '))
+            out.append(('placeholder', indent_prefix + markup + ' '))
             inline = _find_inline(node)
             if inline:
                 _render_inline(inline, out)
             out.append(('placeholder', '\n'))
 
         case "fence" | "colon_fence":
-            _render_fence(node, lines, out)
+            # _render_fence reads indent_prefix from its own source lines
+            _render_fence(node, lines, out, list_level)
 
         case "bullet_list" | "ordered_list":
-            _render_list(node, lines, out)
+            # list_level (tabs) handles indentation; indent_prefix not applied
+            _render_list(node, lines, out, outer_level=list_level, local_level=0)
 
         case "table":
             _render_table(node, out)
 
         case "blockquote":
-            out.append(('placeholder', '> '))
+            out.append(('placeholder', indent_prefix + '> '))
             for child in node.children:
-                _render_block(child, lines, out)
+                _render_block(child, lines, out, list_level, indent_prefix)
 
         case "hr":
             out.extend(_src(node, lines))
 
         case "html_block" | "html_inline":
-            out.append(('placeholder', node.content))
+            out.append(('placeholder', indent_prefix + node.content))
 
         case "math_block":
-            out.append(('placeholder', '$$' + node.content + '$$'))
+            out.append(('placeholder', indent_prefix + '$$' + node.content + '$$'))
 
         case "amsmath":
-            out.append(('placeholder', node.content))
+            out.append(('placeholder', indent_prefix + node.content))
 
         case "myst_target":
-            out.append(('placeholder', f'({node.content})=\n'))
+            out.append(('placeholder', indent_prefix + f'({node.content})=\n'))
 
         case "myst_line_comment":
-            out.append(('placeholder', '% '))
+            out.append(('placeholder', indent_prefix + '% '))
             out.append(('text', node.content))
             out.append(('placeholder', '\n'))
 
         case "myst_block_break":
-            out.append(('placeholder', f'+++ {node.content}\n'))
+            out.append(('placeholder', indent_prefix + f'+++ {node.content}\n'))
 
         case "front_matter":
             out.append(('placeholder', f'---\n{node.content}\n---\n'))
 
         case "footnote_reference":
-            _render_footnote_reference(node, lines, out)
+            _render_footnote_reference(node, lines, out, list_level)
 
         case "field_list":
-            _render_field_list(node, out)
+            _render_field_list(node, out, indent_prefix)
 
         case "dl":
             _render_deflist(node, out)
 
         case "substitution_block":
-            out.append(('placeholder', '{{' + node.content + '}}'))
+            out.append(('placeholder', indent_prefix + '{{' + node.content + '}}'))
 
         case "attrs_block":
             out.extend(_src(node, lines))
@@ -493,13 +551,8 @@ def _render_block(node: SyntaxTreeNode, lines: list[str], out: Chunk) -> None:
 # Public API
 # ---------------------------------------------------------------------------
 
-def parse_myst(source: str) -> Chunk:
-    """
-    Split MyST markdown source into ('text'|'placeholder', content) segments.
-
-    'text' segments contain translatable content.
-    'placeholder' segments contain MyST syntax that must be preserved verbatim.
-    """
+def _parse_myst(source: str, list_level: int = 0, indent_prefix: str = '') -> Chunk:
+    """Internal parse that carries outer list nesting depth and indent into recursive calls."""
     lines = source.splitlines(keepends=True)
     tokens = _parser.parse(source)
     tree = SyntaxTreeNode(tokens)
@@ -507,7 +560,7 @@ def parse_myst(source: str) -> Chunk:
     out: Chunk = []
     children = tree.children
     for i, child in enumerate(children):
-        _render_block(child, lines, out)
+        _render_block(child, lines, out, list_level, indent_prefix)
         # Preserve blank lines between top-level blocks using source maps
         if i < len(children) - 1:
             nxt = children[i + 1]
@@ -517,3 +570,13 @@ def parse_myst(source: str) -> Chunk:
             if blanks > 0:
                 out.append(('placeholder', '\n' * blanks))
     return out
+
+
+def parse_myst(source: str) -> Chunk:
+    """
+    Split MyST markdown source into ('text'|'placeholder', content) segments.
+
+    'text' segments contain translatable content.
+    'placeholder' segments contain MyST syntax that must be preserved verbatim.
+    """
+    return _parse_myst(source, 0)
