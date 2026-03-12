@@ -100,6 +100,14 @@ def _src(node: SyntaxTreeNode, lines: list[str]) -> Chunk:
     return []
 
 
+def _node_prefix(node: SyntaxTreeNode, lines: list[str]) -> str:
+    """Return the leading whitespace of the first source line of *node*."""
+    if node.map and node.map[0] < len(lines):
+        line = lines[node.map[0]]
+        return line[: len(line) - len(line.lstrip())]
+    return ''
+
+
 # ---------------------------------------------------------------------------
 # Inline rendering
 # ---------------------------------------------------------------------------
@@ -375,17 +383,18 @@ def _is_loose_list(node: SyntaxTreeNode) -> bool:
 
 
 def _render_list(node: SyntaxTreeNode, lines: list[str], out: Chunk,
-                 outer_level: int = 0, local_level: int = 0) -> None:
+                 outer_level: int = 0, local_level: int = 0,
+                 indent_prefix: str = '') -> None:
     """
     outer_level: nesting depth inherited from parent contexts (e.g. directive inside a list).
     local_level: nesting depth within the current render context (0 = top of this context).
-    Total \\t prefix = outer_level + local_level.
+    indent_prefix: absolute whitespace prepended by the enclosing directive context.
     Trailing \\n is only added when local_level == 0 (top of context).
     """
     items = [c for c in node.children if c.type == "list_item"]
     is_loose = _is_loose_list(node)
     for i, item in enumerate(items):
-        _render_list_item(item, lines, out, outer_level, local_level)
+        _render_list_item(item, lines, out, outer_level, local_level, indent_prefix)
         if i < len(items) - 1:
             # Adjust separator so we don't duplicate a \n already present at the end
             # of the item (e.g. when the last child was a fence block).
@@ -411,10 +420,11 @@ def _child_gap(prev: SyntaxTreeNode, nxt: SyntaxTreeNode) -> int:
 
 
 def _render_list_item(item: SyntaxTreeNode, lines: list[str], out: Chunk,
-                      outer_level: int = 0, local_level: int = 0) -> None:
+                      outer_level: int = 0, local_level: int = 0,
+                      indent_prefix: str = '') -> None:
     tok = _opening_token(item)
     actual_level = outer_level + local_level
-    prefix = '\t' * actual_level
+    prefix = indent_prefix + _node_prefix(item, lines)
 
     # Determine marker from token
     if item.parent and item.parent.type == "ordered_list":
@@ -441,7 +451,7 @@ def _render_list_item(item: SyntaxTreeNode, lines: list[str], out: Chunk,
             if inline:
                 _render_inline(inline, out, softbreak_indent=continuation_indent)
         elif child.type in ("bullet_list", "ordered_list"):
-            _render_list(child, lines, out, outer_level, local_level + 1)
+            _render_list(child, lines, out, outer_level, local_level + 1, indent_prefix)
         elif child.type in ("fence", "colon_fence"):
             # Directive inside a list item: inner lists start one level deeper
             _render_fence(child, lines, out, actual_level + 1)
@@ -499,8 +509,8 @@ def _render_block(node: SyntaxTreeNode, lines: list[str], out: Chunk,
             _render_fence(node, lines, out, list_level)
 
         case "bullet_list" | "ordered_list":
-            # list_level (tabs) handles indentation; indent_prefix not applied
-            _render_list(node, lines, out, outer_level=list_level, local_level=0)
+            _render_list(node, lines, out, outer_level=list_level, local_level=0,
+                         indent_prefix=indent_prefix)
 
         case "table":
             _render_table(node, out)
