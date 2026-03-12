@@ -58,25 +58,17 @@ _parser = _make_parser()
 _DIRECTIVES_TRANSLATABLE_TITLE = {
     "{admonition}", "{attention}", "{caution}", "{danger}", "{error}",
     "{hint}", "{important}", "{note}", "{seealso}", "{tip}", "{warning}",
-    "{versionadded}", "{versionchanged}", "{deprecated}",
     "{aside}", "{sidebar}", "{topic}", "{dropdown}",
-    "{tab-set}", "{toctree}", "{table}", "{list-table}",
-    "{todo}", "{TODO}",
 }
 
 # Directives whose body is MyST and should be parsed recursively.
-# Opaque-body directives ({eval-rst}, {math}, {amsmath}, {figure}, etc.) must NOT
-# appear here — their content is RST / LaTeX / paths, not MyST, so recursive
-# parsing would silently drop it.  They fall through to _src instead.
-# {list-table} body uses strict '  * ' cell indentation that tab-based rendering
-# can't reproduce, so it also falls through to _src.
+# Opaque-body directives ({eval-rst}, {math}, {amsmath}, {toctree}, {list-table},
+# {versionadded}, etc.) must NOT appear here — their content is RST / LaTeX /
+# file paths / structured data, not plain MyST.  They fall through to _src instead.
 _DIRECTIVES_RECURSIVE_BODY = {
     "{admonition}", "{attention}", "{caution}", "{danger}", "{error}",
     "{hint}", "{important}", "{note}", "{seealso}", "{tip}", "{warning}",
-    "{versionadded}", "{versionchanged}", "{deprecated}",
     "{aside}", "{sidebar}", "{topic}", "{dropdown}",
-    "{tab-set}", "{toctree}", "{table}",
-    "{todo}", "{TODO}",
 }
 
 
