@@ -179,9 +179,9 @@ def test_myst_nested_lists_preserve_indentation():
     lines = reconstructed.splitlines()
 
     assert lines[0] == "- outer"
-    assert lines[1] == "\t1. inner"
-    assert lines[2] == "\t\t- detail"
-    assert lines[3] == "\t\t  line"
+    assert lines[1] == "  1. inner"
+    assert lines[2] == "     - detail"
+    assert lines[3] == "       line"
 
 
 def test_myst_course_outline_round_trip_preserves_structure():
@@ -198,7 +198,7 @@ def test_myst_course_outline_round_trip_preserves_structure():
     assert lines[0].startswith("1. Chaque feuille ci-dessous correspond à un défi")
     assert any("Déposez votre travail" in l for l in lines)
 
-    bullet_lines = [line for line in lines if line.startswith("\t- [")]
+    bullet_lines = [line for line in lines if line.startswith("   - [")]
     assert len(bullet_lines) == 13, "Expected all nested bullet links to survive"
 
     assert "% boucles while" in normalized
@@ -222,13 +222,11 @@ def test_myst_renater_admonition_round_trip():
     Full round-trip for the Renater admonition block.
 
     Known encoding differences vs. the original source:
-    - Ordered list items inside a nested directive use \\t (semantic tab indent)
-      instead of the original 2-space indent.
-    - Continuation lines for those items use \\t+spaces instead of 5 spaces.
     - A plain code fence inside a nested directive body loses the outer 2-space
-      directive indent (markdown-it strips it before we see the token).
-    Everything else — structure, blank lines, text, HTML inline, links, fields —
-    is preserved verbatim.
+      directive indent (markdown-it strips the body before we see the token), so
+      5-space becomes 3-space.
+    Everything else — structure, blank lines, text, HTML inline, links, fields,
+    ordered/bullet list indentation — is preserved verbatim.
     """
     source = (
         ":::::{admonition} Hors Fédération Renater Éducation Recherche\n"
@@ -281,12 +279,12 @@ def test_myst_renater_admonition_round_trip():
         "  ::::{admonition} Instructions d'installation avec `uv`\n"
         "  :class: dropdown tip\n"
         "\n"
-        # ordered list items: 2-space indent in source → \t (semantic nesting inside directive)
-        "\t1. Si vous ne l'avez pas déjà, installez le gestionnaire d'environnements\n"
-        "\t   [uv](https://docs.astral.sh/uv/getting-started/installation/).\n"
+        # ordered list items: 2-space indent preserved from source
+        "  1. Si vous ne l'avez pas déjà, installez le gestionnaire d'environnements\n"
+        "     [uv](https://docs.astral.sh/uv/getting-started/installation/).\n"
         "\n"
-        "\t2. Allez dans le dossier contenant le matériel pédagogique et lancez JupyterLab. Les\n"
-        "\t   logiciels requis seront automatiquement installés dans ce dossier.\n"
+        "  2. Allez dans le dossier contenant le matériel pédagogique et lancez JupyterLab. Les\n"
+        "     logiciels requis seront automatiquement installés dans ce dossier.\n"
         "\n"
         # code fence: 5-space (2 directive + 3 list continuation) → 3-space (directive prefix stripped)
         "   ```\n"
@@ -301,7 +299,7 @@ def test_myst_renater_admonition_round_trip():
     assert reconstructed == expected
 
 
-def test_myst_nested_admonition_inside_list_item_preserves_tab_indentation():
+def test_myst_nested_admonition_inside_list_item_preserves_indentation():
     source = (
         ":::::{admonition} Hors Fédération Renater Éducation Recherche\n"
         ":class: dropdown\n"
@@ -349,9 +347,9 @@ def test_myst_nested_admonition_inside_list_item_preserves_tab_indentation():
     assert any("::::{admonition}" in l for l in lines)
     assert any(l.startswith("  ::::") for l in lines)
 
-    # Ordered list items inside the nested admonition get \t (level 1)
-    assert any(l.startswith("\t1.") for l in lines)
-    assert any(l.startswith("\t2.") for l in lines)
+    # Ordered list items inside the nested admonition preserve source 2-space indent
+    assert any(l.startswith("  1.") for l in lines)
+    assert any(l.startswith("  2.") for l in lines)
 
     # Code fence content is preserved
     assert "uv run jupyter lab index.md" in reconstructed
@@ -382,6 +380,154 @@ def test_myst_directive_fence_bodies_round_trip(source):
   reconstructed = reconstruct_from_xml(xml_output, placeholders)
 
   assert reconstructed == source
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        # no title
+        "```{list-table}\n- * A\n  * B\n- * 1\n  * 2\n```\n",
+        # with title
+        "```{list-table} My Table\n- * Col A\n  * Col B\n- * val1\n  * val2\n```\n",
+        # with options
+        "```{list-table} Caption\n:header-rows: 1\n:widths: 20 80\n\n- * Header A\n  * Header B\n- * data1\n  * data2\n```\n",
+    ],
+)
+def test_myst_list_table_round_trip(source):
+    """Body is opaque (placeholder); title is the only translatable part."""
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_myst_list_table_title_is_translatable():
+    source = "```{list-table} Important Data\n- * A\n  * B\n```\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    root = ET.fromstring(xml_output)
+    text_content = "".join(root.itertext())
+    assert "Important Data" in text_content
+
+
+def test_myst_list_table_body_is_placeholder():
+    source = "```{list-table} Title\n- * Col A\n  * Col B\n- * val1\n  * val2\n```\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    root = ET.fromstring(xml_output)
+    text_el = root.find("TEXT")
+    # Collect only what the translator sees: TEXT.text + each PH's tail
+    translator_text = (text_el.text or "") + "".join(
+        (ph.tail or "") for ph in text_el
+    )
+    # Cell content must NOT reach the translator
+    assert "Col A" not in translator_text
+    assert "val1" not in translator_text
+
+
+@pytest.mark.parametrize("source,expected_lines", [
+    # 2-space nested bullet inside bullet
+    pytest.param(
+        "- outer\n  - inner\n",
+        ["- outer", "  - inner"],
+        id="2space_nested_bullet",
+    ),
+    # 3-space nested bullet inside ordered (marker "1. " = 3 chars)
+    pytest.param(
+        "1. outer\n   - inner\n",
+        ["1. outer", "   - inner"],
+        id="3space_nested_bullet_inside_ordered",
+    ),
+    # 3-space nested ordered inside bullet (marker "- " = 2 chars + 1 indent)
+    pytest.param(
+        "- outer\n   1. inner\n",
+        ["- outer", "   1. inner"],
+        id="3space_nested_ordered_inside_bullet",
+    ),
+    # 3-level deep nesting preserves each indent exactly
+    pytest.param(
+        "- a\n  - b\n    - c\n",
+        ["- a", "  - b", "    - c"],
+        id="3level_deep_nesting",
+    ),
+    # continuation line indented to marker end
+    pytest.param(
+        "- outer\n  - inner item\n    continuation\n",
+        ["- outer", "  - inner item", "    continuation"],
+        id="nested_item_continuation_line",
+    ),
+    # star marker preserved with its source indentation
+    pytest.param(
+        "* top\n  * nested\n",
+        ["* top", "  * nested"],
+        id="star_marker_nested",
+    ),
+    # tab-indented nested bullet inside bullet
+    pytest.param(
+        "- outer\n\t- inner\n",
+        ["- outer", "\t- inner"],
+        id="tab_nested_bullet",
+    ),
+    # tab-indented nested bullet inside ordered
+    pytest.param(
+        "1. outer\n\t- inner\n",
+        ["1. outer", "\t- inner"],
+        id="tab_nested_bullet_inside_ordered",
+    ),
+    # tab-based 3-level deep nesting
+    pytest.param(
+        "- a\n\t- b\n\t\t- c\n",
+        ["- a", "\t- b", "\t\t- c"],
+        id="tab_3level_deep_nesting",
+    ),
+    # tab-indented continuation line
+    pytest.param(
+        "- outer\n\t- inner item\n\t  continuation\n",
+        ["- outer", "\t- inner item", "\t  continuation"],
+        id="tab_nested_item_continuation_line",
+    ),
+    # tab-indented star marker
+    pytest.param(
+        "* top\n\t* nested\n",
+        ["* top", "\t* nested"],
+        id="tab_star_marker_nested",
+    ),
+])
+def test_myst_nested_list_preserves_source_indentation(source, expected_lines):
+    """Round-trip must reproduce the exact source indentation (spaces or tabs)."""
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders).rstrip()
+    assert reconstructed.splitlines() == expected_lines
+
+
+@pytest.mark.parametrize("source,expected_lines", [
+    # bullet list inside admonition body uses 2-space indent
+    pytest.param(
+        ":::{note}\n- item one\n  - nested\n:::\n",
+        [":::{note}", "- item one", "  - nested", ":::"],
+        id="nested_bullet_inside_admonition",
+    ),
+    # ordered list inside admonition body
+    pytest.param(
+        ":::{note}\n1. first\n   - sub\n:::\n",
+        [":::{note}", "1. first", "   - sub", ":::"],
+        id="nested_ordered_inside_admonition",
+    ),
+    # tab-indented nested bullet inside admonition body
+    pytest.param(
+        ":::{note}\n- item one\n\t- nested\n:::\n",
+        [":::{note}", "- item one", "\t- nested", ":::"],
+        id="tab_nested_bullet_inside_admonition",
+    ),
+    # tab-indented nested bullet inside ordered list in admonition body
+    pytest.param(
+        ":::{note}\n1. first\n\t- sub\n:::\n",
+        [":::{note}", "1. first", "\t- sub", ":::"],
+        id="tab_nested_ordered_inside_admonition",
+    ),
+])
+def test_myst_list_inside_directive_preserves_source_indentation(source, expected_lines):
+    """Lists inside directive bodies must keep exact source indentation (spaces or tabs)."""
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders).rstrip()
+    assert reconstructed.splitlines() == expected_lines
 
 
 def test_myst_mixed_directive_fences_round_trip():
