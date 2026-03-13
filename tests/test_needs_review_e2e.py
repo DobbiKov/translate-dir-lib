@@ -272,3 +272,79 @@ class TestNotebookFileNeedsReview:
         self._translate(monkeypatch, src, tgt, from_cache=True)
         all_tags = self._read_tags(tgt)
         assert any("needs_review" in tags for tags in all_tags)
+
+
+# ---------------------------------------------------------------------------
+# Edge cases
+# ---------------------------------------------------------------------------
+
+class TestDuplicateChunkEdgeCases:
+    """A file that repeats the same source chunk should have needs_review on
+    every occurrence when LLM is called — not just the first one."""
+
+    def test_myst_duplicate_chunk_both_get_needs_review(self, monkeypatch, tmp_path):
+        # Two identical paragraphs in one MyST file
+        src = tmp_path / "source.md"
+        src.write_text("Hello world.\n\nHello world.\n", encoding="utf-8")
+        tgt = tmp_path / "target.md"
+
+        call_count = [0]
+
+        class TrackingTranslator:
+            async def translate_or_fetch(self, meta):
+                call_count[0] += 1
+                return TRANSLATED, False  # always LLM
+
+        monkeypatch.setattr(
+            myst_file_translator,
+            "build_translator_with_model",
+            lambda *a, **kw: TrackingTranslator(),
+        )
+        asyncio.run(myst_file_translator.translate_file_async(
+            src.parent, src, SRC, tgt, TGT, "source.md", None, None,
+        ))
+        chunks = read_chunks_with_metadata_from_myst(tgt)
+        assert all(c.get("needs_review") == "True" for c in chunks)
+
+    def test_myst_second_pass_preserves_needs_review_on_all_chunks(self, monkeypatch, tmp_path):
+        """Translating the same file a second time: chunks come from persistent
+        cache (from_cache=True), but needs_review from the first output is preserved."""
+        src = tmp_path / "source.md"
+        src.write_text("Hello world.\n\nAnother sentence.\n", encoding="utf-8")
+        tgt = tmp_path / "target.md"
+
+        # First pass: LLM called, needs_review written
+        _patch(monkeypatch, myst_file_translator, from_cache=False)
+        asyncio.run(myst_file_translator.translate_file_async(
+            src.parent, src, SRC, tgt, TGT, "source.md", None, None,
+        ))
+        first_chunks = read_chunks_with_metadata_from_myst(tgt)
+        assert all(c.get("needs_review") == "True" for c in first_chunks)
+
+        # Second pass: cache hit for all chunks, needs_review preserved from target
+        _patch(monkeypatch, myst_file_translator, from_cache=True)
+        asyncio.run(myst_file_translator.translate_file_async(
+            src.parent, src, SRC, tgt, TGT, "source.md", None, None,
+        ))
+        second_chunks = read_chunks_with_metadata_from_myst(tgt)
+        assert all(c.get("needs_review") == "True" for c in second_chunks)
+
+    def test_myst_second_pass_no_needs_review_when_first_pass_was_cache(self, monkeypatch, tmp_path):
+        """If the first pass was all cache hits (no LLM), needs_review is absent.
+        A second pass that is also all cache hits should not invent the tag."""
+        src = tmp_path / "source.md"
+        src.write_text("Hello world.\n", encoding="utf-8")
+        tgt = tmp_path / "target.md"
+
+        # First pass: cache hit, no needs_review written
+        _patch(monkeypatch, myst_file_translator, from_cache=True)
+        asyncio.run(myst_file_translator.translate_file_async(
+            src.parent, src, SRC, tgt, TGT, "source.md", None, None,
+        ))
+
+        # Second pass: still cache hit, needs_review still absent
+        asyncio.run(myst_file_translator.translate_file_async(
+            src.parent, src, SRC, tgt, TGT, "source.md", None, None,
+        ))
+        chunks = read_chunks_with_metadata_from_myst(tgt)
+        assert all(c.get("needs_review") is None for c in chunks)

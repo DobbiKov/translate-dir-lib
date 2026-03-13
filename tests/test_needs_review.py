@@ -4,9 +4,9 @@ not on cache hits, and is preserved from an existing translated file."""
 import asyncio
 from pathlib import Path
 
-import pytest
-
-from trans_lib.enums import Language
+from trans_lib.enums import Language, ChunkType, DocumentType
+from trans_lib.helpers import calculate_checksum
+from trans_lib.translator_retrieval import ChunkTranslator, Meta
 from trans_lib.doc_translator_mod import (
     myst_file_translator,
     latex_file_translator,
@@ -30,16 +30,12 @@ class FakeTranslator:
         return self._result, self._from_cache
 
 
-def _make_build_translator(result: str, from_cache: bool):
-    def _build(root_path, caller, reasoning_caller=None):
-        return FakeTranslator(result, from_cache)
-    return _build
-
-
 SRC = Language.ENGLISH
 TGT = Language.FRENCH
 REL = "docs/example.md"
 TRANSLATED = "Texte traduit."
+SOURCE_TEXT = "Some text."
+CHECKSUM = calculate_checksum(SOURCE_TEXT)
 
 
 # ---------------------------------------------------------------------------
@@ -47,34 +43,27 @@ TRANSLATED = "Texte traduit."
 # ---------------------------------------------------------------------------
 
 class TestMystNeedsReview:
-    def _run(self, monkeypatch, from_cache: bool, existing_meta=None):
-        monkeypatch.setattr(
-            myst_file_translator,
-            "build_translator_with_model",
-            _make_build_translator(TRANSLATED, from_cache),
-        )
-        cell = {"metadata": {}, "source": "Some text."}
+    def _run(self, from_cache: bool, existing_meta=None):
+        cell = {"metadata": {}, "source": SOURCE_TEXT}
         return asyncio.run(
             myst_file_translator.translate_chunk_async(
-                Path("/tmp"), cell, SRC, TGT, REL, None, None,
+                Path("/tmp"), cell, SRC, TGT, REL, None,
+                FakeTranslator(TRANSLATED, from_cache),
                 existing_meta=existing_meta,
             )
         )
 
-    def test_llm_call_adds_needs_review(self, monkeypatch, tmp_path):
-        cell = self._run(monkeypatch, from_cache=False)
+    def test_llm_call_adds_needs_review(self):
+        cell = self._run(from_cache=False)
         assert cell["metadata"].get("needs_review") == "True"
 
-    def test_cache_hit_does_not_add_needs_review(self, monkeypatch, tmp_path):
-        cell = self._run(monkeypatch, from_cache=True, existing_meta={})
+    def test_cache_hit_does_not_add_needs_review(self):
+        cell = self._run(from_cache=True, existing_meta={})
         assert "needs_review" not in cell["metadata"]
 
-    def test_cache_hit_preserves_needs_review_from_existing_target(self, monkeypatch, tmp_path):
-        from trans_lib.helpers import calculate_checksum
-        src = "Some text."
-        checksum = calculate_checksum(src)
-        existing_meta = {checksum: {"needs_review": "True", "src_checksum": checksum}}
-        cell = self._run(monkeypatch, from_cache=True, existing_meta=existing_meta)
+    def test_cache_hit_preserves_needs_review_from_existing_target(self):
+        existing_meta = {CHECKSUM: {"needs_review": "True", "src_checksum": CHECKSUM}}
+        cell = self._run(from_cache=True, existing_meta=existing_meta)
         assert cell["metadata"].get("needs_review") == "True"
 
 
@@ -83,34 +72,27 @@ class TestMystNeedsReview:
 # ---------------------------------------------------------------------------
 
 class TestLatexNeedsReview:
-    def _run(self, monkeypatch, from_cache: bool, existing_meta=None):
-        monkeypatch.setattr(
-            latex_file_translator,
-            "build_translator_with_model",
-            _make_build_translator(TRANSLATED, from_cache),
-        )
-        cell = {"metadata": {}, "source": "Some text."}
+    def _run(self, from_cache: bool, existing_meta=None):
+        cell = {"metadata": {}, "source": SOURCE_TEXT}
         return asyncio.run(
             latex_file_translator.translate_chunk_async(
-                Path("/tmp"), cell, SRC, TGT, REL, None, None,
+                Path("/tmp"), cell, SRC, TGT, REL, None,
+                FakeTranslator(TRANSLATED, from_cache),
                 existing_meta=existing_meta,
             )
         )
 
-    def test_llm_call_adds_needs_review(self, monkeypatch, tmp_path):
-        cell = self._run(monkeypatch, from_cache=False)
+    def test_llm_call_adds_needs_review(self):
+        cell = self._run(from_cache=False)
         assert cell["metadata"].get("needs_review") == "True"
 
-    def test_cache_hit_does_not_add_needs_review(self, monkeypatch, tmp_path):
-        cell = self._run(monkeypatch, from_cache=True, existing_meta={})
+    def test_cache_hit_does_not_add_needs_review(self):
+        cell = self._run(from_cache=True, existing_meta={})
         assert "needs_review" not in cell["metadata"]
 
-    def test_cache_hit_preserves_needs_review_from_existing_target(self, monkeypatch, tmp_path):
-        from trans_lib.helpers import calculate_checksum
-        src = "Some text."
-        checksum = calculate_checksum(src)
-        existing_meta = {checksum: {"needs_review": "True", "src_checksum": checksum}}
-        cell = self._run(monkeypatch, from_cache=True, existing_meta=existing_meta)
+    def test_cache_hit_preserves_needs_review_from_existing_target(self):
+        existing_meta = {CHECKSUM: {"needs_review": "True", "src_checksum": CHECKSUM}}
+        cell = self._run(from_cache=True, existing_meta=existing_meta)
         assert cell["metadata"].get("needs_review") == "True"
 
 
@@ -119,34 +101,27 @@ class TestLatexNeedsReview:
 # ---------------------------------------------------------------------------
 
 class TestTypstNeedsReview:
-    def _run(self, monkeypatch, from_cache: bool, existing_meta=None):
-        monkeypatch.setattr(
-            typst_file_translator,
-            "build_translator_with_model",
-            _make_build_translator(TRANSLATED, from_cache),
-        )
-        cell = {"metadata": {}, "source": "Some text."}
+    def _run(self, from_cache: bool, existing_meta=None):
+        cell = {"metadata": {}, "source": SOURCE_TEXT}
         return asyncio.run(
             typst_file_translator.translate_chunk_async(
-                Path("/tmp"), cell, SRC, TGT, REL, None, None,
+                Path("/tmp"), cell, SRC, TGT, REL, None,
+                FakeTranslator(TRANSLATED, from_cache),
                 existing_meta=existing_meta,
             )
         )
 
-    def test_llm_call_adds_needs_review(self, monkeypatch, tmp_path):
-        cell = self._run(monkeypatch, from_cache=False)
+    def test_llm_call_adds_needs_review(self):
+        cell = self._run(from_cache=False)
         assert cell["metadata"].get("needs_review") == "True"
 
-    def test_cache_hit_does_not_add_needs_review(self, monkeypatch, tmp_path):
-        cell = self._run(monkeypatch, from_cache=True, existing_meta={})
+    def test_cache_hit_does_not_add_needs_review(self):
+        cell = self._run(from_cache=True, existing_meta={})
         assert "needs_review" not in cell["metadata"]
 
-    def test_cache_hit_preserves_needs_review_from_existing_target(self, monkeypatch, tmp_path):
-        from trans_lib.helpers import calculate_checksum
-        src = "Some text."
-        checksum = calculate_checksum(src)
-        existing_meta = {checksum: {"needs_review": "True", "src_checksum": checksum}}
-        cell = self._run(monkeypatch, from_cache=True, existing_meta=existing_meta)
+    def test_cache_hit_preserves_needs_review_from_existing_target(self):
+        existing_meta = {CHECKSUM: {"needs_review": "True", "src_checksum": CHECKSUM}}
+        cell = self._run(from_cache=True, existing_meta=existing_meta)
         assert cell["metadata"].get("needs_review") == "True"
 
 
@@ -155,32 +130,134 @@ class TestTypstNeedsReview:
 # ---------------------------------------------------------------------------
 
 class TestNotebookNeedsReview:
-    def _run(self, monkeypatch, from_cache: bool, existing_meta=None):
-        monkeypatch.setattr(
-            notebook_file_translator,
-            "build_translator_with_model",
-            _make_build_translator(TRANSLATED, from_cache),
-        )
-        cell = {"cell_type": "markdown", "source": "Some text.", "metadata": {"tags": []}}
+    def _run(self, from_cache: bool, existing_meta=None):
+        cell = {"cell_type": "markdown", "source": SOURCE_TEXT, "metadata": {"tags": []}}
         return asyncio.run(
             notebook_file_translator.translate_jupyter_cell_async(
-                Path("/tmp"), cell, SRC, TGT, None, None, REL,
+                cell, SRC, TGT, None,
+                FakeTranslator(TRANSLATED, from_cache),
+                REL,
                 existing_meta=existing_meta,
             )
         )
 
-    def test_llm_call_adds_needs_review(self, monkeypatch, tmp_path):
-        cell = self._run(monkeypatch, from_cache=False)
+    def test_llm_call_adds_needs_review(self):
+        cell = self._run(from_cache=False)
         assert "needs_review" in cell["metadata"]["tags"]
 
-    def test_cache_hit_does_not_add_needs_review(self, monkeypatch, tmp_path):
-        cell = self._run(monkeypatch, from_cache=True, existing_meta={})
+    def test_cache_hit_does_not_add_needs_review(self):
+        cell = self._run(from_cache=True, existing_meta={})
         assert "needs_review" not in cell["metadata"]["tags"]
 
-    def test_cache_hit_preserves_needs_review_from_existing_target(self, monkeypatch, tmp_path):
-        from trans_lib.helpers import calculate_checksum
-        src = "Some text."
-        checksum = calculate_checksum(src)
-        existing_meta = {checksum: {"tags": ["needs_review"], "src_checksum": checksum}}
-        cell = self._run(monkeypatch, from_cache=True, existing_meta=existing_meta)
+    def test_cache_hit_preserves_needs_review_from_existing_target(self):
+        existing_meta = {CHECKSUM: {"tags": ["needs_review"], "src_checksum": CHECKSUM}}
+        cell = self._run(from_cache=True, existing_meta=existing_meta)
         assert "needs_review" in cell["metadata"]["tags"]
+
+
+# ---------------------------------------------------------------------------
+# Edge cases: session_checksums behaviour in ChunkTranslator
+# ---------------------------------------------------------------------------
+
+class PersistingStore:
+    """In-memory store that actually stores and looks up translation pairs."""
+
+    def __init__(self, prepopulated: dict[str, str] | None = None):
+        # Maps src_checksum -> tgt_text
+        self._store: dict[str, str] = prepopulated or {}
+        self.llm_calls = 0
+
+    def lookup(self, src_checksum, src_lang, tgt_lang, relative_path):
+        return self._store.get(src_checksum)
+
+    def persist_pair(self, src_checksum, tgt_checksum, src_lang, tgt_lang, src_text, tgt_text, relative_path):
+        self._store[src_checksum] = tgt_text
+
+    def get_best_pair_example_from_cache(self, *args, **kwargs):
+        return None
+
+    def get_contents_by_checksum(self, *args, **kwargs):
+        return None
+
+
+class CountingCaller:
+    """Caller that counts invocations and returns a fixed translated string."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def call(self, prompt: str) -> str:
+        self.calls += 1
+        return "<translated>Translated.</translated>"
+
+    def wait_cooldown(self) -> None:
+        pass
+
+
+def _meta(chunk: str) -> Meta:
+    # Use Other/Other so the plain strategy is selected — no XML post-processing needed.
+    return Meta(chunk, Language.ENGLISH, Language.FRENCH, DocumentType.Other, ChunkType.Other, None, "doc.md")
+
+
+class TestSessionChecksums:
+    def test_duplicate_chunk_in_same_pass_both_get_from_cache_false(self, monkeypatch):
+        """Second occurrence of a chunk in the same file should still return
+        from_cache=False because it was LLM-translated in this same pass."""
+        monkeypatch.setattr(
+            "trans_lib.translator_retrieval.chunk_contains_ph_only",
+            lambda *a, **kw: False,
+        )
+        caller = CountingCaller()
+        store = PersistingStore()
+        tr = ChunkTranslator(store, caller)
+
+        chunk = "Hello world."
+        _, from_cache_1 = asyncio.run(tr.translate_or_fetch(_meta(chunk)))
+        _, from_cache_2 = asyncio.run(tr.translate_or_fetch(_meta(chunk)))
+
+        assert from_cache_1 is False
+        assert from_cache_2 is False   # not True — same pass, LLM was called
+        assert caller.calls == 1       # LLM only called once; second hit uses cache value
+
+    def test_new_translator_instance_treats_old_cache_as_true(self, monkeypatch):
+        """A fresh ChunkTranslator on a new file has an empty session set, so a
+        lookup that hits a pre-existing cache entry is correctly from_cache=True."""
+        monkeypatch.setattr(
+            "trans_lib.translator_retrieval.chunk_contains_ph_only",
+            lambda *a, **kw: False,
+        )
+        chunk = "Hello world."
+        checksum = calculate_checksum(chunk)
+
+        # Simulate a pre-existing cache entry from a previous run
+        store = PersistingStore(prepopulated={checksum: "Bonjour monde."})
+        tr = ChunkTranslator(store, CountingCaller())
+
+        _, from_cache = asyncio.run(tr.translate_or_fetch(_meta(chunk)))
+
+        assert from_cache is True   # genuinely from persistent cache, not this session
+
+    def test_session_does_not_bleed_across_translator_instances(self, monkeypatch):
+        """Session checksums are per-instance. Two files translated with separate
+        translators don't share session state."""
+        monkeypatch.setattr(
+            "trans_lib.translator_retrieval.chunk_contains_ph_only",
+            lambda *a, **kw: False,
+        )
+        # Shared persistent store (simulates the on-disk cache)
+        shared_store = PersistingStore()
+        caller = CountingCaller()
+
+        chunk = "Hello world."
+
+        # First file: tr1 calls LLM, writes to cache
+        tr1 = ChunkTranslator(shared_store, caller)
+        _, from_cache_1 = asyncio.run(tr1.translate_or_fetch(_meta(chunk)))
+
+        # Second file: tr2 is a fresh instance — lookup hits persistent cache → from_cache=True
+        tr2 = ChunkTranslator(shared_store, caller)
+        _, from_cache_2 = asyncio.run(tr2.translate_or_fetch(_meta(chunk)))
+
+        assert from_cache_1 is False  # LLM called in file 1
+        assert from_cache_2 is True   # genuinely cached for file 2
+        assert caller.calls == 1      # LLM not called again

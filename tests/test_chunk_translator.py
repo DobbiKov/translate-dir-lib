@@ -334,17 +334,11 @@ def test_model_overloaded_exhausts_retries(monkeypatch):
     assert caller.calls == 2
 
 
-def test_myst_chunk_metadata_tagged_on_failure(monkeypatch):
+def test_myst_chunk_metadata_tagged_on_failure():
     chunk = "Paragraph needing translation.\n"
     cell = {"metadata": {}, "source": chunk}
 
     error = ChunkTranslationFailed(chunk, RuntimeError("boom"))
-    failing_translator = FailingTranslator(error)
-
-    monkeypatch.setattr(
-        "trans_lib.doc_translator_mod.myst_file_translator.build_translator_with_model",
-        lambda *args, **kwargs: failing_translator,
-    )
 
     result_cell = asyncio.run(
         myst_file_translator.translate_chunk_async(
@@ -354,7 +348,7 @@ def test_myst_chunk_metadata_tagged_on_failure(monkeypatch):
             target_language=Language.FRENCH,
             relative_path="docs/example.md",
             vocab_list=None,
-            llm_caller=types.SimpleNamespace(),
+            tr=FailingTranslator(error),
         )
     )
 
@@ -362,17 +356,11 @@ def test_myst_chunk_metadata_tagged_on_failure(monkeypatch):
     assert result_cell["metadata"].get("not-translated-due-to-exception") == "True"
 
 
-def test_latex_chunk_metadata_tagged_on_failure(monkeypatch):
+def test_latex_chunk_metadata_tagged_on_failure():
     chunk = "\\section{Title}"
     cell = {"metadata": {}, "source": chunk}
 
     error = ChunkTranslationFailed(chunk, RuntimeError("boom"))
-    failing_translator = FailingTranslator(error)
-
-    monkeypatch.setattr(
-        "trans_lib.doc_translator_mod.latex_file_translator.build_translator_with_model",
-        lambda *args, **kwargs: failing_translator,
-    )
 
     result_cell = asyncio.run(
         latex_file_translator.translate_chunk_async(
@@ -382,7 +370,7 @@ def test_latex_chunk_metadata_tagged_on_failure(monkeypatch):
             target_language=Language.FRENCH,
             relative_path="docs/example.md",
             vocab_list=None,
-            llm_caller=types.SimpleNamespace(),
+            tr=FailingTranslator(error),
         )
     )
 
@@ -390,7 +378,7 @@ def test_latex_chunk_metadata_tagged_on_failure(monkeypatch):
     assert result_cell["metadata"].get("not-translated-due-to-exception") == "True"
 
 
-def test_notebook_cell_metadata_tagged_on_failure(monkeypatch):
+def test_notebook_cell_metadata_tagged_on_failure():
     chunk = "Notebook cell text."
     cell = {
         "cell_type": "markdown",
@@ -399,21 +387,14 @@ def test_notebook_cell_metadata_tagged_on_failure(monkeypatch):
     }
 
     error = ChunkTranslationFailed(chunk, RuntimeError("boom"))
-    failing_translator = FailingTranslator(error)
-
-    monkeypatch.setattr(
-        "trans_lib.doc_translator_mod.notebook_file_translator.build_translator_with_model",
-        lambda *args, **kwargs: failing_translator,
-    )
 
     result_cell = asyncio.run(
         notebook_file_translator.translate_jupyter_cell_async(
-            root_path=Path("."),
             cell=cell,
             source_language=Language.ENGLISH,
             target_language=Language.FRENCH,
             vocab_list=None,
-            llm_caller=types.SimpleNamespace(),
+            tr=FailingTranslator(error),
             relative_path="docs/example.md",
         )
     )
