@@ -47,7 +47,7 @@ class TestMystNeedsReview:
         cell = {"metadata": {}, "source": SOURCE_TEXT}
         return asyncio.run(
             myst_file_translator.translate_chunk_async(
-                Path("/tmp"), cell, SRC, TGT, REL, None,
+                cell, SRC, TGT, REL, None,
                 FakeTranslator(TRANSLATED, from_cache),
                 existing_meta=existing_meta,
             )
@@ -76,7 +76,7 @@ class TestLatexNeedsReview:
         cell = {"metadata": {}, "source": SOURCE_TEXT}
         return asyncio.run(
             latex_file_translator.translate_chunk_async(
-                Path("/tmp"), cell, SRC, TGT, REL, None,
+                cell, SRC, TGT, REL, None,
                 FakeTranslator(TRANSLATED, from_cache),
                 existing_meta=existing_meta,
             )
@@ -105,7 +105,7 @@ class TestTypstNeedsReview:
         cell = {"metadata": {}, "source": SOURCE_TEXT}
         return asyncio.run(
             typst_file_translator.translate_chunk_async(
-                Path("/tmp"), cell, SRC, TGT, REL, None,
+                cell, SRC, TGT, REL, None,
                 FakeTranslator(TRANSLATED, from_cache),
                 existing_meta=existing_meta,
             )

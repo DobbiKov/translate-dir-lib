@@ -173,7 +173,7 @@ def test_placeholder_only_chunk_skips_model_call():
     translated, from_cache = asyncio.run(translator.translate_or_fetch(meta))
 
     assert translated == chunk
-    assert from_cache is False
+    assert from_cache is True   # ph_only: no LLM called, treated as passthrough
     assert caller.called is False
     assert store.persisted == [(chunk, chunk)]
 
@@ -246,7 +246,7 @@ def test_chunk_with_ph_only_doesnt_call_model_latex():
     translated, from_cache = asyncio.run(translator.translate_or_fetch(meta))
 
     assert translated == chunk
-    assert from_cache is False
+    assert from_cache is True   # ph_only: no LLM called, treated as passthrough
     assert caller.called is False
     assert store.persisted == [(chunk, chunk)]
 
@@ -342,7 +342,6 @@ def test_myst_chunk_metadata_tagged_on_failure():
 
     result_cell = asyncio.run(
         myst_file_translator.translate_chunk_async(
-            root_path=Path("."),
             cell=cell,
             source_language=Language.ENGLISH,
             target_language=Language.FRENCH,
@@ -364,7 +363,6 @@ def test_latex_chunk_metadata_tagged_on_failure():
 
     result_cell = asyncio.run(
         latex_file_translator.translate_chunk_async(
-            root_path=Path("."),
             cell=cell,
             source_language=Language.ENGLISH,
             target_language=Language.FRENCH,
