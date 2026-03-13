@@ -69,14 +69,13 @@ async def translate_file_async(
 
     for i in range(len(cells)):
         cell = cells[i]
-        cells[i] = await translate_chunk_async(root_path, cell, source_language, target_language, relative_path, vocab_list, tr, existing_meta)
+        cells[i] = await translate_chunk_async(cell, source_language, target_language, relative_path, vocab_list, tr, existing_meta)
 
     with open(target_file_path, "w") as f:
         f.write(compile_latex_cells(cells))
 
 
 async def translate_chunk_async(
-    root_path: Path,
     cell: dict,
     source_language: Language,
     target_language: Language,

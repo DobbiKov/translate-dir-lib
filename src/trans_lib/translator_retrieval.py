@@ -257,42 +257,49 @@ class ChunkTranslator:
                 )
 
         if ph_only:
-            translated = chunk
-        else:
-            try:
-                translated = await self._run_with_caller(strategy, meta, caller)
-            except ET.ParseError:
-                logger.warning("Broken XML on attempt 1, retrying with standard model...")
-                try:
-                    translated = await self._run_with_caller(strategy, meta, caller)
-                except ET.ParseError:
-                    reasoning_caller = self._reasoning_caller if self._reasoning_caller is not None else caller
-                    logger.warning("Broken XML on attempt 2, retrying with reasoning model...")
-                    try:
-                        translated = await self._run_with_caller(strategy, meta, reasoning_caller)
-                    except Exception as exc:
-                        logger.error(
-                            f"Chunk translation failed after 3 attempts due to {exc.__class__.__name__}: {exc}",
-                        )
-                        raise ChunkTranslationFailed(chunk, exc) from exc
-                except Exception as exc:  # noqa: BLE001 - non-ParseError on attempt 2
-                    logger.error(
-                        f"Chunk translation failed on attempt 2 due to {exc.__class__.__name__}: {exc}",
-                    )
-                    raise ChunkTranslationFailed(chunk, exc) from exc
-            except Exception as exc:  # noqa: BLE001
-                logger.error(
-                    f"Chunk translation failed due to {exc.__class__.__name__}: {exc}",
-                )
-                raise ChunkTranslationFailed(chunk, exc) from exc
-
-        tgt_checksum = calculate_checksum(translated)
-
-        if ph_only:
             logger.trace("ph only")
             logger.trace(chunk)
             logger.trace("=======")
+            tgt_checksum = calculate_checksum(chunk)
+            self._store.persist_pair(
+                src_checksum,
+                tgt_checksum,
+                meta.src_lang,
+                meta.tgt_lang,
+                chunk,
+                chunk,
+                meta.rel_path,
+            )
+            return chunk, True  # no LLM called — passthrough, never needs review
 
+        try:
+            translated = await self._run_with_caller(strategy, meta, caller)
+        except ET.ParseError:
+            logger.warning("Broken XML on attempt 1, retrying with standard model...")
+            try:
+                translated = await self._run_with_caller(strategy, meta, caller)
+            except ET.ParseError:
+                reasoning_caller = self._reasoning_caller if self._reasoning_caller is not None else caller
+                logger.warning("Broken XML on attempt 2, retrying with reasoning model...")
+                try:
+                    translated = await self._run_with_caller(strategy, meta, reasoning_caller)
+                except Exception as exc:
+                    logger.error(
+                        f"Chunk translation failed after 3 attempts due to {exc.__class__.__name__}: {exc}",
+                    )
+                    raise ChunkTranslationFailed(chunk, exc) from exc
+            except Exception as exc:  # noqa: BLE001 - non-ParseError on attempt 2
+                logger.error(
+                    f"Chunk translation failed on attempt 2 due to {exc.__class__.__name__}: {exc}",
+                )
+                raise ChunkTranslationFailed(chunk, exc) from exc
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                f"Chunk translation failed due to {exc.__class__.__name__}: {exc}",
+            )
+            raise ChunkTranslationFailed(chunk, exc) from exc
+
+        tgt_checksum = calculate_checksum(translated)
         self._session_checksums.add(src_checksum)
         self._store.persist_pair(
             src_checksum,

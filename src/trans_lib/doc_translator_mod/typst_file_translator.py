@@ -63,7 +63,6 @@ async def translate_file_async(
     for index in range(len(cells)):
         cell = cells[index]
         cells[index] = await translate_chunk_async(
-            root_path,
             cell,
             source_language,
             target_language,
@@ -78,7 +77,6 @@ async def translate_file_async(
 
 
 async def translate_chunk_async(
-    root_path: Path,
     cell: dict,
     source_language: Language,
     target_language: Language,
