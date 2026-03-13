@@ -150,7 +150,7 @@ class FailingTranslator:
     def __init__(self, error: Exception):
         self.error = error
 
-    async def translate_or_fetch(self, meta: Meta) -> str:
+    async def translate_or_fetch(self, meta: Meta) -> tuple[str, bool]:
         raise self.error
 
 
@@ -170,9 +170,10 @@ def test_placeholder_only_chunk_skips_model_call():
         rel_path="docs/example.md",
     )
 
-    translated = asyncio.run(translator.translate_or_fetch(meta))
+    translated, from_cache = asyncio.run(translator.translate_or_fetch(meta))
 
     assert translated == chunk
+    assert from_cache is False
     assert caller.called is False
     assert store.persisted == [(chunk, chunk)]
 
@@ -242,9 +243,10 @@ def test_chunk_with_ph_only_doesnt_call_model_latex():
         rel_path="docs/example.md",
     )
 
-    translated = asyncio.run(translator.translate_or_fetch(meta))
+    translated, from_cache = asyncio.run(translator.translate_or_fetch(meta))
 
     assert translated == chunk
+    assert from_cache is False
     assert caller.called is False
     assert store.persisted == [(chunk, chunk)]
 
@@ -283,9 +285,10 @@ def test_model_overloaded_retries_then_succeeds(monkeypatch):
         rel_path="docs/example.md",
     )
 
-    translated = asyncio.run(translator.translate_or_fetch(meta))
+    translated, from_cache = asyncio.run(translator.translate_or_fetch(meta))
 
     assert translated == "Translated chunk"
+    assert from_cache is False
     assert caller.calls == 3  # two overloads then success
     assert observed_sleeps == [0.01, 0.02]
     assert store.persisted == [(chunk, translated)]
