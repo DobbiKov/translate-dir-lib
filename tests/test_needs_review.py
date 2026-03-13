@@ -261,3 +261,104 @@ class TestSessionChecksums:
         assert from_cache_1 is False  # LLM called in file 1
         assert from_cache_2 is True   # genuinely cached for file 2
         assert caller.calls == 1      # LLM not called again
+
+
+# ---------------------------------------------------------------------------
+# Placeholder-only chunks: needs_review must NOT be added
+# ---------------------------------------------------------------------------
+
+class RaisingCaller:
+    """Caller that must never be invoked — raises if called."""
+
+    def call(self, prompt: str) -> str:
+        raise AssertionError("LLM must not be called for placeholder-only chunks")
+
+    def wait_cooldown(self) -> None:
+        pass
+
+
+class TestPlaceholderOnlyNeedsReview:
+    """Placeholder-only chunks bypass the LLM and must not get needs_review."""
+
+    # --- MyST ---
+
+    def test_myst_ph_only_chunk_no_needs_review(self):
+        # A bare toctree directive contains only a placeholder — ph_only=True
+        chunk = "```{toctree}\npage1\npage2\n```\n"
+        cell = {"metadata": {}, "source": chunk}
+        tr = ChunkTranslator(PersistingStore(), RaisingCaller())
+        result = asyncio.run(
+            myst_file_translator.translate_chunk_async(
+                cell, SRC, TGT, REL, None, tr
+            )
+        )
+        assert "needs_review" not in result["metadata"]
+        assert result["source"] == chunk  # passed through unchanged
+
+    def test_myst_ph_only_does_not_add_needs_review_even_with_existing_meta(self):
+        chunk = "```{toctree}\npage1\npage2\n```\n"
+        cell = {"metadata": {}, "source": chunk}
+        tr = ChunkTranslator(PersistingStore(), RaisingCaller())
+        # even when existing_meta contains no prior needs_review, none should appear
+        result = asyncio.run(
+            myst_file_translator.translate_chunk_async(
+                cell, SRC, TGT, REL, None, tr, existing_meta={}
+            )
+        )
+        assert "needs_review" not in result["metadata"]
+
+    # --- LaTeX ---
+
+    def test_latex_ph_only_chunk_no_needs_review(self):
+        # \begin{document}\end{document} is placeholder-only for LaTeX
+        chunk = r"\begin{document}\end{document}"
+        cell = {"metadata": {}, "source": chunk}
+        tr = ChunkTranslator(PersistingStore(), RaisingCaller())
+        result = asyncio.run(
+            latex_file_translator.translate_chunk_async(
+                cell, SRC, TGT, REL, None, tr
+            )
+        )
+        assert "needs_review" not in result["metadata"]
+        assert result["source"] == chunk
+
+    def test_latex_ph_only_does_not_add_needs_review_even_with_existing_meta(self):
+        chunk = r"\begin{document}\end{document}"
+        cell = {"metadata": {}, "source": chunk}
+        tr = ChunkTranslator(PersistingStore(), RaisingCaller())
+        result = asyncio.run(
+            latex_file_translator.translate_chunk_async(
+                cell, SRC, TGT, REL, None, tr, existing_meta={}
+            )
+        )
+        assert "needs_review" not in result["metadata"]
+
+    # --- Notebook (code cell — ChunkType.Code is always ph_only) ---
+
+    def test_notebook_code_cell_no_needs_review(self):
+        cell = {
+            "cell_type": "code",
+            "metadata": {"tags": []},
+            "source": "import numpy as np\nprint('hello')",
+        }
+        tr = ChunkTranslator(PersistingStore(), RaisingCaller())
+        result = asyncio.run(
+            notebook_file_translator.translate_jupyter_cell_async(
+                cell, SRC, TGT, None, tr, REL
+            )
+        )
+        assert "needs_review" not in result["metadata"].get("tags", [])
+
+    def test_notebook_code_cell_no_needs_review_with_existing_meta(self):
+        cell = {
+            "cell_type": "code",
+            "metadata": {"tags": []},
+            "source": "x = 1",
+        }
+        tr = ChunkTranslator(PersistingStore(), RaisingCaller())
+        result = asyncio.run(
+            notebook_file_translator.translate_jupyter_cell_async(
+                cell, SRC, TGT, None, tr, REL, existing_meta={}
+            )
+        )
+        assert "needs_review" not in result["metadata"].get("tags", [])
