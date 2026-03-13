@@ -196,7 +196,7 @@ def test_myst_course_outline_round_trip_preserves_structure():
     lines = normalized.splitlines()
 
     assert lines[0].startswith("1. Chaque feuille ci-dessous correspond à un défi")
-    assert any("Déposez votre travail" in l for l in lines)
+    assert any("Déposez votre travail" in line for line in lines)
 
     bullet_lines = [line for line in lines if line.startswith("   - [")]
     assert len(bullet_lines) == 13, "Expected all nested bullet links to survive"
@@ -340,16 +340,16 @@ def test_myst_nested_admonition_inside_list_item_preserves_indentation():
     assert lines[-1] == ":::::"
 
     # Outer bullet list items (level 0 — no tab)
-    bullet_lines = [l for l in lines if l.startswith("- ")]
+    bullet_lines = [line for line in lines if line.startswith("- ")]
     assert len(bullet_lines) == 2
 
     # Inner admonition is indented (inside bullet item)
-    assert any("::::{admonition}" in l for l in lines)
-    assert any(l.startswith("  ::::") for l in lines)
+    assert any("::::{admonition}" in line for line in lines)
+    assert any(line.startswith("  ::::") for line in lines)
 
     # Ordered list items inside the nested admonition preserve source 2-space indent
-    assert any(l.startswith("  1.") for l in lines)
-    assert any(l.startswith("  2.") for l in lines)
+    assert any(line.startswith("  1.") for line in lines)
+    assert any(line.startswith("  2.") for line in lines)
 
     # Code fence content is preserved
     assert "uv run jupyter lab index.md" in reconstructed

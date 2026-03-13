@@ -1,6 +1,5 @@
 import asyncio
 from dataclasses import dataclass
-import time
 from typing import Callable
 import xml.etree.ElementTree as ET
 from loguru import logger

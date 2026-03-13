@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 from typing import List, Optional, TYPE_CHECKING
 
-from .enums import DocumentType, Language
+from .enums import Language
 from .project_config_models import ProjectConfig, LangDir
 from .project_config_io import (
     load_project_config,

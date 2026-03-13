@@ -1,9 +1,7 @@
 import asyncio
-import os
 import csv
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 import typer
 from loguru import logger
@@ -11,10 +9,10 @@ from typing_extensions import Annotated # For Typer < 0.7 or for more complex an
 
 from unified_model_caller.enums import Service
 
-from trans_lib.enums import Language, CLI_LANGUAGE_CHOICES
+from trans_lib.enums import Language
 from trans_lib.project_manager import Project, init_project, load_project
 from trans_lib import errors
-from trans_lib.vocab_list import VocabList, vocab_list_from_vocab_db # Import the errors module
+from trans_lib.vocab_list import vocab_list_from_vocab_db # Import the errors module
 
 # Create the Typer app
 app = typer.Typer(
@@ -156,7 +154,7 @@ def mark_untranslatable(
         raise typer.Exit(code=1)
 
 @app.command("set-llm")
-def set_source_dir(
+def set_llm(
     ctx: typer.Context, # For getting loaded project
     service: Annotated[str, typer.Argument(help="Name of the service providing a model")],
     model: Annotated[str, typer.Argument(help="Name of the model", case_sensitive=True)] # Typer handles Enum conversion
@@ -249,7 +247,7 @@ def info_on_project(ctx: typer.Context):
     Provides an info about the project
     """
     project = get_project_from_context(ctx)
-    print("Project Information:");
+    print("Project Information:")
     print("\tProject Name: {}".format(project.config.get_name()) )
     print("\tRoot Path: {}".format(project.root_path))
 
@@ -317,7 +315,7 @@ def _read_vocab_from_file(path: Path) -> list[dict]:
 async def _translate_file_command(project: Project, file_path_str: str, lang: Language, vocab: Path | None):
     try:
         vocabulary = None
-        if vocab != None:
+        if vocab is not None:
             vocabulary = vocab_list_from_vocab_db(_read_vocab_from_file(vocab), project.get_source_langugage(), lang)
 
         await project.translate_single_file(file_path_str, lang, vocabulary) # WARNING: remove None
@@ -344,7 +342,7 @@ def translate_file_cli(
 async def _translate_all_command(project: Project, lang: Language, vocab: Path | None):
     try:
         vocabulary = None
-        if vocab != None:
+        if vocab is not None:
             vocabulary = vocab_list_from_vocab_db(_read_vocab_from_file(vocab), project.get_source_langugage(), lang)
 
         await project.translate_all_for_language(lang, vocabulary) # WARNING: remove None

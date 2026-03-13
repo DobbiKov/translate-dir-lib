@@ -88,10 +88,10 @@ async def _ask_gemini_model(full_prompt_message: str, model_name: str = "gemini-
     Asks the Gemini model for a translation.
     The default model_name is "gemini-2.0-flash"
     """
-    if not GOOGLE_API_KEY: # Re-check in case it wasn't set at module load
-        raise EnvironmentError("GOOGLE_API_KEY environment variable must be set for translation.")
+    if not LLM_API_KEY: # Re-check in case it wasn't set at module load
+        raise EnvironmentError("LLM_API_KEY environment variable must be set for translation.")
 
-    client = genai.Client(api_key=GOOGLE_API_KEY)
+    client = genai.Client(api_key=LLM_API_KEY)
 
     try:
         contents = g_types.Content(

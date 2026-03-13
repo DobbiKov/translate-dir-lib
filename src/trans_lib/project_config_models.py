@@ -188,7 +188,7 @@ class ProjectConfig(BaseModel):
 
     def set_llm_service_with_model(self, service: str, model: str) -> None:
         """Set's LLM service and model"""
-        corr_service = unif_enums.Service.from_str(service)
+        unif_enums.Service.from_str(service)
         self.llm_service = service
         self.llm_model = model
 
