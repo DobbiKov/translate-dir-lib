@@ -9,7 +9,7 @@ from trans_lib.doc_translator_mod.typst_chunker import split_typst_document_into
 from trans_lib.enums import ChunkType, DocumentType, Language
 from trans_lib.errors import ChunkTranslationFailed
 from trans_lib.helpers import calculate_checksum
-from trans_lib.translator_retrieval import Meta, build_translator_with_model
+from trans_lib.translator_retrieval import ChunkTranslator, Meta, build_translator_with_model
 from trans_lib.vocab_list import VocabList
 
 
@@ -53,19 +53,23 @@ async def translate_file_async(
     llm_caller: LLMCaller,
     reasoning_caller: LLMCaller | None = None,
 ) -> None:
+    from trans_lib.translation_cache.cache_rebuilder import read_existing_target_metadata
+    from trans_lib.enums import DocumentType as _DT
+    existing_meta = read_existing_target_metadata(target_file_path, _DT.Typst)
+    tr = build_translator_with_model(root_path, llm_caller, reasoning_caller)
+
     cells = get_typst_cells(source_file_path)
 
     for index in range(len(cells)):
         cell = cells[index]
         cells[index] = await translate_chunk_async(
-            root_path,
             cell,
             source_language,
             target_language,
             relative_path,
             vocab_list,
-            llm_caller,
-            reasoning_caller=reasoning_caller,
+            tr,
+            existing_meta,
         )
 
     with open(target_file_path, "w", encoding="utf-8") as file:
@@ -73,33 +77,34 @@ async def translate_file_async(
 
 
 async def translate_chunk_async(
-    root_path: Path,
     cell: dict,
     source_language: Language,
     target_language: Language,
     relative_path: str,
     vocab_list: VocabList | None,
-    llm_caller: LLMCaller,
-    reasoning_caller: LLMCaller | None = None,
+    tr: ChunkTranslator,
+    existing_meta: dict[str, dict] | None = None,
 ) -> dict:
     src_txt = cell["source"]
     logger.debug(f"{src_txt}")
     checksum = calculate_checksum(src_txt)
 
-    cell["metadata"]["needs_review"] = "True"
     cell["metadata"]["src_checksum"] = checksum
 
     try:
-        cell["source"] = await translate_any_chunk_async(
-            root_path,
+        translated, from_cache = await translate_any_chunk_async(
             src_txt,
             source_language,
             target_language,
             relative_path,
             vocab_list,
-            llm_caller,
-            reasoning_caller=reasoning_caller,
+            tr,
         )
+        cell["source"] = translated
+        if not from_cache:
+            cell["metadata"]["needs_review"] = "True"
+        elif existing_meta and (existing_meta.get(checksum) or {}).get("needs_review") == "True":
+            cell["metadata"]["needs_review"] = "True"
     except ChunkTranslationFailed as exc:
         cell["metadata"]["not-translated-due-to-exception"] = "True"
         cell["source"] = exc.chunk
@@ -108,16 +113,13 @@ async def translate_chunk_async(
 
 
 async def translate_any_chunk_async(
-    root_path: Path,
     contents: str,
     source_language: Language,
     target_language: Language,
     relative_path: str,
     vocab_list: VocabList | None,
-    llm_caller: LLMCaller,
-    reasoning_caller: LLMCaller | None = None,
-) -> str:
-    tr = build_translator_with_model(root_path, llm_caller, reasoning_caller)
+    tr: ChunkTranslator,
+) -> tuple[str, bool]:
     meta = Meta(
         contents,
         source_language,

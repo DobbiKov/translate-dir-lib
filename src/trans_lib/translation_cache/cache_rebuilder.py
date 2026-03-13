@@ -111,6 +111,73 @@ def _build_typst_source_map(source_path: Path) -> Dict[str, str]:
     return chunks
 
 
+def read_existing_target_metadata(
+    target_path: Path,
+    doc_type: DocumentType,
+) -> Dict[str, dict]:
+    """Returns a map of src_checksum -> metadata dict from an existing translated file.
+
+    Used to preserve metadata (e.g. needs_review) from a prior translation run.
+    Returns an empty dict if the file does not exist or the doc type is unsupported.
+    """
+    if not target_path.exists():
+        return {}
+
+    readers: dict[DocumentType, callable] = {
+        DocumentType.JupyterNotebook: _read_notebook_target_metadata,
+        DocumentType.Markdown: _read_myst_target_metadata,
+        DocumentType.LaTeX: _read_latex_target_metadata,
+        DocumentType.Typst: _read_typst_target_metadata,
+    }
+    reader = readers.get(doc_type)
+    if reader is None:
+        return {}
+    try:
+        return reader(target_path)
+    except Exception:
+        logger.warning("Could not read existing target metadata from {}", target_path)
+        return {}
+
+
+def _read_notebook_target_metadata(target_path: Path) -> Dict[str, dict]:
+    nb = jupytext.read(target_path)
+    result: Dict[str, dict] = {}
+    for cell in nb.cells:
+        metadata = cell.get("metadata") or {}
+        checksum = metadata.get("src_checksum")
+        if checksum:
+            result.setdefault(checksum, metadata)
+    return result
+
+
+def _read_myst_target_metadata(target_path: Path) -> Dict[str, dict]:
+    from trans_lib.doc_translator_mod.myst_file_translator import read_chunks_with_metadata_from_myst
+    result: Dict[str, dict] = {}
+    for cell in read_chunks_with_metadata_from_myst(target_path):
+        checksum = cell.get("src_checksum")
+        if checksum:
+            result.setdefault(checksum, cell)
+    return result
+
+
+def _read_latex_target_metadata(target_path: Path) -> Dict[str, dict]:
+    result: Dict[str, dict] = {}
+    for cell in read_chunks_with_metadata_from_latex(target_path):
+        checksum = cell.get("src_checksum")
+        if checksum:
+            result.setdefault(checksum, cell)
+    return result
+
+
+def _read_typst_target_metadata(target_path: Path) -> Dict[str, dict]:
+    result: Dict[str, dict] = {}
+    for cell in read_chunks_with_metadata_from_typst(target_path):
+        checksum = cell.get("src_checksum")
+        if checksum:
+            result.setdefault(checksum, cell)
+    return result
+
+
 def _iter_target_chunks(target_path: Path, doc_type: DocumentType) -> Iterable[Tuple[str, str]]:
     readers: dict[DocumentType, callable[[Path], Iterable[Tuple[str, str]]]] = {
         DocumentType.JupyterNotebook: _iter_notebook_target_chunks,
