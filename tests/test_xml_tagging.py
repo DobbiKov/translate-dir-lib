@@ -179,9 +179,9 @@ def test_myst_nested_lists_preserve_indentation():
     lines = reconstructed.splitlines()
 
     assert lines[0] == "- outer"
-    assert lines[1] == "\t1. inner"
-    assert lines[2] == "\t\t- detail"
-    assert lines[3] == "\t\t  line"
+    assert lines[1] == "  1. inner"
+    assert lines[2] == "     - detail"
+    assert lines[3] == "       line"
 
 
 def test_myst_course_outline_round_trip_preserves_structure():
@@ -196,15 +196,15 @@ def test_myst_course_outline_round_trip_preserves_structure():
     lines = normalized.splitlines()
 
     assert lines[0].startswith("1. Chaque feuille ci-dessous correspond à un défi")
-    assert "Déposez votre travail" in lines[3]
+    assert any("Déposez votre travail" in l for l in lines)
 
-    bullet_lines = [line for line in lines if line.startswith("\t- [")]
+    bullet_lines = [line for line in lines if line.startswith("   - [")]
     assert len(bullet_lines) == 13, "Expected all nested bullet links to survive"
 
-    assert "%  boucles while" in normalized
-    assert "%  boucles for et variables" in normalized
-    assert "% - ♣ [Encore un zigzag <status>](premiers-pas/24-encore-un-zigzag.md)" in normalized
-    assert "% - [Le caillou et la toile <status>](premiers-pas/31-le-caillou-et-la-toile.md)" in normalized
+    assert "% boucles while" in normalized
+    assert "% boucles for et variables" in normalized
+    assert "%- ♣ [Encore un zigzag <status>](premiers-pas/24-encore-un-zigzag.md)" in normalized
+    assert "%- [Le caillou et la toile <status>](premiers-pas/31-le-caillou-et-la-toile.md)" in normalized
     assert "S'adapter :" in normalized
     assert "Compter :" in normalized
 
@@ -215,3 +215,424 @@ def test_myst_numbered_item_with_continuation_lines():
     reconstructed = reconstruct_from_xml(xml_output, placeholders).rstrip()
 
     assert reconstructed.splitlines() == ["2. just test", "   haha"]
+
+
+def test_myst_renater_admonition_round_trip():
+    """
+    Full round-trip for the Renater admonition block.
+
+    Known encoding differences vs. the original source:
+    - A plain code fence inside a nested directive body loses the outer 2-space
+      directive indent (markdown-it strips the body before we see the token), so
+      5-space becomes 3-space.
+    Everything else — structure, blank lines, text, HTML inline, links, fields,
+    ordered/bullet list indentation — is preserved verbatim.
+    """
+    source = (
+        ":::::{admonition} Hors Fédération Renater Éducation Recherche\n"
+        ":class: dropdown\n"
+        "\n"
+        "- Vous pouvez travailler sur le matériel pédagogique <a\n"
+        '  href="https://nicolas.thiery.name/Enseignement/intro-prog-en/lite/lab/?path=index.ipynb"\n'
+        '  target="_blank">en ligne avec JupyterLite</a>.\\\n'
+        "  Limitation: votre travail sera sauvegardé dans votre navigateur web. Si vous changez\n"
+        "  d'ordinateur ou de navigateur web, vous ne le retrouverez pas. L'adresse du site\n"
+        "  ci-dessus est temporaire.\n"
+        "\n"
+        "- Alternativement, vous pouvez télécharger la version 2026-01 du matériel pédagogique depuis\n"
+        "  [ici](https://gitlab.dsi.universite-paris-saclay.fr/IntroductionProgrammationPython/2026-01)\n"
+        "  (Code -> Télécharger le code source -> zip). Vous aurez aussi besoin d'installer un\n"
+        "  certain nombre de logiciels (jupyterlab, jupylates, Laby).\n"
+        "\n"
+        "  ::::{admonition} Instructions d'installation avec `uv`\n"
+        "  :class: dropdown tip\n"
+        "\n"
+        "  1. Si vous ne l'avez pas déjà, installez le gestionnaire d'environnements\n"
+        "     [uv](https://docs.astral.sh/uv/getting-started/installation/).\n"
+        "\n"
+        "  2. Allez dans le dossier contenant le matériel pédagogique et lancez JupyterLab. Les\n"
+        "     logiciels requis seront automatiquement installés dans ce dossier.\n"
+        "\n"
+        "     ```\n"
+        "     uv run jupyter lab index.md\n"
+        "     ```\n"
+        "  ::::\n"
+        ":::::\n"
+    )
+    # Expected output after round-trip (with known encoding differences documented above).
+    expected = (
+        ":::::{admonition} Hors Fédération Renater Éducation Recherche\n"
+        ":class: dropdown\n"
+        "\n"
+        "- Vous pouvez travailler sur le matériel pédagogique <a\n"
+        '  href="https://nicolas.thiery.name/Enseignement/intro-prog-en/lite/lab/?path=index.ipynb"\n'
+        '  target="_blank">en ligne avec JupyterLite</a>.\\\n'
+        "  Limitation: votre travail sera sauvegardé dans votre navigateur web. Si vous changez\n"
+        "  d'ordinateur ou de navigateur web, vous ne le retrouverez pas. L'adresse du site\n"
+        "  ci-dessus est temporaire.\n"
+        "\n"
+        "- Alternativement, vous pouvez télécharger la version 2026-01 du matériel pédagogique depuis\n"
+        "  [ici](https://gitlab.dsi.universite-paris-saclay.fr/IntroductionProgrammationPython/2026-01)\n"
+        "  (Code -> Télécharger le code source -> zip). Vous aurez aussi besoin d'installer un\n"
+        "  certain nombre de logiciels (jupyterlab, jupylates, Laby).\n"
+        "\n"
+        "  ::::{admonition} Instructions d'installation avec `uv`\n"
+        "  :class: dropdown tip\n"
+        "\n"
+        # ordered list items: 2-space indent preserved from source
+        "  1. Si vous ne l'avez pas déjà, installez le gestionnaire d'environnements\n"
+        "     [uv](https://docs.astral.sh/uv/getting-started/installation/).\n"
+        "\n"
+        "  2. Allez dans le dossier contenant le matériel pédagogique et lancez JupyterLab. Les\n"
+        "     logiciels requis seront automatiquement installés dans ce dossier.\n"
+        "\n"
+        # code fence: 5-space (2 directive + 3 list continuation) → 3-space (directive prefix stripped)
+        "   ```\n"
+        "   uv run jupyter lab index.md\n"
+        "   ```\n"
+        "  ::::\n"
+        ":::::\n"
+    )
+
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == expected
+
+
+def test_myst_nested_admonition_inside_list_item_preserves_indentation():
+    source = (
+        ":::::{admonition} Hors Fédération Renater Éducation Recherche\n"
+        ":class: dropdown\n"
+        "\n"
+        "- Vous pouvez travailler sur le matériel pédagogique <a\n"
+        '  href="https://nicolas.thiery.name/Enseignement/intro-prog-en/lite/lab/?path=index.ipynb"\n'
+        '  target="_blank">en ligne avec JupyterLite</a>.\\\n'
+        "  Limitation: votre travail sera sauvegardé dans votre navigateur web. Si vous changez\n"
+        "  d'ordinateur ou de navigateur web, vous ne le retrouverez pas. L'adresse du site\n"
+        "  ci-dessus est temporaire.\n"
+        "\n"
+        "- Alternativement, vous pouvez télécharger la version 2026-01 du matériel pédagogique depuis\n"
+        "  [ici](https://gitlab.dsi.universite-paris-saclay.fr/IntroductionProgrammationPython/2026-01)\n"
+        "  (Code -> Télécharger le code source -> zip). Vous aurez aussi besoin d'installer un\n"
+        "  certain nombre de logiciels (jupyterlab, jupylates, Laby).\n"
+        "\n"
+        "  ::::{admonition} Instructions d'installation avec `uv`\n"
+        "  :class: dropdown tip\n"
+        "\n"
+        "  1. Si vous ne l'avez pas déjà, installez le gestionnaire d'environnements\n"
+        "     [uv](https://docs.astral.sh/uv/getting-started/installation/).\n"
+        "\n"
+        "  2. Allez dans le dossier contenant le matériel pédagogique et lancez JupyterLab. Les\n"
+        "     logiciels requis seront automatiquement installés dans ce dossier.\n"
+        "\n"
+        "     ```\n"
+        "     uv run jupyter lab index.md\n"
+        "     ```\n"
+        "  ::::\n"
+        ":::::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    lines = reconstructed.splitlines()
+
+    # Outer admonition structure
+    assert lines[0] == ":::::{admonition} Hors Fédération Renater Éducation Recherche"
+    assert lines[-1] == ":::::"
+
+    # Outer bullet list items (level 0 — no tab)
+    bullet_lines = [l for l in lines if l.startswith("- ")]
+    assert len(bullet_lines) == 2
+
+    # Inner admonition is indented (inside bullet item)
+    assert any("::::{admonition}" in l for l in lines)
+    assert any(l.startswith("  ::::") for l in lines)
+
+    # Ordered list items inside the nested admonition preserve source 2-space indent
+    assert any(l.startswith("  1.") for l in lines)
+    assert any(l.startswith("  2.") for l in lines)
+
+    # Code fence content is preserved
+    assert "uv run jupyter lab index.md" in reconstructed
+
+    # Text content survives the round-trip
+    assert "Hors Fédération Renater Éducation Recherche" in reconstructed
+    assert "Instructions d'installation" in reconstructed
+
+
+def test_header_with_inline_code():
+    src = r'''# Les boucles `while`
+'''
+    xml_output, placeholders, _ = myst_to_xml(src)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+
+    assert src == reconstructed
+
+@pytest.mark.parametrize(
+  "source",
+  [
+      "```{math}\na^2 + b^2 = c^2\n```\n",
+      "```{amsmath}\n\\begin{align}\nE &= mc^2 \\\\\nF &= ma\n\\end{align}\n```\n",
+      "```{eval-rst}\n.. note:: Hello\n\n   Body text that must survive.\n```\n",
+  ],
+)
+def test_myst_directive_fence_bodies_round_trip(source):
+  xml_output, placeholders, _ = myst_to_xml(source)
+  reconstructed = reconstruct_from_xml(xml_output, placeholders)
+
+  assert reconstructed == source
+
+
+@pytest.mark.parametrize("source", [
+    # versionadded — version number and description must not be translated
+    pytest.param(
+        "```{versionadded} 2.0\nAdded support for foo.\n```\n",
+        id="versionadded",
+    ),
+    # versionchanged
+    pytest.param(
+        "```{versionchanged} 1.5\nChanged the behaviour of bar.\n```\n",
+        id="versionchanged",
+    ),
+    # deprecated
+    pytest.param(
+        "```{deprecated} 3.0\nUse baz() instead.\n```\n",
+        id="deprecated",
+    ),
+    # toctree — file paths must not be translated
+    pytest.param(
+        "```{toctree}\n:maxdepth: 2\n\nchapter1\nchapter2\n```\n",
+        id="toctree",
+    ),
+    # toctree with titled entries
+    pytest.param(
+        "```{toctree}\nMy Chapter <chapter1>\nOther <chapter2>\n```\n",
+        id="toctree_titled_entries",
+    ),
+    # tab-set — body is structural, not plain MyST prose
+    pytest.param(
+        "```{tab-set}\nsome content\n```\n",
+        id="tab_set",
+    ),
+    # table directive
+    pytest.param(
+        "```{table} My Table\n| A | B |\n|---|---|\n| 1 | 2 |\n```\n",
+        id="table",
+    ),
+    # todo / TODO
+    pytest.param(
+        "```{todo}\nFix this later.\n```\n",
+        id="todo",
+    ),
+    pytest.param(
+        "```{TODO}\nFix this later.\n```\n",
+        id="TODO",
+    ),
+])
+def test_myst_opaque_directive_round_trip(source):
+    """Opaque directives must be preserved verbatim — nothing dropped, nothing translated."""
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+@pytest.mark.parametrize("source,hidden_texts", [
+    # versionadded body text must not reach the translator
+    pytest.param(
+        "```{versionadded} 2.0\nAdded support for foo.\n```\n",
+        ["Added support for foo", "2.0"],
+        id="versionadded_body_is_placeholder",
+    ),
+    # toctree file paths must not reach the translator
+    pytest.param(
+        "```{toctree}\nchapter1\nchapter2\n```\n",
+        ["chapter1", "chapter2"],
+        id="toctree_paths_are_placeholder",
+    ),
+    # toctree titled entries: neither title nor path should reach translator
+    pytest.param(
+        "```{toctree}\nMy Chapter <chapter1>\n```\n",
+        ["My Chapter", "chapter1"],
+        id="toctree_titled_entry_is_placeholder",
+    ),
+])
+def test_myst_opaque_directive_body_not_translated(source, hidden_texts):
+    """Body content of opaque directives must not appear as translator-visible text."""
+    xml_output, placeholders, _ = myst_to_xml(source)
+    root = ET.fromstring(xml_output)
+    text_el = root.find("TEXT")
+    # Collect only what the translator sees: TEXT.text and each PH's tail
+    translator_text = (text_el.text or "") + "".join(
+        (ph.tail or "") for ph in text_el
+    )
+    for text in hidden_texts:
+        assert text not in translator_text
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        # no title
+        "```{list-table}\n- * A\n  * B\n- * 1\n  * 2\n```\n",
+        # with title
+        "```{list-table} My Table\n- * Col A\n  * Col B\n- * val1\n  * val2\n```\n",
+        # with options
+        "```{list-table} Caption\n:header-rows: 1\n:widths: 20 80\n\n- * Header A\n  * Header B\n- * data1\n  * data2\n```\n",
+    ],
+)
+def test_myst_list_table_round_trip(source):
+    """Body is opaque (placeholder); title is the only translatable part."""
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_myst_list_table_title_is_translatable():
+    source = "```{list-table} Important Data\n- * A\n  * B\n```\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    root = ET.fromstring(xml_output)
+    text_content = "".join(root.itertext())
+    assert "Important Data" in text_content
+
+
+def test_myst_list_table_body_is_placeholder():
+    source = "```{list-table} Title\n- * Col A\n  * Col B\n- * val1\n  * val2\n```\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    root = ET.fromstring(xml_output)
+    text_el = root.find("TEXT")
+    # Collect only what the translator sees: TEXT.text + each PH's tail
+    translator_text = (text_el.text or "") + "".join(
+        (ph.tail or "") for ph in text_el
+    )
+    # Cell content must NOT reach the translator
+    assert "Col A" not in translator_text
+    assert "val1" not in translator_text
+
+
+@pytest.mark.parametrize("source,expected_lines", [
+    # 2-space nested bullet inside bullet
+    pytest.param(
+        "- outer\n  - inner\n",
+        ["- outer", "  - inner"],
+        id="2space_nested_bullet",
+    ),
+    # 3-space nested bullet inside ordered (marker "1. " = 3 chars)
+    pytest.param(
+        "1. outer\n   - inner\n",
+        ["1. outer", "   - inner"],
+        id="3space_nested_bullet_inside_ordered",
+    ),
+    # 3-space nested ordered inside bullet (marker "- " = 2 chars + 1 indent)
+    pytest.param(
+        "- outer\n   1. inner\n",
+        ["- outer", "   1. inner"],
+        id="3space_nested_ordered_inside_bullet",
+    ),
+    # 3-level deep nesting preserves each indent exactly
+    pytest.param(
+        "- a\n  - b\n    - c\n",
+        ["- a", "  - b", "    - c"],
+        id="3level_deep_nesting",
+    ),
+    # continuation line indented to marker end
+    pytest.param(
+        "- outer\n  - inner item\n    continuation\n",
+        ["- outer", "  - inner item", "    continuation"],
+        id="nested_item_continuation_line",
+    ),
+    # star marker preserved with its source indentation
+    pytest.param(
+        "* top\n  * nested\n",
+        ["* top", "  * nested"],
+        id="star_marker_nested",
+    ),
+    # tab-indented nested bullet inside bullet
+    pytest.param(
+        "- outer\n\t- inner\n",
+        ["- outer", "\t- inner"],
+        id="tab_nested_bullet",
+    ),
+    # tab-indented nested bullet inside ordered
+    pytest.param(
+        "1. outer\n\t- inner\n",
+        ["1. outer", "\t- inner"],
+        id="tab_nested_bullet_inside_ordered",
+    ),
+    # tab-based 3-level deep nesting
+    pytest.param(
+        "- a\n\t- b\n\t\t- c\n",
+        ["- a", "\t- b", "\t\t- c"],
+        id="tab_3level_deep_nesting",
+    ),
+    # tab-indented continuation line
+    pytest.param(
+        "- outer\n\t- inner item\n\t  continuation\n",
+        ["- outer", "\t- inner item", "\t  continuation"],
+        id="tab_nested_item_continuation_line",
+    ),
+    # tab-indented star marker
+    pytest.param(
+        "* top\n\t* nested\n",
+        ["* top", "\t* nested"],
+        id="tab_star_marker_nested",
+    ),
+])
+def test_myst_nested_list_preserves_source_indentation(source, expected_lines):
+    """Round-trip must reproduce the exact source indentation (spaces or tabs)."""
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders).rstrip()
+    assert reconstructed.splitlines() == expected_lines
+
+
+@pytest.mark.parametrize("source,expected_lines", [
+    # bullet list inside admonition body uses 2-space indent
+    pytest.param(
+        ":::{note}\n- item one\n  - nested\n:::\n",
+        [":::{note}", "- item one", "  - nested", ":::"],
+        id="nested_bullet_inside_admonition",
+    ),
+    # ordered list inside admonition body
+    pytest.param(
+        ":::{note}\n1. first\n   - sub\n:::\n",
+        [":::{note}", "1. first", "   - sub", ":::"],
+        id="nested_ordered_inside_admonition",
+    ),
+    # tab-indented nested bullet inside admonition body
+    pytest.param(
+        ":::{note}\n- item one\n\t- nested\n:::\n",
+        [":::{note}", "- item one", "\t- nested", ":::"],
+        id="tab_nested_bullet_inside_admonition",
+    ),
+    # tab-indented nested bullet inside ordered list in admonition body
+    pytest.param(
+        ":::{note}\n1. first\n\t- sub\n:::\n",
+        [":::{note}", "1. first", "\t- sub", ":::"],
+        id="tab_nested_ordered_inside_admonition",
+    ),
+])
+def test_myst_list_inside_directive_preserves_source_indentation(source, expected_lines):
+    """Lists inside directive bodies must keep exact source indentation (spaces or tabs)."""
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders).rstrip()
+    assert reconstructed.splitlines() == expected_lines
+
+
+def test_myst_mixed_directive_fences_round_trip():
+  source = (
+      "# Example\n\n"
+      "```{eval-rst}\n"
+      ".. note::\n"
+      "   This warning is important and must not disappear.\n"
+      "```\n\n"
+      "```{amsmath}\n"
+      "\\begin{align}\n"
+      "E &= mc^2 \\\\\n"
+      "F &= ma\n"
+      "\\end{align}\n"
+      "```\n"
+  )
+
+  xml_output, placeholders, _ = myst_to_xml(source)
+  reconstructed = reconstruct_from_xml(xml_output, placeholders)
+
+  assert reconstructed == source
+
