@@ -3,7 +3,7 @@ from ..prompts import prompt4
 from pathlib import Path
 
 from trans_lib.doc_translator_mod.latex_chunker import split_latex_document_into_chunks
-from trans_lib.translator_retrieval import Meta, build_translator_with_model
+from trans_lib.translator_retrieval import ChunkTranslator, Meta, build_translator_with_model
 from trans_lib.vocab_list import VocabList
 from ..enums import ChunkType, DocumentType, Language
 from ..helpers import calculate_checksum
@@ -63,12 +63,13 @@ async def translate_file_async(
     from trans_lib.translation_cache.cache_rebuilder import read_existing_target_metadata
     from trans_lib.enums import DocumentType as _DT
     existing_meta = read_existing_target_metadata(target_file_path, _DT.LaTeX)
+    tr = build_translator_with_model(root_path, llm_caller, reasoning_caller)
 
     cells = get_latex_cells(source_file_path)
 
     for i in range(len(cells)):
         cell = cells[i]
-        cells[i] = await translate_chunk_async(root_path, cell, source_language, target_language, relative_path, vocab_list, llm_caller, existing_meta, reasoning_caller=reasoning_caller)
+        cells[i] = await translate_chunk_async(root_path, cell, source_language, target_language, relative_path, vocab_list, tr, existing_meta)
 
     with open(target_file_path, "w") as f:
         f.write(compile_latex_cells(cells))
@@ -81,9 +82,8 @@ async def translate_chunk_async(
     target_language: Language,
     relative_path: str,
     vocab_list: VocabList | None,
-    llm_caller: LLMCaller,
+    tr: ChunkTranslator,
     existing_meta: dict[str, dict] | None = None,
-    reasoning_caller: LLMCaller | None = None,
 ) -> dict:
    """Handler for a latex chunk translation"""
    src_txt = cell["source"]
@@ -93,7 +93,7 @@ async def translate_chunk_async(
    cell["metadata"]["src_checksum"] = checksum
 
    try:
-       translated, from_cache = await translate_any_chunk_async(root_path, src_txt, source_language, target_language, relative_path, vocab_list, llm_caller, reasoning_caller=reasoning_caller)
+       translated, from_cache = await translate_any_chunk_async(src_txt, source_language, target_language, relative_path, vocab_list, tr)
        cell["source"] = translated
        if not from_cache:
            cell["metadata"]["needs_review"] = "True"
@@ -110,15 +110,12 @@ def get_latex_prompt_text() -> str:
     return prompt4
 
 async def translate_any_chunk_async(
-    root_path: Path,
     contents: str,
     source_language: Language,
     target_language: Language,
     relative_path: str,
     vocab_list: VocabList | None,
-    llm_caller: LLMCaller,
-    reasoning_caller: LLMCaller | None = None,
+    tr: ChunkTranslator,
 ) -> tuple[str, bool]:
-    tr = build_translator_with_model(root_path, llm_caller, reasoning_caller)
     meta = Meta(contents, source_language, target_language, DocumentType.LaTeX, ChunkType.LaTeX, vocab_list, relative_path)
     return await tr.translate_or_fetch(meta)

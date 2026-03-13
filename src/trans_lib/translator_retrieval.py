@@ -210,6 +210,7 @@ class ChunkTranslator:
         self._overload_attempts = max(1, overload_retry_attempts)
         self._overload_initial_delay = max(0.0, overload_retry_initial_delay)
         self._overload_max_delay = max(self._overload_initial_delay, overload_retry_max_delay)
+        self._session_checksums: set[str] = set()
 
     async def _run_with_caller(self, strategy: TranslateStrategy, meta: Meta, caller: LLMCaller | None) -> str:
         """Sets up the caller on the strategy and runs it with overload retry."""
@@ -230,8 +231,9 @@ class ChunkTranslator:
         src_checksum = calculate_checksum(chunk)
         cached = self._store.lookup(src_checksum, meta.src_lang, meta.tgt_lang, meta.rel_path)
         if cached is not None:
-            logger.debug(f"cache hit ({meta.src_lang} -> {meta.tgt_lang})")
-            return cached, True
+            from_cache = src_checksum not in self._session_checksums
+            logger.debug(f"cache hit ({meta.src_lang} -> {meta.tgt_lang}), from_cache={from_cache}")
+            return cached, from_cache
 
         strategy = STRATEGY_MAP[(meta.doc_type, meta.chunk_type)]
         ph_only = chunk_contains_ph_only(chunk, meta.chunk_type)
@@ -291,6 +293,7 @@ class ChunkTranslator:
             logger.trace(chunk)
             logger.trace("=======")
 
+        self._session_checksums.add(src_checksum)
         self._store.persist_pair(
             src_checksum,
             tgt_checksum,
