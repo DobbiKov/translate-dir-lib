@@ -221,16 +221,17 @@ class ChunkTranslator:
             strategy.set_call_model(f_call_model)
         return await self._translate_with_retry(strategy, meta)
 
-    async def translate_or_fetch(self, meta: Meta) -> str:
+    async def translate_or_fetch(self, meta: Meta) -> tuple[str, bool]:
+        """Returns (translated_text, from_cache) where from_cache=True means no LLM was called."""
         chunk = meta.chunk
         if not chunk.strip():
-            return chunk  # whitespace → passthrough
+            return chunk, True  # whitespace → passthrough
 
         src_checksum = calculate_checksum(chunk)
         cached = self._store.lookup(src_checksum, meta.src_lang, meta.tgt_lang, meta.rel_path)
         if cached is not None:
             logger.debug(f"cache hit ({meta.src_lang} -> {meta.tgt_lang})")
-            return cached
+            return cached, True
 
         strategy = STRATEGY_MAP[(meta.doc_type, meta.chunk_type)]
         ph_only = chunk_contains_ph_only(chunk, meta.chunk_type)
@@ -299,7 +300,7 @@ class ChunkTranslator:
             translated,
             meta.rel_path,
         )
-        return translated
+        return translated, False
 
     async def _translate_with_retry(self, strategy: TranslateStrategy, meta: Meta) -> str:
         delay = self._overload_initial_delay or 1.0

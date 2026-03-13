@@ -20,10 +20,13 @@ async def translate_notebook_async(
     relative_path: str,
     reasoning_caller: LLMCaller | None = None,
 ) -> None:
+    from trans_lib.translation_cache.cache_rebuilder import read_existing_target_metadata
+    from trans_lib.enums import DocumentType as _DT
+    existing_meta = read_existing_target_metadata(target_file_path, _DT.JupyterNotebook)
+
     nb = jupytext.read(source_file_path)
-    # TODO: read target file
     for i in range(len(nb.cells)):
-        nb.cells[i] = await translate_jupyter_cell_async(root_path, nb.cells[i], source_language, target_language, vocab_list, llm_caller, relative_path, reasoning_caller=reasoning_caller)
+        nb.cells[i] = await translate_jupyter_cell_async(root_path, nb.cells[i], source_language, target_language, vocab_list, llm_caller, relative_path, existing_meta, reasoning_caller=reasoning_caller)
     jupytext.write(nb, target_file_path)
 
 async def translate_jupyter_cell_async(
@@ -34,6 +37,7 @@ async def translate_jupyter_cell_async(
     vocab_list: VocabList | None,
     llm_caller: LLMCaller,
     relative_path: str,
+    existing_meta: dict[str, dict] | None = None,
     reasoning_caller: LLMCaller | None = None,
 ) -> dict:
     src_txt = cell["source"]
@@ -42,14 +46,21 @@ async def translate_jupyter_cell_async(
 
     cell.setdefault("metadata", {})
     cell["metadata"].setdefault("tags", [])
-    cell["metadata"]["tags"].append("needs_review")
     cell["metadata"]["src_checksum"] = checksum
 
     try:
         if cell_type == "code":
-            cell["source"] = await translate_code_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller, relative_path, reasoning_caller=reasoning_caller)
+            translated, from_cache = await translate_code_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller, relative_path, reasoning_caller=reasoning_caller)
         else:
-            cell["source"] = await translate_markdown_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller, relative_path, reasoning_caller=reasoning_caller)
+            translated, from_cache = await translate_markdown_cell_async(root_path, src_txt, source_language, target_language, vocab_list, llm_caller, relative_path, reasoning_caller=reasoning_caller)
+        cell["source"] = translated
+        tags = cell["metadata"]["tags"]
+        if not from_cache:
+            if "needs_review" not in tags:
+                tags.append("needs_review")
+        elif existing_meta and "needs_review" in (existing_meta.get(checksum) or {}).get("tags", []):
+            if "needs_review" not in tags:
+                tags.append("needs_review")
     except ChunkTranslationFailed as exc:
         tags = cell["metadata"].setdefault("tags", [])
         if "not-translated-due-to-exception" not in tags:
@@ -77,7 +88,7 @@ async def translate_markdown_cell_async(
     llm_caller: LLMCaller,
     relative_path: str,
     reasoning_caller: LLMCaller | None = None,
-) -> str:
+) -> tuple[str, bool]:
     tr = build_translator_with_model(root_path, llm_caller, reasoning_caller)
     meta = Meta(contents, source_language, target_language, DocumentType.JupyterNotebook, ChunkType.Myst, vocab_list, relative_path)
     return await tr.translate_or_fetch(meta)
@@ -92,7 +103,7 @@ async def translate_code_cell_async(
     llm_caller: LLMCaller,
     relative_path: str,
     reasoning_caller: LLMCaller | None = None,
-) -> str:
+) -> tuple[str, bool]:
     tr = build_translator_with_model(root_path, llm_caller, reasoning_caller)
     meta = CodeMeta(contents, source_language, target_language, DocumentType.JupyterNotebook, ChunkType.Code, vocab_list, relative_path, "python") # TODO: the language must be set accordingly to the cell
     return await tr.translate_or_fetch(meta)

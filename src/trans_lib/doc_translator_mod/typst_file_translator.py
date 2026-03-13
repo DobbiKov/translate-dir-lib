@@ -53,6 +53,10 @@ async def translate_file_async(
     llm_caller: LLMCaller,
     reasoning_caller: LLMCaller | None = None,
 ) -> None:
+    from trans_lib.translation_cache.cache_rebuilder import read_existing_target_metadata
+    from trans_lib.enums import DocumentType as _DT
+    existing_meta = read_existing_target_metadata(target_file_path, _DT.Typst)
+
     cells = get_typst_cells(source_file_path)
 
     for index in range(len(cells)):
@@ -65,6 +69,7 @@ async def translate_file_async(
             relative_path,
             vocab_list,
             llm_caller,
+            existing_meta,
             reasoning_caller=reasoning_caller,
         )
 
@@ -80,17 +85,17 @@ async def translate_chunk_async(
     relative_path: str,
     vocab_list: VocabList | None,
     llm_caller: LLMCaller,
+    existing_meta: dict[str, dict] | None = None,
     reasoning_caller: LLMCaller | None = None,
 ) -> dict:
     src_txt = cell["source"]
     logger.debug(f"{src_txt}")
     checksum = calculate_checksum(src_txt)
 
-    cell["metadata"]["needs_review"] = "True"
     cell["metadata"]["src_checksum"] = checksum
 
     try:
-        cell["source"] = await translate_any_chunk_async(
+        translated, from_cache = await translate_any_chunk_async(
             root_path,
             src_txt,
             source_language,
@@ -100,6 +105,11 @@ async def translate_chunk_async(
             llm_caller,
             reasoning_caller=reasoning_caller,
         )
+        cell["source"] = translated
+        if not from_cache:
+            cell["metadata"]["needs_review"] = "True"
+        elif existing_meta and (existing_meta.get(checksum) or {}).get("needs_review") == "True":
+            cell["metadata"]["needs_review"] = "True"
     except ChunkTranslationFailed as exc:
         cell["metadata"]["not-translated-due-to-exception"] = "True"
         cell["source"] = exc.chunk
@@ -116,7 +126,7 @@ async def translate_any_chunk_async(
     vocab_list: VocabList | None,
     llm_caller: LLMCaller,
     reasoning_caller: LLMCaller | None = None,
-) -> str:
+) -> tuple[str, bool]:
     tr = build_translator_with_model(root_path, llm_caller, reasoning_caller)
     meta = Meta(
         contents,
