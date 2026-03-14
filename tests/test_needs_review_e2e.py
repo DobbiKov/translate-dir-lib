@@ -6,7 +6,6 @@ from pathlib import Path
 
 import jupytext
 import nbformat
-import pytest
 
 from trans_lib.enums import Language
 from trans_lib.helpers import calculate_checksum

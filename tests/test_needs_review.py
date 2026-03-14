@@ -2,7 +2,6 @@
 not on cache hits, and is preserved from an existing translated file."""
 
 import asyncio
-from pathlib import Path
 
 from trans_lib.enums import Language, ChunkType, DocumentType
 from trans_lib.helpers import calculate_checksum
