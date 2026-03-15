@@ -1,5 +1,6 @@
 import asyncio
 import os
+from pathlib import Path
 
 from google import genai
 from google.genai import types as g_types
@@ -26,6 +27,27 @@ try:
     LLM_REASONING_API_KEY = os.getenv("LLM_REASONING_API_KEY") or LLM_API_KEY
 except Exception as e:
     logger.error(f"Error configuring LLM api key: {e}")
+
+def _sanitize_invalid_ssl_env_paths() -> None:
+    """
+    Removes invalid SSL certificate env vars that break google-genai client
+    initialization and can trigger noisy async cleanup exceptions.
+    """
+    for env_var in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE"):
+        env_value = os.getenv(env_var)
+        if not env_value:
+            continue
+        if Path(env_value).is_file():
+            continue
+        logger.warning(
+            "{} points to a missing file ({}). Unsetting it.",
+            env_var,
+            env_value,
+        )
+        os.environ.pop(env_var, None)
+
+
+_sanitize_invalid_ssl_env_paths()
 
 
 def get_default_prompt_text() -> str:
@@ -66,10 +88,10 @@ async def _ask_gemini_model(full_prompt_message: str, model_name: str = "gemini-
     Asks the Gemini model for a translation.
     The default model_name is "gemini-2.0-flash"
     """
-    if not GOOGLE_API_KEY: # Re-check in case it wasn't set at module load
-        raise EnvironmentError("GOOGLE_API_KEY environment variable must be set for translation.")
+    if not LLM_API_KEY: # Re-check in case it wasn't set at module load
+        raise EnvironmentError("LLM_API_KEY environment variable must be set for translation.")
 
-    client = genai.Client(api_key=GOOGLE_API_KEY)
+    client = genai.Client(api_key=LLM_API_KEY)
 
     try:
         contents = g_types.Content(
@@ -159,4 +181,3 @@ async def translate_contents_async(contents: str, target_language: Language, lin
             print(f"Translated chunk {i+1}/{len(chunks)}. Waiting for {INTER_CHUNK_DELAY_SECONDS}s...")
             
     return "".join(translated_chunks)
-

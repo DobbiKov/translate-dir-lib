@@ -44,6 +44,7 @@ class DocumentType(str, enum.Enum):
     JupyterNotebook = "jupyter"
     Markdown = "markdown"
     LaTeX = "latex"
+    Typst = "typst"
     Other = "other"
 
 class ChunkType(str, enum.Enum):
@@ -53,4 +54,5 @@ class ChunkType(str, enum.Enum):
     Code = "code"
     Myst = "myst"
     LaTeX = "latex"
+    Typst = "typst"
     Other = "other"

@@ -2,6 +2,7 @@ from trans_lib.enums import ChunkType
 from trans_lib.xml_manipulator_mod.code import CodeParser
 from trans_lib.xml_manipulator_mod.latex import parse_latex
 from trans_lib.xml_manipulator_mod.myst import parse_myst
+from trans_lib.xml_manipulator_mod.typst import typst_to_xml
 from trans_lib.xml_manipulator_mod.xml import create_translation_xml
 
 def chunk_to_xml_bis(source: str, chunk_type: ChunkType) -> tuple[str, dict, bool]:
@@ -14,6 +15,9 @@ def chunk_to_xml_bis(source: str, chunk_type: ChunkType) -> tuple[str, dict, boo
             return res[0], res[1], res[2]
         case ChunkType.Myst:
             res = myst_to_xml(source)
+            return res[0], res[1], res[2]
+        case ChunkType.Typst:
+            res = typst_to_xml(source)
             return res[0], res[1], res[2]
         case _:
             raise RuntimeError("Not implemented yet")
@@ -56,3 +60,7 @@ def myst_to_xml(source: str) -> tuple[str, dict, bool]:
         return segment
     segments = [handle_segment(segment) for segment in segments]
     return create_translation_xml(segments)
+
+
+def typst_to_xml_mod(source: str) -> tuple[str, dict, bool]:
+    return typst_to_xml(source)

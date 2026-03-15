@@ -91,6 +91,9 @@ class ProjectConfig(BaseModel):
     llm_model: str = "gemini-2.0-flash"
     llm_reasoning_service: Optional[str] = None
     llm_reasoning_model: Optional[str] = None
+    typst_translatable_string_args_by_function: dict[str, list[str]] = Field(
+        default_factory=lambda: {"ex": ["info"]}
+    )
 
     @classmethod
     def new(cls, project_name: str) -> ProjectConfig:
@@ -126,6 +129,12 @@ class ProjectConfig(BaseModel):
 
     def get_llm_reasoning_model(self) -> Optional[str]:
         return self.llm_reasoning_model
+
+    def get_typst_translatable_string_args_by_function(self) -> dict[str, list[str]]:
+        return {
+            function_name: list(arg_names)
+            for function_name, arg_names in self.typst_translatable_string_args_by_function.items()
+        }
 
     def get_target_dir_path_by_lang(self, lang: Language) -> Optional[Path]:
         for lang_dir_obj in self.lang_dirs:
@@ -179,7 +188,7 @@ class ProjectConfig(BaseModel):
 
     def set_llm_service_with_model(self, service: str, model: str) -> None:
         """Set's LLM service and model"""
-        corr_service = unif_enums.Service.from_str(service)
+        unif_enums.Service.from_str(service)
         self.llm_service = service
         self.llm_model = model
 
@@ -188,6 +197,32 @@ class ProjectConfig(BaseModel):
         unif_enums.Service.from_str(service)
         self.llm_reasoning_service = service
         self.llm_reasoning_model = model
+
+    def set_typst_translatable_string_args_for_function(
+        self,
+        function_name: str,
+        arg_names: list[str],
+    ) -> None:
+        normalized_function = function_name.strip().lower()
+        if not normalized_function:
+            raise ValueError("Function name cannot be empty.")
+
+        normalized_args = sorted(
+            {
+                arg_name.strip().lower()
+                for arg_name in arg_names
+                if arg_name and arg_name.strip()
+            }
+        )
+        if not normalized_args:
+            raise ValueError("At least one argument name is required.")
+
+        self.typst_translatable_string_args_by_function[normalized_function] = normalized_args
+
+    def remove_typst_translatable_string_args_for_function(self, function_name: str) -> None:
+        normalized_function = function_name.strip().lower()
+        if normalized_function in self.typst_translatable_string_args_by_function:
+            del self.typst_translatable_string_args_by_function[normalized_function]
 
     def make_file_translatable(self, path: Path, translatable: bool) -> None:
         """Marks a file as translatable or untranslatable."""
