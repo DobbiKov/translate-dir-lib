@@ -636,3 +636,42 @@ def test_myst_mixed_directive_fences_round_trip():
 
   assert reconstructed == source
 
+
+def test_myst_definiendum_role_content_is_translatable():
+    source = "The word {definiendum}`cat` is defined here.\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    root = ET.fromstring(xml_output)
+    text_el = root.find("TEXT")
+    translator_text = (text_el.text or "") + "".join(
+        (ph.tail or "") for ph in text_el
+    )
+    assert "cat" in translator_text
+
+
+def test_myst_definiendum_role_syntax_is_placeholder():
+    source = "The word {definiendum}`cat` is defined here.\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    root = ET.fromstring(xml_output)
+    text_el = root.find("TEXT")
+    ph_texts = [ph.text or "" for ph in text_el]
+    assert any("{definiendum}`" in ph for ph in ph_texts)
+    assert any(ph == "`" for ph in ph_texts)
+
+
+def test_myst_definiendum_role_round_trip():
+    source = "The word {definiendum}`cat` is defined here.\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_myst_non_translatable_role_content_is_placeholder():
+    source = "See {term}`energy` for details.\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    root = ET.fromstring(xml_output)
+    text_el = root.find("TEXT")
+    translator_text = (text_el.text or "") + "".join(
+        (ph.tail or "") for ph in text_el
+    )
+    assert "energy" not in translator_text
+
