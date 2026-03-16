@@ -675,3 +675,33 @@ def test_myst_non_translatable_role_content_is_placeholder():
     )
     assert "energy" not in translator_text
 
+
+def test_myst_definiendum_role_with_target_both_texts_are_translatable():
+    source = "The word {definiendum}`cat <feline>` is defined here.\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    root = ET.fromstring(xml_output)
+    text_el = root.find("TEXT")
+    translator_text = (text_el.text or "") + "".join(
+        (ph.tail or "") for ph in text_el
+    )
+    assert "cat" in translator_text
+    assert "feline" in translator_text
+
+
+def test_myst_definiendum_role_with_target_syntax_is_placeholder():
+    source = "The word {definiendum}`cat <feline>` is defined here.\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    root = ET.fromstring(xml_output)
+    text_el = root.find("TEXT")
+    ph_texts = [ph.text or "" for ph in text_el]
+    assert any("{definiendum}`" in ph for ph in ph_texts)
+    assert any(ph == " <" for ph in ph_texts)
+    assert any(ph == ">`" for ph in ph_texts)
+
+
+def test_myst_definiendum_role_with_target_round_trip():
+    source = "The word {definiendum}`cat <feline>` is defined here.\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
