@@ -190,8 +190,16 @@ def _render_inline_node(node: SyntaxTreeNode, out: Chunk, softbreak_indent: str 
             name = node.meta.get('name', '') if node.meta else ''
             if name in TRANSLATABLE_ROLES:
                 out.append(('placeholder', f'{{{name}}}`'))
-                out.append(('text', node.content))
-                out.append(('placeholder', '`'))
+                content = node.content
+                if content.endswith('>') and ' <' in content:
+                    display, _, target = content[:-1].rpartition(' <')
+                    out.append(('text', display))
+                    out.append(('placeholder', ' <'))
+                    out.append(('text', target))
+                    out.append(('placeholder', '>`'))
+                else:
+                    out.append(('text', content))
+                    out.append(('placeholder', '`'))
             else:
                 out.append(('placeholder', f'{{{name}}}`{node.content}`'))
 
