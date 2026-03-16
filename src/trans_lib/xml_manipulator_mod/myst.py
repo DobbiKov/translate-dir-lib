@@ -61,6 +61,12 @@ _DIRECTIVES_TRANSLATABLE_TITLE = {
     "{aside}", "{sidebar}", "{topic}", "{dropdown}",
 }
 
+# Roles whose content is translatable human-readable text.
+# All other roles are emitted verbatim as placeholders.
+TRANSLATABLE_ROLES = {
+    "definiendum",
+}
+
 # Directives whose body is MyST and should be parsed recursively.
 # Opaque-body directives ({eval-rst}, {math}, {amsmath}, {toctree}, {list-table},
 # {versionadded}, etc.) must NOT appear here — their content is RST / LaTeX /
@@ -182,7 +188,12 @@ def _render_inline_node(node: SyntaxTreeNode, out: Chunk, softbreak_indent: str 
 
         case "myst_role":
             name = node.meta.get('name', '') if node.meta else ''
-            out.append(('placeholder', f'{{{name}}}`{node.content}`'))
+            if name in TRANSLATABLE_ROLES:
+                out.append(('placeholder', f'{{{name}}}`'))
+                out.append(('text', node.content))
+                out.append(('placeholder', '`'))
+            else:
+                out.append(('placeholder', f'{{{name}}}`{node.content}`'))
 
         case "footnote_ref":
             label = node.meta.get('label', '') if node.meta else ''
