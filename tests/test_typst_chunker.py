@@ -38,3 +38,23 @@ def test_long_section_does_not_emit_standalone_inline_math_chunk() -> None:
     chunks = split_typst_document_into_chunks(source)
 
     assert not any(chunk["content"] == "$x+y$" for chunk in chunks)
+
+
+def test_long_section_does_not_split_hash_function_command_with_body() -> None:
+    command = '#figure(caption: [A caption])[Body text]'
+    source = ("w " * 990) + command + "\n" + ("tail " * 80)
+
+    chunks = split_typst_document_into_chunks(source)
+
+    assert len(chunks) >= 2
+    assert any(command in chunk["content"] for chunk in chunks)
+
+
+def test_long_section_does_not_split_show_rule_command() -> None:
+    command = "#show heading: set text(fill: red)"
+    source = ("w " * 990) + command + "\nHello world\n" + ("tail " * 80)
+
+    chunks = split_typst_document_into_chunks(source)
+
+    assert len(chunks) >= 2
+    assert any(command in chunk["content"] for chunk in chunks)
