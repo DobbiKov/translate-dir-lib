@@ -212,6 +212,20 @@ def _complete_section_chunks(
 ) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
 
+    def _chunk_from_elems(elems: list[dict[str, Any]]) -> dict[str, Any]:
+        content = "".join(elem["content"] for elem in elems if elem.get("content"))
+        if not elems:
+            return {"type": "SECTION", "byte_range": (0, 0), "content": content}
+
+        start_byte = elems[0]["byte_range"][0]
+        end_byte = elems[-1]["byte_range"][1]
+        first_type = elems[0]["type"]
+        return {
+            "type": first_type,
+            "byte_range": (start_byte, end_byte),
+            "content": content,
+        }
+
     def _split_long_text(long_text: str) -> list[str]:
         if not long_text:
             return []
@@ -240,64 +254,60 @@ def _complete_section_chunks(
 
         return [piece for piece in pieces if piece]
 
-    def _split_section_by_paragraphs(content: str) -> list[str]:
-        if len(content) <= max_chars_num:
-            return [content] if content else []
+    for section in section_chunks:
+        section_content = section.get("content", "")
+        section_elems = section.get("elems") or []
 
-        paragraph_sep = re.compile(r"\n\s*\n+")
-        paragraph_units: list[str] = []
-        start = 0
-        for match in paragraph_sep.finditer(content):
-            end = match.end()
-            paragraph_units.append(content[start:end])
-            start = end
-        if start < len(content):
-            paragraph_units.append(content[start:])
+        if len(section_content) > max_chars_num and section_elems:
+            current_elems: list[dict[str, Any]] = []
+            current_len = 0
 
-        packed: list[str] = []
-        current = ""
-        for unit in paragraph_units:
-            if not current:
-                if len(unit) <= max_chars_num:
-                    current = unit
-                else:
-                    packed.extend(_split_long_text(unit))
-                continue
+            for elem in section_elems:
+                elem_content = elem.get("content", "")
+                if not elem_content:
+                    continue
 
-            if len(current) + len(unit) <= max_chars_num:
-                current += unit
-                continue
+                elem_len = len(elem_content)
 
-            packed.append(current)
-            if len(unit) <= max_chars_num:
-                current = unit
-            else:
-                packed.extend(_split_long_text(unit))
-                current = ""
+                # Keep AST-derived units atomic even when they exceed the soft size limit.
+                if elem_len > max_chars_num:
+                    if current_elems:
+                        result.append(_chunk_from_elems(current_elems))
+                        current_elems = []
+                        current_len = 0
+                    result.append(_chunk_from_elems([elem]))
+                    continue
 
-        if current:
-            packed.append(current)
+                if current_elems and current_len + elem_len > max_chars_num:
+                    result.append(_chunk_from_elems(current_elems))
+                    current_elems = [elem]
+                    current_len = elem_len
+                    continue
 
-        return [piece for piece in packed if piece]
+                current_elems.append(elem)
+                current_len += elem_len
 
-    for chunk in section_chunks:
-        if len(chunk["content"]) > max_chars_num:
-            for piece in _split_section_by_paragraphs(chunk["content"]):
+            if current_elems:
+                result.append(_chunk_from_elems(current_elems))
+            continue
+
+        if len(section_content) > max_chars_num:
+            for piece in _split_long_text(section_content):
                 result.append(
                     {
-                        "type": chunk["elems"][0]["type"] if chunk["elems"] else "SECTION",
-                        "byte_range": chunk["byte_range"],
+                        "type": section_elems[0]["type"] if section_elems else "SECTION",
+                        "byte_range": section.get("byte_range"),
                         "content": piece,
                     }
                 )
             continue
 
-        first_type = chunk["elems"][0]["type"] if chunk["elems"] else "SECTION"
+        first_type = section_elems[0]["type"] if section_elems else "SECTION"
         result.append(
             {
                 "type": first_type,
-                "byte_range": chunk["byte_range"],
-                "content": chunk["content"],
+                "byte_range": section.get("byte_range"),
+                "content": section_content,
             }
         )
 
