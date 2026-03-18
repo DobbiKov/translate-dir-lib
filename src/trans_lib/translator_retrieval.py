@@ -1,4 +1,5 @@
 import asyncio
+import re
 from dataclasses import dataclass
 from typing import Callable
 import xml.etree.ElementTree as ET
@@ -11,6 +12,7 @@ from trans_lib.translator import finalize_prompt, finalize_xml_prompt, _prepare_
 from trans_lib.vocab_list import VocabList
 from trans_lib.xml_manipulator_mod.xml import reconstruct_from_xml
 from trans_lib.xml_manipulator_mod.mod import chunk_contains_ph_only, chunk_to_xml, chunk_to_xml_with_placeholders, code_to_xml
+from trans_lib.xml_manipulator_mod.typst import parse_typst
 from trans_lib.prompts import xml_translation_prompt
 from trans_lib.translator import _ask_gemini_model
 from trans_lib.prompts import prompt4, xml_with_previous_translation_prompt
@@ -27,6 +29,110 @@ except ImportError:  # pragma: no cover - unified_model_caller may not expose th
 
 def is_whitespace(text: str) -> bool:
     return not text or text.isspace()
+
+
+TYPST_INTERNAL_SUBCHUNK_MAX_CHARS = 2000
+
+
+def _split_long_text_by_boundary(long_text: str, max_chars_num: int) -> list[str]:
+    """Split an oversized plain-text fragment near natural boundaries.
+
+    Preference order for split points: paragraph break, newline, sentence space,
+    then generic whitespace; if none exists, perform a hard cut at max length.
+    """
+    if not long_text:
+        return []
+    if len(long_text) <= max_chars_num:
+        return [long_text]
+
+    min_split = max(1, int(max_chars_num * 0.6))
+    boundary = re.compile(r"\n\s*\n+|\n|(?<=\.)\s+|\s+")
+
+    pieces: list[str] = []
+    rest = long_text
+    while len(rest) > max_chars_num:
+        candidate = 0
+        for match in boundary.finditer(rest[: max_chars_num + 1]):
+            split_idx = match.end()
+            if split_idx >= min_split:
+                candidate = split_idx
+        if candidate == 0:
+            candidate = max_chars_num
+        pieces.append(rest[:candidate])
+        rest = rest[candidate:]
+
+    if rest:
+        pieces.append(rest)
+    return [piece for piece in pieces if piece]
+
+
+def _split_typst_chunk_for_internal_translation(
+    chunk: str,
+    max_chars_num: int = TYPST_INTERNAL_SUBCHUNK_MAX_CHARS,
+) -> list[str]:
+    """Split a Typst chunk into translation subchunks while preserving syntax.
+
+    Rules:
+    - Parse the full chunk first into Typst segments (`text` vs non-text).
+    - Keep non-text segments (placeholders/syntax/math-like pieces) atomic.
+    - Allow splitting only inside oversized `text` segments.
+    - Preserve ordering and validate lossless reconstruction.
+
+    If reconstruction fails for any reason, return the original chunk as a
+    single element to disable subchunking safely.
+    """
+    segments = parse_typst(chunk)
+    if not segments:
+        return [chunk]
+
+    chunk_parts: list[str] = []
+    current_parts: list[str] = []
+    current_len = 0
+
+    def flush_current() -> None:
+        nonlocal current_parts, current_len
+        if not current_parts:
+            return
+        chunk_parts.append("".join(current_parts))
+        current_parts = []
+        current_len = 0
+
+    for seg_type, seg_content in segments:
+        if not seg_content:
+            continue
+
+        if len(seg_content) <= max_chars_num:
+            if current_parts and current_len + len(seg_content) > max_chars_num:
+                flush_current()
+            current_parts.append(seg_content)
+            current_len += len(seg_content)
+            continue
+
+        # Placeholder segments stay atomic to preserve syntax.
+        if seg_type != "text":
+            flush_current()
+            chunk_parts.append(seg_content)
+            continue
+
+        text_pieces = _split_long_text_by_boundary(seg_content, max_chars_num)
+        for piece in text_pieces:
+            if current_parts and current_len + len(piece) > max_chars_num:
+                flush_current()
+            current_parts.append(piece)
+            current_len += len(piece)
+            if current_len >= max_chars_num:
+                flush_current()
+
+    flush_current()
+
+    if not chunk_parts:
+        return [chunk]
+
+    reconstructed = "".join(chunk_parts)
+    if reconstructed != chunk:
+        return [chunk]
+
+    return chunk_parts
 
 @dataclass
 class Meta:
@@ -211,6 +317,44 @@ class ChunkTranslator:
         self._overload_max_delay = max(self._overload_initial_delay, overload_retry_max_delay)
         self._session_checksums: set[str] = set()
 
+    async def _translate_oversized_typst_chunk_async(
+        self,
+        meta: Meta,
+    ) -> tuple[str, bool]:
+        """Translate one oversized Typst chunk through internal subchunks.
+
+        Subchunks are translated recursively via `translate_or_fetch`, so normal
+        placeholder-only short-circuit and cache behavior still apply.
+
+        Returns:
+        - reconstructed translated full chunk,
+        - `all_from_cache`: True only when every subchunk was cache-served.
+        """
+        subchunks = _split_typst_chunk_for_internal_translation(
+            meta.chunk,
+            TYPST_INTERNAL_SUBCHUNK_MAX_CHARS,
+        )
+        if len(subchunks) <= 1:
+            return meta.chunk, True
+
+        translated_parts: list[str] = []
+        all_from_cache = True
+        for subchunk in subchunks:
+            sub_meta = Meta(
+                subchunk,
+                meta.src_lang,
+                meta.tgt_lang,
+                meta.doc_type,
+                meta.chunk_type,
+                meta.vocab,
+                meta.rel_path,
+            )
+            translated_subchunk, from_cache = await self.translate_or_fetch(sub_meta)
+            translated_parts.append(translated_subchunk)
+            all_from_cache = all_from_cache and from_cache
+
+        return "".join(translated_parts), all_from_cache
+
     async def _run_with_caller(self, strategy: TranslateStrategy, meta: Meta, caller: LLMCaller | None) -> str:
         """Sets up the caller on the strategy and runs it with overload retry."""
         if caller is not None and strategy != CODE_STRATEGY:
@@ -222,7 +366,16 @@ class ChunkTranslator:
         return await self._translate_with_retry(strategy, meta)
 
     async def translate_or_fetch(self, meta: Meta) -> tuple[str, bool]:
-        """Returns (translated_text, from_cache) where from_cache=True means no LLM was called."""
+        """Translate one chunk or return it from cache.
+
+        Returns `(translated_text, from_cache)`, where:
+        - `from_cache=True` means no model call for that chunk request.
+
+        Typst-specific behavior:
+        - oversized Typst chunks are internally subchunked and translated piece
+          by piece,
+        - final persistence is still done at full original chunk granularity.
+        """
         chunk = meta.chunk
         if not chunk.strip():
             return chunk, True  # whitespace → passthrough
@@ -270,6 +423,36 @@ class ChunkTranslator:
                 meta.rel_path,
             )
             return chunk, True  # no LLM called — passthrough, never needs review
+
+        if (
+            meta.doc_type == DocumentType.Typst
+            and meta.chunk_type == ChunkType.Typst
+            and len(chunk) > TYPST_INTERNAL_SUBCHUNK_MAX_CHARS
+        ):
+            subchunks = _split_typst_chunk_for_internal_translation(
+                chunk,
+                TYPST_INTERNAL_SUBCHUNK_MAX_CHARS,
+            )
+            if len(subchunks) > 1:
+                try:
+                    translated, from_cache = await self._translate_oversized_typst_chunk_async(meta)
+                except ChunkTranslationFailed as exc:
+                    root_exc = exc.original_exception if exc.original_exception is not None else exc
+                    raise ChunkTranslationFailed(chunk, root_exc) from exc
+
+                tgt_checksum = calculate_checksum(translated)
+                if not from_cache:
+                    self._session_checksums.add(src_checksum)
+                self._store.persist_pair(
+                    src_checksum,
+                    tgt_checksum,
+                    meta.src_lang,
+                    meta.tgt_lang,
+                    chunk,
+                    translated,
+                    meta.rel_path,
+                )
+                return translated, from_cache
 
         try:
             translated = await self._run_with_caller(strategy, meta, caller)
