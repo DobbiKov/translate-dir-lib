@@ -8,6 +8,7 @@ class Language(str, enum.Enum):
     GERMAN = "German"
     SPANISH = "Spanish"
     UKRAINIAN = "Ukrainian"
+    ARMENIAN = "Armenian"
 
     def get_dir_suffix(self) -> str:
         """Returns the directory suffix for the language."""
@@ -21,6 +22,8 @@ class Language(str, enum.Enum):
             return "_es" # Note: Rust code had "_sp", common is "_es" for Spanish
         elif self == Language.UKRAINIAN:
             return "_ua"
+        elif self == Language.ARMENIAN:
+            return "_hy"
         # Should not happen with enum
         raise ValueError(f"Unknown language: {self}")
 

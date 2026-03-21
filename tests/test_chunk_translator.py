@@ -61,7 +61,14 @@ if "google" not in sys.modules:  # pragma: no cover - optional dependency stub
 from trans_lib.doc_translator_mod import myst_file_translator, latex_file_translator, notebook_file_translator
 from trans_lib.enums import ChunkType, DocumentType, Language
 from trans_lib.errors import ChunkTranslationFailed
-from trans_lib.translator_retrieval import ChunkTranslator, Meta, ModelOverloadedError
+from trans_lib.helpers import calculate_checksum
+from trans_lib.translator_retrieval import (
+    ChunkTranslator,
+    Meta,
+    ModelOverloadedError,
+    _split_typst_chunk_for_internal_translation,
+)
+from trans_lib.xml_manipulator_mod.mod import typst_to_xml_mod
 from unified_model_caller.errors import ApiCallError
 
 
@@ -102,6 +109,36 @@ class InMemoryStore:
         relative_path,
     ):
         raise NotImplementedError
+
+
+class InMemoryLookupStore(InMemoryStore):
+    def __init__(self, cached_by_checksum: dict[str, str] | None = None):
+        super().__init__()
+        self.cached_by_checksum = cached_by_checksum or {}
+
+    def lookup(self, src_checksum, src_lang, tgt_lang, relative_path):
+        return self.cached_by_checksum.get(src_checksum)
+
+    def persist_pair(
+        self,
+        src_checksum,
+        tgt_checksum,
+        src_lang,
+        tgt_lang,
+        src_text,
+        tgt_text,
+        relative_path,
+    ):
+        super().persist_pair(
+            src_checksum,
+            tgt_checksum,
+            src_lang,
+            tgt_lang,
+            src_text,
+            tgt_text,
+            relative_path,
+        )
+        self.cached_by_checksum[src_checksum] = tgt_text
 
 
 class RaisingCaller:
@@ -398,3 +435,135 @@ def test_notebook_cell_metadata_tagged_on_failure():
 
     assert result_cell["source"] == chunk
     assert "not-translated-due-to-exception" in result_cell["metadata"].get("tags", [])
+
+
+def test_oversized_typst_chunk_is_translated_via_internal_subchunks(monkeypatch):
+    store = InMemoryStore()
+    translator = ChunkTranslator(store, model_caller=None)
+
+    calls: list[str] = []
+
+    async def fake_run_with_caller(self, strategy, meta, caller):
+        calls.append(meta.chunk)
+        return f"[[{len(calls)}]]{meta.chunk}"
+
+    monkeypatch.setattr(ChunkTranslator, "_run_with_caller", fake_run_with_caller)
+
+    body = " ".join(["word"] * 1800)
+    chunk = "#figure(caption: [A])[" + body + "]\n"
+    meta = Meta(
+        chunk=chunk,
+        src_lang=Language.ENGLISH,
+        tgt_lang=Language.FRENCH,
+        doc_type=DocumentType.Typst,
+        chunk_type=ChunkType.Typst,
+        vocab=None,
+        rel_path="docs/example.typ",
+    )
+
+    translated, from_cache = asyncio.run(translator.translate_or_fetch(meta))
+
+    assert len(calls) > 1
+    assert all(len(call) <= 2000 for call in calls)
+    assert translated == "".join(f"[[{index + 1}]]{part}" for index, part in enumerate(calls))
+    assert from_cache is False
+    assert store.persisted[-1] == (chunk, translated)
+
+
+def test_oversized_typst_chunk_from_cached_subchunks_skips_model(monkeypatch):
+    body = " ".join(["word"] * 1800)
+    chunk = "#figure(caption: [A])[" + body + "]\n"
+    parts = _split_typst_chunk_for_internal_translation(chunk)
+    assert len(parts) > 1
+
+    cached_by_checksum = {
+        calculate_checksum(part): f"<cached>{part}</cached>"
+        for part in parts
+    }
+    store = InMemoryLookupStore(cached_by_checksum)
+    translator = ChunkTranslator(store, model_caller=None)
+
+    async def fail_if_called(self, strategy, meta, caller):
+        raise AssertionError("model must not be called when all subchunks are cached")
+
+    monkeypatch.setattr(ChunkTranslator, "_run_with_caller", fail_if_called)
+
+    meta = Meta(
+        chunk=chunk,
+        src_lang=Language.ENGLISH,
+        tgt_lang=Language.FRENCH,
+        doc_type=DocumentType.Typst,
+        chunk_type=ChunkType.Typst,
+        vocab=None,
+        rel_path="docs/example.typ",
+    )
+
+    translated, from_cache = asyncio.run(translator.translate_or_fetch(meta))
+
+    assert translated == "".join(cached_by_checksum[calculate_checksum(part)] for part in parts)
+    assert from_cache is True
+    assert store.persisted[-1][0] == chunk
+    assert store.persisted[-1][1] == translated
+
+
+def test_typst_internal_subchunking_keeps_raw_block_atomic_in_command_body():
+    raw = "```python\n" + "print('x')\n" * 220 + "```\n"
+    chunk = "#figure(caption: [Cap])[" + raw + "]\n" + ("tail " * 350)
+
+    parts = _split_typst_chunk_for_internal_translation(chunk)
+
+    assert len(parts) >= 3
+    assert "".join(parts) == chunk
+
+    raw_parts = [part for part in parts if "```python\n" in part]
+    assert len(raw_parts) == 1
+    assert raw_parts[0].startswith("```python\n")
+    assert raw_parts[0].endswith("```")
+    assert raw_parts[0].count("print('x')\n") == 220
+
+    _, _, ph_only = typst_to_xml_mod(raw_parts[0])
+    assert ph_only is True
+
+
+def test_typst_internal_subchunking_does_not_split_inline_math_placeholder():
+    chunk = ("alpha " * 330) + "$x + y = z$" + (" beta" * 330)
+
+    parts = _split_typst_chunk_for_internal_translation(chunk)
+
+    assert len(parts) >= 2
+    assert "".join(parts) == chunk
+    assert any("$x + y = z$" in part for part in parts)
+    assert not any("$x + y" in part and "$x + y = z$" not in part for part in parts)
+    assert not any("y = z$" in part and "$x + y = z$" not in part for part in parts)
+
+
+def test_oversized_typst_subchunking_skips_model_for_placeholder_only_subchunks(monkeypatch):
+    store = InMemoryStore()
+    translator = ChunkTranslator(store, model_caller=None)
+
+    calls: list[str] = []
+
+    async def fake_run_with_caller(self, strategy, meta, caller):
+        calls.append(meta.chunk)
+        return meta.chunk
+
+    monkeypatch.setattr(ChunkTranslator, "_run_with_caller", fake_run_with_caller)
+
+    raw = "```python\n" + "print('x')\n" * 220 + "```\n"
+    chunk = "#figure(caption: [Cap])[" + raw + "]\n" + ("tail " * 350)
+    meta = Meta(
+        chunk=chunk,
+        src_lang=Language.ENGLISH,
+        tgt_lang=Language.FRENCH,
+        doc_type=DocumentType.Typst,
+        chunk_type=ChunkType.Typst,
+        vocab=None,
+        rel_path="docs/example.typ",
+    )
+
+    translated, from_cache = asyncio.run(translator.translate_or_fetch(meta))
+
+    assert translated == chunk
+    assert from_cache is False
+    assert len(calls) == 2
+    assert all("```python\n" not in call for call in calls)
