@@ -1,10 +1,10 @@
 # Translate dir CLI
-This is CLI tool that aims to automatize the process of translation of large
-documents written using Markup languages such as:
+
+This is a CLI tool that aims to automate the translation of large documents written using markup languages such as:
 - LaTeX
 - Markdown
 - Jupyter
-- Myst
+- MyST
 - Typst
 
 This CLI tool is an implementation of [this library](https://github.com/DobbiKov/translate-dir-lib).
@@ -13,20 +13,28 @@ Learn more about the project: [main repository](https://github.com/DobbiKov/sci-
 
 Extended abstract about the project: [link](https://dobbikov.github.io/sci-trans-git/jdse-paper.pdf)
 
-
 ⚠️ This tool is in early development. Expect bugs and incomplete features.
 
 ## Table of Contents
+
 - [Why translate-dir?](#why-translate-dir)
 - [Features](#features)
 - [Citation](#citation)
 - [Getting started](#getting-started)
     - [Installation](#installation)
     - [First steps](#first-steps)
-        - [Project Setup](#project-setup)
+        - [Project setup](#project-setup)
         - [Sync & Translate](#sync--translate)
         - [Correction](#correction)
 - [Getting started for developers](#getting-started-for-developers)
+- [Command reference](#command-reference)
+    - [Global options](#global-options)
+    - [Project management](#project-management)
+    - [File management](#file-management)
+    - [Translation](#translation)
+    - [Cache management](#cache-management)
+    - [LLM configuration](#llm-configuration)
+    - [Typst configuration](#typst-configuration)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
 
@@ -38,17 +46,20 @@ preserving file structure and formatting, so you can focus on refining the
 content rather than wrestling with markup.
 
 ## Features
+
 - [x] **Project creation** – Set up a new translation workspace in seconds
 - [x] **Source & target language management** – Easily define languages for translation
 - [x] **File syncing** – Synchronize translatable and non-translatable files across languages
 - [x] **Translation cache** – Keep track of all translated content and corrections
-- [x] **AI-based translations** – Leverage Google Gemini for high-quality translations
+- [x] **AI-based translations** – Leverage Google Gemini and other LLM services for high-quality translations
 - [x] **Vocabulary support** – Fine-tune translations with custom glossaries
 - [x] **Cache-aware corrections** – Preserve manual fixes by syncing the cache from files on disk
+- [x] **Typst support** – Full support for Typst documents including configurable function argument translation
 
 ## Citation
 
 If you use this software in your research or for writing, please cite it as follows:
+
 ```bib
 @software{korotenko-sci-trans-git,
     author = {Yehor Korotenko},
@@ -62,46 +73,50 @@ If you use this software in your research or for writing, please cite it as foll
 ```
 
 ## Getting started
+
 For developers: follow [here](#getting-started-for-developers)
 
 ### Installation
+
 Requirements:
-- python 3.11 +
+- Python 3.11+
 - [uv](https://docs.astral.sh/uv/#__tabbed_1_1) (dependency manager)
-1. Ensure you have [uv](https://docs.astral.sh/uv/#__tabbed_1_1) tool installed. 
-2. Clone the repository: 
+
+1. Ensure you have [uv](https://docs.astral.sh/uv/#__tabbed_1_1) installed.
+2. Clone the repository:
     ```sh
     git clone https://github.com/DobbiKov/translate-dir-cli
     cd translate-dir-cli
     ```
-3. Install dependencies: 
+3. Install dependencies:
     ```sh
     uv sync
     ```
-
-4. Install CLI globally: 
+4. Install CLI globally:
     ```sh
     uv tool install .
     ```
-5. Run the cli:
+5. Run the CLI:
     ```
     translate-dir --help
     ```
 
 ### First steps
-This section is a guide to start using this tool as quickly as possible, the profound
-explanation can be found [here](https://github.com/DobbiKov/translate-dir-lib/blob/master/docs/tool-profound-explanation.md). It is
-very recommended to read the profound explanation in order to understand how 
-the tool operates with files and how the overall structure of the project look
-like.
+
+This section is a guide to start using this tool as quickly as possible. The profound
+explanation can be found [here](https://github.com/DobbiKov/translate-dir-lib/blob/master/docs/tool-profound-explanation.md).
+It is strongly recommended to read it to understand how the tool manages files and what
+the overall project structure looks like.
 
 #### Project Setup
+
 1. Create a root directory for your translation project and place your writing project inside it.
 
 2. Initialize the translation project:
     ```
-    translate-dir init --name <my_project>
+    translate-dir init [--name <my_project>]
     ```
+
 3. Set the source directory and its language:
     ```
     translate-dir set-source <dir_name> <language>
@@ -119,10 +134,11 @@ like.
 
     Example:
     ```
-    translate-dir set-target tgt/en english 
+    translate-dir set-target tgt/en english
     ```
 
 #### Sync & Translate
+
 5. Mark files for translation:
     ```
     translate-dir add <path_to_file>
@@ -133,42 +149,42 @@ like.
     translate-dir add analysis_notes/main.tex
     ```
 
-    To see all the translatable files use: `translate-dir list`
+    To see all translatable files: `translate-dir list`
 
-6. Sync files between source and target directory:
+6. Sync files between source and target directories:
     ```
     translate-dir sync
     ```
 
-For the translation the `LLM_API_KEY` of the service you use is required. 
+For translation, the `LLM_API_KEY` of the service you use is required for
+certain providers.
 
-Follow the next instruction to obtain the key for `gemini` models from `google`:
+Follow these instructions to obtain a key for `gemini` models from Google:
 1. Visit [this link](https://aistudio.google.com/app/apikey)
-2. 
-    - If it is your first time getting an API KEY for Gemini:
-        1. If it is your first time getting an API KEY for Gemini, then you'll see a Popup window. Click on `Get API Key`, then accept the Terms of Service.
+2.
+    - If it is your first time getting a Gemini API key:
+        1. Click on `Get API Key`, then accept the Terms of Service.
         2. Click on `Create API Key`
-        3. Copy the generated API key in the popup window
-    - If you already had your API KEY
+        3. Copy the generated key from the popup
+    - If you already have an API key:
         1. Click on `Create API Key`
         2. Create a new project or choose an existing one
         3. Click on `Create API KEY in existing project`
-        4. Copy the generated API key in the popup window
+        4. Copy the generated key from the popup
 
-This key must be set as an environment variable:
-- On linux/MacOS:
+Set the key as an environment variable:
+- On Linux/macOS:
     ```sh
     export LLM_API_KEY=<your_key>
     ```
 - On Windows (cmd):
     ```sh
-    set LLM_API_KEY=<your_key>    
+    set LLM_API_KEY=<your_key>
     ```
 - On Windows (PowerShell):
     ```sh
     $env:LLM_API_KEY="<your_key>"
     ```
-
 
 7. Translate one file:
     ```
@@ -180,128 +196,373 @@ This key must be set as an environment variable:
     translate-dir translate file analysis_notes/main.tex english
     ```
 
-8. Translate all files
+8. Translate all files:
     ```
     translate-dir translate all <target_language>
     ```
 
     Example:
     ```
-    translate-dir translate all english 
+    translate-dir translate all english
     ```
 
 ##### Vocabulary
-You can use the `--vocabulary` flag with any translation command to provide a custom translation vocabulary. This flag expects the path to a CSV file containing your vocabulary.
+
+You can use the `--vocabulary` flag with any translation command to provide a custom translation vocabulary. This flag expects the path to a CSV file containing your glossary.
 
 The CSV file should be structured as a table where:
 
-* Each column represents a language.
-* Each row lists a term in one language and its translations in the other languages.
+* Each column header is a language name (matching the project's configured language names, e.g. `English`, `French`).
+* Each row lists a term and its translations.
 
-For example `vocab.csv`:
+Example `vocab.csv`:
 ```csv
-English,    French,     German   
-apple,      pomme,      Apfel    
-computer,   ordinateur, Computer 
+English,    French,     German
+apple,      pomme,      Apfel
+computer,   ordinateur, Computer
 ```
 
 ```sh
 translate-dir translate all english --vocabulary vocab.csv
 ```
 
-This vocabulary helps the translation tool choose more accurate terms and maintain consistency across your project.
+This helps the translation tool choose more accurate terms and maintain consistency across your project.
 
+#### Correction
 
-#### Cache sync
+After automated translation, you will typically review the output and make manual edits directly in the translated files. The cache can be updated to reflect your corrections so that future translations reuse them instead of regenerating from the LLM.
 
 9. Rebuild the translation cache from the files on disk:
     ```
     translate-dir cache sync
     ```
 
-    Run this after manually editing translated files to ensure the cache matches
-    the current contents.
+    Run this after manually editing translated files. The tool reads all source and target files, computes their checksums, and updates the correspondence cache accordingly.
 
-#### Cache clear
+See the [Translation Cache section](./tool-profound-explanation.md#the-translation-cache) of the profound explanation for a detailed description of the cache structure and how `cache sync` works.
 
-Use cache clear to clean up stale cache entries or delete cache data for specific scopes.
-
-Command forms:
-```
-translate-dir cache clear --missing-chunks
-```
-```
-translate-dir cache clear --all [--lang <language>] [--file <path>] [--keyword <string>]
-```
-
-Rules and constraints:
-- Exactly one action flag is required: `--missing-chunks` or `--all`.
-- `--lang`, `--file`, and `--keyword` only work with `--all`.
-- `--keyword` cannot be combined with `--missing-chunks`.
-- Language names are case-insensitive and must match supported language names (e.g., English, French).
-- `--file` expects a project file path (the same path you translate), and must match the cached path hash.
-
-What `--missing-chunks` does:
-- Removes correspondence rows whose source chunk file is missing.
-- Removes correspondence rows where no target chunk files exist.
-- Clears target checksum fields for missing target chunk files (keeps the row if at least one target exists).
-- Deletes orphaned chunk files that are not referenced by any remaining correspondence row.
-- If the correspondence CSV is missing, all cache chunk files are deleted.
-
-What `--all` does (no keyword):
-- With `--lang`: clears only that language’s checksum field(s) and deletes that language’s chunk files in scope.
-- With `--file`: limits the deletion to that file’s path hash across all languages (or only `--lang` if set).
-- With no `--lang`/`--file`: deletes all cache chunk files and removes all correspondence rows.
-- Rows are removed only when all language fields are empty; otherwise the row is kept with cleared fields.
-
-What `--all --keyword <string>` does:
-- Deletes chunk files whose contents contain the keyword (literal substring match, case-sensitive).
-- Updates the correspondence CSV by clearing the matching checksum fields.
-- Rows are removed only if the keyword deletion clears all language fields for that row.
-- If the keyword does not match any chunk contents, the cache remains unchanged.
-
-Examples:
-```
-translate-dir cache clear --missing-chunks
-translate-dir cache clear --all --lang English
-translate-dir cache clear --all --file src_en/doc.md
-translate-dir cache clear --all --lang French --file src_en/doc.md
-translate-dir cache clear --all
-translate-dir cache clear --all --keyword glossary
-translate-dir cache clear --all --file src_en/doc.md --keyword glossary
-```
+---
 
 ## Getting started for developers
-1. Ensure you have [uv](https://docs.astral.sh/uv/#__tabbed_1_1) tool installed. 
-2. Clone the library firstly, the lib's installation guide can be found [here](https://github.com/DobbiKov/translate-dir-lib?tab=readme-ov-file#installation)
-3. Get the path to the lib's directory on your local machine (for instance: `realpath <your_dir>` on macOs)
-4. Clone this repo: 
+
+1. Ensure you have [uv](https://docs.astral.sh/uv/#__tabbed_1_1) installed.
+2. Clone the library first; the installation guide is [here](https://github.com/DobbiKov/translate-dir-lib?tab=readme-ov-file#installation).
+3. Get the path to the library directory on your local machine (e.g. `realpath <your_dir>` on macOS).
+4. Clone this repo:
     ```sh
     git clone https://github.com/DobbiKov/translate-dir-cli
     ```
-5. Enter to the directory: 
+5. Enter the directory:
     ```sh
     cd translate-dir-cli
     ```
-6. Remove current library dependency: 
+6. Remove the current library dependency:
     ```sh
     uv remove translate-dir-lib
     ```
-7. Add the local one: `uv add --editable <path_to_local_lib_dir>`
-8. Install the dependencies: 
+7. Add the local one:
+    ```sh
+    uv add --editable <path_to_local_lib_dir>
+    ```
+8. Install the dependencies:
     ```sh
     uv sync
     ```
-9. Install the CLI globally in editable mode: 
+9. Install the CLI globally in editable mode:
     ```sh
     uv pip install -e .
     ```
 
+---
+
+## Command reference
+
+All commands are run as `translate-dir <command> [options]`. Commands that operate on a project search upward from the current directory for a `.translate_dir/` folder (like `git` searches for `.git/`).
+
+### Global options
+
+| Option | Short | Description |
+|---|---|---|
+| `--verbose` | `-v` | Show diagnostic (TRACE-level) logs on stderr |
+| `--help` | | Show help for a command |
+
+### Project management
+
+#### `init`
+
+```
+translate-dir init [--name <name>] [--path <path>]
+```
+
+Initializes a new translation project in the given directory (default: current directory). Creates a `.translate_dir/config.json` file.
+
+| Option | Default | Description |
+|---|---|---|
+| `--name` | `MyTranslationProject` | Project name |
+| `--path` | `.` | Directory to initialize the project in |
+
+#### `set-source`
+
+```
+translate-dir set-source <dir_name> <language>
+```
+
+Sets (or changes) the source directory and its language. `dir_name` is relative to the project root.
+
+```
+translate-dir set-source analysis_notes_fr french
+```
+
+#### `set-target`
+
+```
+translate-dir set-target <dir_name> <language>
+```
+
+Registers an existing directory as the target for a language.
+
+```
+translate-dir set-target analysis_notes_en english
+```
+
+#### `remove-target`
+
+```
+translate-dir remove-target <language>
+```
+
+Removes a target language from the project configuration and deletes its directory from disk.
+
+```
+translate-dir remove-target english
+```
+
+#### `info`
+
+```
+translate-dir info
+```
+
+Displays a summary of the current project: name, root path, source language and directory, configured LLM, reasoning model, Typst function arg settings, and all target languages with their directories.
+
+#### `sync`
+
+```
+translate-dir sync
+```
+
+Copies all untranslatable files from the source directory to every target directory, mirroring the subdirectory structure. Run this before building the translated project (e.g. with LaTeX) to ensure all assets are present.
+
+---
+
+### File management
+
+#### `add`
+
+```
+translate-dir add <file_path> [<file_path> ...]
+```
+
+Marks one or more files in the source directory as translatable. Translatable files are processed by translation commands and skipped by `sync`.
+
+```
+translate-dir add analysis_notes_fr/main.tex analysis_notes_fr/lec1.tex
+```
+
+#### `remove`
+
+```
+translate-dir remove <file_path> [<file_path> ...]
+```
+
+Marks one or more files as untranslatable (the reverse of `add`). Untranslatable files are copied as-is by `sync` and ignored by translation commands.
+
+```
+translate-dir remove analysis_notes_fr/figures/logo.pdf
+```
+
+#### `list`
+
+```
+translate-dir list
+```
+
+Lists all files currently marked as translatable in the source directory, with paths relative to the project root.
+
+---
+
+### Translation
+
+Translation commands require `LLM_API_KEY` to be set in the environment.
+
+#### `translate file`
+
+```
+translate-dir translate file <file_path> <language> [--vocabulary <csv_path>]
+```
+
+Translates a single file to the specified target language. The file must be marked as translatable.
+
+```
+translate-dir translate file analysis_notes_fr/main.tex english
+translate-dir translate file analysis_notes_fr/main.tex english --vocabulary vocab.csv
+```
+
+#### `translate all`
+
+```
+translate-dir translate all <language> [--vocabulary <csv_path>]
+```
+
+Translates all translatable files to the specified language.
+
+```
+translate-dir translate all english
+translate-dir translate all german --vocabulary vocab.csv
+```
+
+---
+
+### Cache management
+
+The translation cache stores source-to-translated-text pairs on disk to avoid re-calling the LLM for content that has already been translated. See the [Translation Cache section](./tool-profound-explanation.md#the-translation-cache) of the profound explanation for details on the on-disk structure and algorithms.
+
+#### `cache sync`
+
+```
+translate-dir cache sync
+```
+
+Rebuilds the translation cache from on-disk source and target files. Run this after manually editing translated files to ensure the cache matches the current contents.
+
+#### `cache clear`
+
+```
+translate-dir cache clear --missing-chunks
+translate-dir cache clear --all [--lang <language>] [--file <path>] [--keyword <string>]
+```
+
+Cleans up cache entries. Exactly one action flag is required: `--missing-chunks` or `--all`.
+
+**Rules and constraints:**
+- `--lang`, `--file`, and `--keyword` only work with `--all`.
+- `--keyword` cannot be combined with `--missing-chunks`.
+- Language names are case-insensitive.
+- `--file` expects a project file path (the same path used with `translate file`).
+
+**What `--missing-chunks` does:**
+- Removes correspondence rows whose source chunk file is missing.
+- Removes correspondence rows where no target chunk files exist.
+- Clears target checksum fields for missing target chunk files (keeps the row if at least one target exists).
+- Deletes orphaned chunk files not referenced by any remaining correspondence row.
+- If the correspondence CSV is missing, all cache chunk files are deleted.
+
+**What `--all` does (no keyword):**
+- With `--lang`: clears only that language's checksum fields and deletes its chunk files in scope.
+- With `--file`: limits deletion to that file's path hash across all languages (or only `--lang` if set).
+- With no `--lang`/`--file`: deletes all cache chunk files and removes all correspondence rows.
+- Rows are removed only when all language fields are empty; otherwise the row is kept with cleared fields.
+
+**What `--all --keyword <string>` does:**
+- Deletes chunk files whose contents contain the keyword (literal substring, case-sensitive).
+- Clears the matching checksum fields in the correspondence CSV.
+- Rows are removed only if all language fields are cleared by the keyword deletion.
+- If the keyword matches nothing, the cache is unchanged.
+
+**Examples:**
+```
+translate-dir cache clear --missing-chunks
+translate-dir cache clear --all --lang English
+translate-dir cache clear --all --file analysis_notes_fr/doc.md
+translate-dir cache clear --all --lang French --file analysis_notes_fr/doc.md
+translate-dir cache clear --all
+translate-dir cache clear --all --keyword glossary
+translate-dir cache clear --all --file analysis_notes_fr/doc.md --keyword glossary
+```
+
+---
+
+### LLM configuration
+
+The default LLM is `google` / `gemini-2.0-flash`. Use `list-llms` to see all available services.
+
+#### `set-llm`
+
+```
+translate-dir set-llm <service> <model>
+```
+
+Sets the primary LLM service and model used for translation. The setting is saved to the project config.
+
+```
+translate-dir set-llm google gemini-2.0-flash
+translate-dir set-llm openai gpt-4o
+translate-dir set-llm anthropic claude-sonnet-4-5-20251001
+```
+
+#### `set-reasoning-model`
+
+```
+translate-dir set-reasoning-model <service> <model>
+```
+
+Sets an optional secondary reasoning model for more challenging translation decisions.
+
+```
+translate-dir set-reasoning-model google gemini-2.0-flash-thinking-exp
+```
+
+Reasoning models require `LLM_REASONING_API_KEY` environment variable.
+
+#### `list-llms`
+
+```
+translate-dir list-llms
+```
+
+Lists all available LLM service names that can be used with `set-llm` and `set-reasoning-model`.
+
+---
+
+### Typst configuration
+
+By default, string arguments of Typst functions (e.g. captions, labels, custom function parameters) are not translated. These commands let you mark specific argument names of specific functions as translatable.
+
+See the [Current Implementation section](./typst_parsing_analysis.md#current-implementation) of the Typst parsing analysis for a detailed explanation of how Typst translation works internally.
+
+#### `set-typst-func-args`
+
+```
+translate-dir set-typst-func-args <function_name> <arg_name> [<arg_name> ...]
+```
+
+Registers the listed argument names of a Typst function as translatable. Calling this again for the same function name replaces the previous setting.
+
+```
+translate-dir set-typst-func-args figure caption
+translate-dir set-typst-func-args ex info caption
+```
+
+#### `unset-typst-func-args`
+
+```
+translate-dir unset-typst-func-args <function_name>
+```
+
+Removes the translatable-arg configuration for a function.
+
+```
+translate-dir unset-typst-func-args ex
+```
+
+---
+
 ## Documentation
-The documentation for the library can be found [here](./docs/main.md)
+
+- Library API reference: [docs/main.md](./main.md)
+- Architecture and algorithms: [docs/tool-profound-explanation.md](./tool-profound-explanation.md)
+- Typst parsing and implementation: [docs/typst_parsing_analysis.md](./typst_parsing_analysis.md)
 
 ## Contributing
-The suggestions and pull requests are welcome. Visit the issues pages as well
-as the project's [main page](https://github.com/DobbiKov/sci-trans-git) and the
-[shared document](https://codimd.math.cnrs.fr/sUW9PQ1tTLWcR98UjLHLpw) in order
-to know the current direction and plans of the project.
+
+Suggestions and pull requests are welcome. Visit the issues pages as well as the project's [main page](https://github.com/DobbiKov/sci-trans-git) and the [shared document](https://codimd.math.cnrs.fr/sUW9PQ1tTLWcR98UjLHLpw) to know the current direction and plans.

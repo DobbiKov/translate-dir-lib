@@ -49,8 +49,10 @@ The profound explanation of the logic and algorithms of the tool can be found [h
 
 ## Documentation
 
-- The documentation for the library can be found [here](./docs/main.md)
-- The documentation for the CLI can be found [here](./docs/cli.md)
+- [Library API reference](./docs/main.md)
+- [CLI documentation](./docs/cli.md)
+- [Architecture and algorithms](./docs/tool-profound-explanation.md)
+- [Typst parsing and implementation](./docs/typst_parsing_analysis.md)
 
 ## ToDo
 

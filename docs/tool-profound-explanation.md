@@ -21,6 +21,8 @@ and ideology of the library, and explains its features.
     - [Structure](#structure)
     - [Checksum-to-text cache](#checksum-to-text-cache)
     - [Correspondence cache](#correspondence-cache)
+    - [Cache sync](#cache-sync)
+    - [Cache maintenance](#cache-maintenance)
 
 ## Main Unit: Project
 
@@ -198,9 +200,11 @@ root. This folder has the following structure:
 translate_cache/
 ├── correspondence_cache.csv
 ├── <lang_1>/
-│   └── ...
+│   └── <path_hash>/
+│       └── <chunk_checksum>
 └── <lang_2>/
-    └── ...
+    └── <path_hash>/
+        └── <chunk_checksum>
 ```
 
 and consists of two parts:
@@ -210,8 +214,12 @@ and consists of two parts:
 
 ### Checksum-to-text cache
 
-This part of the cache is stored in the `<lang_*>` folders; each file in these
+This part of the cache is stored in the `<lang_*>` folders. Each file in these
 folders holds a chunk of text and is named after the checksum of that chunk.
+Chunks are organised into subdirectories named after a **path hash** — a
+deterministic hash of the source file's project-relative path — so that all
+chunks belonging to a particular source file are grouped together.
+
 This system allows the storage of the chunk contents, source retrieval and
 updates comparison.
 
@@ -220,11 +228,13 @@ Example of such structure:
 ```
 translate_cache/
 ├── English/
-│   ├── <checksum1_en>
-│   └── <checksum2_en>
+│   └── a3f7c1/
+│       ├── <checksum1_en>
+│       └── <checksum2_en>
 ├── French/
-│   ├── <checksum1_fr>
-│   └── <checksum2_fr>
+│   └── a3f7c1/
+│       ├── <checksum1_fr>
+│       └── <checksum2_fr>
 └── correspondence_cache.csv
 ```
 
@@ -236,13 +246,62 @@ more, and states that they are the current reference translations of each other.
 
 For example, the following rows:
 ```
-English,French
-<checksum1_en>, <checksum1_fr>
-<checksum2_en>, <checksum2_fr>
+path_hash,French,English
+a3f7c1,<checksum1_fr>,<checksum1_en>
+a3f7c1,<checksum2_fr>,<checksum2_en>
 ```
-states that the chunks stored in the files `English/<checksum_1_en>` and
-`French/<checksum1_fr>` respectively are the current reference translations of 
-each other.
+states that the chunks stored in the files `French/a3f7c1/<checksum1_fr>` and
+`English/a3f7c1/<checksum1_en>` respectively are the current reference
+translations of each other.
+
+A row is removed only when all language fields in it are empty. A row with some
+missing target fields is kept — it indicates that some translations are pending
+or have been selectively cleared.
+
+### Cache sync
+
+After manually editing translated files, the correspondence cache can become
+stale — it still points to the old translated chunks even though the files on
+disk have changed. Running `cache sync` (CLI) or `sync_translation_cache`
+(library) rebuilds the correspondence cache from the current on-disk source and
+target files:
+
+1. For each translatable source file, compute the checksum of each chunk.
+2. For each target language, read the translated file and compute the checksum
+   of each chunk.
+3. Write or update correspondence rows to link each source chunk to its
+   translated counterpart.
+
+This ensures future translations reuse your manual corrections rather than
+regenerating them from the LLM.
+
+### Cache maintenance
+
+Over time the cache can accumulate stale entries — for example, when source
+files are edited and chunks change, the old chunk files and their correspondence
+rows become orphans. The `cache clear` command (CLI) or
+`clear_translation_cache_*` methods (library) handle cleanup.
+
+**Removing missing chunks** (`--missing-chunks`):
+
+Removes correspondence rows whose source chunk file is missing, rows where no
+target chunk files exist, and orphaned chunk files that are not referenced by any
+remaining correspondence row. If a row has some missing targets but at least one
+present target, it is kept with the missing fields cleared. This is the safe,
+targeted cleanup to run after editing or deleting source files.
+
+**Clearing by scope** (`--all`):
+
+Deletes cache entries for a specific language (`--lang`), a specific file
+(`--file`), or both. Without any scope, clears the entire cache. Rows are
+removed only when all their language fields are empty after the clear; otherwise
+the row is kept with the cleared fields set to empty.
+
+**Clearing by keyword** (`--all --keyword`):
+
+Deletes chunk files whose text contains the keyword as a literal substring
+(case-sensitive) and clears the corresponding fields. Useful for removing a
+specific passage from the cache without clearing everything.
 
 ## Correcting
 

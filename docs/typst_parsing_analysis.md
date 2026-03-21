@@ -2,7 +2,10 @@
 
 ## Background
 
-This library translates documents by splitting content into `('text', ...)` and `('placeholder', ...)` segments. Text segments are sent to the LLM for translation; placeholders are preserved verbatim. This report analyses how that segmentation works in LaTeX and MyST, and what is possible for Typst.
+This library translates documents by splitting content into `('text', ...)` and
+`('placeholder', ...)` segments. Text segments are sent to the LLM for
+translation; placeholders are preserved verbatim. This report analyses how that
+segmentation works in LaTeX and MyST, and what is possible for Typst.
 
 ---
 
@@ -183,6 +186,90 @@ Typst markup is simpler than LaTeX — there is no arbitrary macro redefinition.
 4. Handle `text()` calls inside math analogously to `math_text_macros` in the LaTeX parser
 5. Add `DocumentType.Typst` and `ChunkType.Typst` to `enums.py`
 6. Create a `typst_file_translator.py` and `typst_chunker.py` modelled on the LaTeX equivalents
+
+---
+
+## Current Implementation
+
+The Typst parser and chunker described above have been implemented. This section documents how they actually work, including the chunking pipeline and how oversized chunks are handled at translation time.
+
+Relevant source files:
+- `src/trans_lib/xml_manipulator_mod/typst.py` — segment parser (`parse_typst`)
+- `src/trans_lib/doc_translator_mod/typst_chunker.py` — file-level chunker
+- `src/trans_lib/translator_retrieval.py` — translation-time subchunking
+
+### File-level chunking
+
+`split_typst_document_into_chunks(source)` splits a Typst source file into
+chunks before translation:
+
+- Parses the Typst AST using `typst_syntax`.
+- Builds `simple_chunks` from AST-aware units.
+- Groups simple chunks into section groups.
+- Completes or splits large sections **by AST element boundaries**, not by raw
+  text slicing.
+
+Key property: commands and syntax units are treated as atomic units during
+repacking. A command head and body are never split across chunk boundaries. If a
+single AST unit exceeds the soft maximum of 2000 characters, it is emitted as
+one oversized chunk rather than cut in the middle.
+
+### Translation-time subchunking
+
+For Typst chunks longer than 2000 characters, the translator attempts to split
+them internally before sending to the LLM. This keeps individual LLM calls
+within a manageable size without re-running file-level chunking.
+
+**Step 1 — segment classification.** The whole chunk is parsed with `parse_typst`,
+producing an ordered list of `('text', ...)`, `('placeholder', ...)`, and
+`('math', ...)` segments. Classification happens before any boundaries are
+chosen, so no segment is ever cut by the splitting logic.
+
+**Step 2 — packing.** Segments are packed left-to-right into subchunks up to
+2000 characters. Placeholder and math segments are kept atomic — they are never
+split internally. A placeholder larger than 2000 characters becomes one oversized
+subchunk on its own. Text segments may be split if a single text run itself
+exceeds 2000 characters, using a boundary heuristic that prioritises paragraph
+breaks, then newlines, then sentence boundaries, then spaces.
+
+**Step 3 — lossless reconstruction guard.** After splitting, the algorithm
+verifies that concatenating all subchunks reproduces the original exactly. If
+not, subchunking is abandoned and the full chunk is passed to the LLM as-is.
+
+Each subchunk is then translated via the normal `translate_or_fetch` path
+(including its own cache lookup). Placeholder-only subchunks bypass the LLM
+entirely. After all subchunks are translated, the results are concatenated and
+the original full chunk → combined translation pair is persisted as one cache
+entry. If any subchunk fails, the entire operation raises
+`ChunkTranslationFailed` with the original full chunk unchanged.
+
+### Typst function string arguments
+
+By default, string arguments of user-defined Typst functions are not translated.
+The project configuration allows registering specific argument names of specific
+functions as translatable:
+
+```
+translate-dir set-typst-func-args figure caption
+translate-dir set-typst-func-args ex info caption
+```
+
+This maps onto `parse_typst` behaviour: when the parser encounters a call to a
+registered function, it recurses into the listed string arguments and yields
+their content as `'text'` segments rather than treating the whole call as a
+`'placeholder'`.
+
+### Edge cases
+
+| Case | Behaviour |
+|---|---|
+| Command near a size boundary | File-level chunker keeps command head and body together; subchunker classifies the command as a placeholder and does not split it |
+| `#show` / `#set` / `#let` | Classified as placeholder via parse segmentation; syntax-safe |
+| Inline math (`$...$`) | Classified as non-translatable segment; not split across subchunk boundaries |
+| Large raw/code block inside a command body | Becomes a single placeholder subchunk (possibly >2000); bypasses LLM |
+| Very large single text run | Split by boundary heuristics (paragraph → newline → sentence → space → hard cut) |
+| Parse/reconstruction mismatch | Subchunking abandoned; full chunk sent to LLM |
+| Partial subchunk failure | Whole chunk fails as `ChunkTranslationFailed`; original left unchanged |
 
 ---
 
