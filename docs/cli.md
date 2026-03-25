@@ -35,6 +35,7 @@ Extended abstract about the project: [link](https://dobbikov.github.io/sci-trans
         - [--use-reasoning-model](#--use-reasoning-model)
     - [Cache management](#cache-management)
     - [LLM configuration](#llm-configuration)
+        - [Custom LLM services](#custom-llm-services)
     - [Typst configuration](#typst-configuration)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
@@ -536,7 +537,52 @@ Reasoning models require the `LLM_REASONING_API_KEY` environment variable (falls
 translate-dir list-llms
 ```
 
-Lists all available LLM service names that can be used with `set-llm` and `set-reasoning-model`.
+Lists all available LLM service names (built-in and custom) that can be used with `set-llm` and `set-reasoning-model`.
+
+---
+
+### Custom LLM services
+
+You can add your own LLM service by placing a Python file in `.translate_dir/services/`. Every `.py` file in that directory (except the template) is loaded automatically whenever a project command runs.
+
+After `translate-dir init`, a ready-to-copy template is placed at:
+
+```
+.translate_dir/services/custom_service_example.py
+```
+
+You can also create a new file from scratch. The only requirement is that it contains a class that inherits from `BaseService` and implements four methods:
+
+```python
+from unified_model_caller import BaseService
+
+
+class MyService(BaseService):
+    def get_name(self) -> str:
+        # The name used in `set-llm` and `set-reasoning-model`.
+        return "my-service"
+
+    def requires_token(self) -> bool:
+        # Return True if the service needs an API key.
+        # The key is read from the LLM_API_KEY environment variable by the caller.
+        return True
+
+    def service_cooldown(self) -> int:
+        # Milliseconds to wait between calls to respect rate limits. Use 0 for no delay.
+        return 0
+
+    def call(self, model: str, prompt: str) -> str:
+        # Call the remote API and return the plain-text response.
+        raise NotImplementedError
+```
+
+Once the file is saved, run `translate-dir list-llms` to confirm the service appears, then use it like any built-in service:
+
+```
+translate-dir set-llm my-service my-model-name
+```
+
+The services directory is part of the project (inside `.translate_dir/`), so committing it makes the custom service available to everyone who clones the repository.
 
 ---
 
