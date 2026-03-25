@@ -7,4 +7,5 @@ CORRESPONDENCE_CACHE_FILENAME = "correspondence_cache.csv"
 PATH_MAP_FILENAME = "path_checksums.csv"
 
 APP_NAME = "translate_dir"
-CONF_DIR = f".{APP_NAME}" 
+CONF_DIR = f".{APP_NAME}"
+CUSTOM_SERVICES_DIR_NAME = "services"

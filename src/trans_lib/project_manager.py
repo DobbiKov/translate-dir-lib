@@ -5,6 +5,9 @@ import shutil
 from pathlib import Path
 from typing import List, Optional, TYPE_CHECKING
 
+from loguru import logger
+from unified_model_caller import LLMCaller
+
 from .enums import Language
 from .project_config_models import ProjectConfig, LangDir
 from .project_config_io import (
@@ -13,7 +16,7 @@ from .project_config_io import (
     copy_untranslatable_files_recursive
 )
 from .helpers import find_dir_upwards
-from .constants import CONF_DIR, CONFIG_FILENAME
+from .constants import CONF_DIR, CONFIG_FILENAME, CUSTOM_SERVICES_DIR_NAME
 from .errors import (
     InitProjectError, InvalidPathError, ProjectAlreadyInitializedError, SetLLMServiceError, WriteConfigError as ConfigWriteError,
     LoadProjectError, NoConfigFoundError, LoadConfigError as ConfigLoadError,
@@ -383,6 +386,19 @@ class Project:
 
 
 # --- Module-level functions for project init and load ---
+def load_custom_services(config_dir_path: Path) -> None:
+    """Loads all .py files from the services subdirectory of the project config dir."""
+    services_dir = config_dir_path / CUSTOM_SERVICES_DIR_NAME
+    if not services_dir.is_dir():
+        return
+    for service_file in sorted(services_dir.glob("*.py")):
+        try:
+            LLMCaller.add_service(str(service_file))
+            logger.debug(f"Loaded custom service from {service_file}")
+        except Exception as e:
+            logger.warning(f"Failed to load custom service '{service_file.name}': {e}")
+
+
 def init_project(project_name: str, root_dir_str: str) -> Project:
     """Initializes a new project configuration in the specified directory."""
     root_path = Path(root_dir_str)
@@ -424,6 +440,7 @@ def load_project(path_str: str) -> Project:
         project = Project(project_root, config_model)
         if project.paths_normalized_on_load:
             project.save_config()
+        load_custom_services(config_dir_path)
         print(f"Project '{project.config.name}' loaded from {project_root}")
         return project
     except ConfigLoadError as e:

@@ -290,7 +290,8 @@ def info_on_project(ctx: typer.Context):
 @app.command("list-llms")
 def list_llm_services(ctx: typer.Context):
     """Lists all available LLM services."""
-    try: # TODO add custom services before listing
+    get_project_from_context(ctx)
+    try:
         services = LLMCaller.get_services()
         if not services:
             typer.secho("No LLM services found.", fg=typer.colors.YELLOW)
