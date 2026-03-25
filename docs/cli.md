@@ -32,6 +32,7 @@ Extended abstract about the project: [link](https://dobbikov.github.io/sci-trans
     - [Project management](#project-management)
     - [File management](#file-management)
     - [Translation](#translation)
+        - [--use-reasoning-model](#--use-reasoning-model)
     - [Cache management](#cache-management)
     - [LLM configuration](#llm-configuration)
     - [Typst configuration](#typst-configuration)
@@ -398,7 +399,7 @@ Translation commands require `LLM_API_KEY` to be set in the environment.
 #### `translate file`
 
 ```
-translate-dir translate file <file_path> <language> [--vocabulary <csv_path>]
+translate-dir translate file <file_path> <language> [--vocabulary <csv_path>] [--use-reasoning-model]
 ```
 
 Translates a single file to the specified target language. The file must be marked as translatable.
@@ -406,12 +407,13 @@ Translates a single file to the specified target language. The file must be mark
 ```
 translate-dir translate file analysis_notes_fr/main.tex english
 translate-dir translate file analysis_notes_fr/main.tex english --vocabulary vocab.csv
+translate-dir translate file analysis_notes_fr/main.tex english --use-reasoning-model
 ```
 
 #### `translate all`
 
 ```
-translate-dir translate all <language> [--vocabulary <csv_path>]
+translate-dir translate all <language> [--vocabulary <csv_path>] [--use-reasoning-model]
 ```
 
 Translates all translatable files to the specified language.
@@ -419,6 +421,20 @@ Translates all translatable files to the specified language.
 ```
 translate-dir translate all english
 translate-dir translate all german --vocabulary vocab.csv
+translate-dir translate all english --use-reasoning-model
+```
+
+#### `--use-reasoning-model`
+
+Both `translate file` and `translate all` accept the `--use-reasoning-model` flag. When passed, the reasoning model configured via `set-reasoning-model` is used **instead of** the regular model for the entire translation run — the regular model is not called at all.
+
+This requires `LLM_REASONING_API_KEY` to be set (falls back to `LLM_API_KEY` if the reasoning key is not set separately).
+
+If no reasoning model has been configured, the flag falls back to the regular model.
+
+```
+translate-dir translate all english --use-reasoning-model
+translate-dir translate file analysis_notes_fr/main.tex english --use-reasoning-model
 ```
 
 ---
@@ -506,13 +522,13 @@ translate-dir set-llm anthropic claude-sonnet-4-5-20251001
 translate-dir set-reasoning-model <service> <model>
 ```
 
-Sets an optional secondary reasoning model for more challenging translation decisions.
+Sets an optional reasoning model. By default it is used alongside the regular model for more challenging translation decisions. Pass `--use-reasoning-model` to `translate file` or `translate all` to use it as the sole model instead.
 
 ```
 translate-dir set-reasoning-model google gemini-2.0-flash-thinking-exp
 ```
 
-Reasoning models require `LLM_REASONING_API_KEY` environment variable.
+Reasoning models require the `LLM_REASONING_API_KEY` environment variable (falls back to `LLM_API_KEY` if not set separately).
 
 #### `list-llms`
 
