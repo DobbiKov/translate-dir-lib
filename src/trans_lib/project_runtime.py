@@ -310,6 +310,7 @@ async def translate_single_file(
     file_path_str: str,
     target_lang: Language,
     vocab_list: VocabList | None,
+    use_reasoning_model: bool = False,
 ) -> None:
     _apply_typst_translation_settings(project)
 
@@ -355,6 +356,22 @@ async def translate_single_file(
     relative_path_str = relative_path.as_posix()
 
     print(f"Translating {file_path.name} to {target_lang.value} -> {target_file_path}...")
+    if use_reasoning_model:
+        llm_service = project.get_llm_reasoning_service() or project.get_llm_service()
+        llm_model = project.get_llm_reasoning_model() or project.get_llm_model()
+        llm_reasoning_service = None
+        llm_reasoning_model = None
+        print(f"  [model] Using reasoning model only: {llm_service}/{llm_model}")
+    else:
+        llm_service = project.get_llm_service()
+        llm_model = project.get_llm_model()
+        llm_reasoning_service = project.get_llm_reasoning_service()
+        llm_reasoning_model = project.get_llm_reasoning_model()
+        print(f"  [model] Casual: {llm_service}/{llm_model}", end="")
+        if llm_reasoning_service and llm_reasoning_model:
+            print(f"  |  Reasoning: {llm_reasoning_service}/{llm_reasoning_model}")
+        else:
+            print()
     try:
         await translate_file_to_file_async(
             project.root_path,
@@ -364,10 +381,11 @@ async def translate_single_file(
             target_lang,
             relative_path_str,
             vocab_list,
-            project.get_llm_service(),
-            project.get_llm_model(),
-            project.get_llm_reasoning_service(),
-            project.get_llm_reasoning_model(),
+            llm_service,
+            llm_model,
+            llm_reasoning_service,
+            llm_reasoning_model,
+            use_reasoning_model=use_reasoning_model,
         )
     except TranslationProcessError as e:
         raise TranslateFileError(f"Translation process failed for {file_path.name}: {e}", e)
@@ -379,6 +397,7 @@ async def translate_all_for_language(
     project: Project,
     target_lang: Language,
     vocab_list: VocabList | None,
+    use_reasoning_model: bool = False,
 ) -> None:
     translatable_files = project.get_translatable_files()
     if not translatable_files:
@@ -389,7 +408,7 @@ async def translate_all_for_language(
     for i, file_path in enumerate(translatable_files):
         print(f"--- File {i+1}/{len(translatable_files)} ---")
         try:
-            await translate_single_file(project, str(file_path), target_lang, vocab_list)
+            await translate_single_file(project, str(file_path), target_lang, vocab_list, use_reasoning_model=use_reasoning_model)
         except TranslateFileError as e:
             print(f"ERROR translating {file_path.name}: {e}. Skipping this file.")
     print(f"Finished translation to {target_lang.value}.")

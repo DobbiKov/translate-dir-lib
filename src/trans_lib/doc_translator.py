@@ -1,6 +1,5 @@
 from loguru import logger
-from unified_model_caller.core import LLMCaller
-from unified_model_caller.enums import Service
+from unified_model_caller import LLMCaller
 
 from trans_lib.doc_translator_mod import myst_file_translator
 from trans_lib.vocab_list import VocabList
@@ -30,19 +29,22 @@ async def translate_file_to_file_async(
     llm_model: str,
     llm_reasoning_service: str | None = None,
     llm_reasoning_model: str | None = None,
+    use_reasoning_model: bool = False,
 ) -> None:
     """Translates a file and writes the result to another file asynchronously."""
     doc_type = analyze_document_type(source_path)
     logger.trace(doc_type)
-    if not LLM_API_KEY and Service.from_str(llm_service).requires_token():
-        raise TranslationProcessError(f"LLM_API_KEY environment variable is not set but is required for service '{llm_service}'.", original_exception=None)
-    if llm_reasoning_service and llm_reasoning_model and not LLM_REASONING_API_KEY and Service.from_str(llm_reasoning_service).requires_token():
-        raise TranslationProcessError(f"LLM_REASONING_API_KEY (and LLM_API_KEY) environment variable is not set but is required for reasoning service '{llm_reasoning_service}'.", original_exception=None)
+    main_api_key = (LLM_REASONING_API_KEY or LLM_API_KEY) if use_reasoning_model else LLM_API_KEY
+    llm_caller = LLMCaller(llm_service, llm_model, main_api_key or "")
+    reasoning_caller = None
+    if not main_api_key and llm_caller.requires_token():
+        key_name = "LLM_REASONING_API_KEY" if use_reasoning_model else "LLM_API_KEY"
+        raise TranslationProcessError(f"{key_name} environment variable is not set but is required for service '{llm_service}'.", original_exception=None)
+    if llm_reasoning_service and llm_reasoning_model:
+        reasoning_caller = LLMCaller(llm_reasoning_service, llm_reasoning_model, LLM_REASONING_API_KEY or "")
+        if not LLM_REASONING_API_KEY and reasoning_caller.requires_token():
+            raise TranslationProcessError(f"LLM_REASONING_API_KEY (and LLM_API_KEY) environment variable is not set but is required for reasoning service '{llm_reasoning_service}'.", original_exception=None)
     try:
-        llm_caller = LLMCaller(llm_service, llm_model, LLM_API_KEY or "")
-        reasoning_caller = None
-        if llm_reasoning_service and llm_reasoning_model:
-            reasoning_caller = LLMCaller(llm_reasoning_service, llm_reasoning_model, LLM_REASONING_API_KEY or "")
         if doc_type == DocumentType.JupyterNotebook:
             logger.debug("translate jupyter")
             await translate_notebook_async(root_path, source_path, source_language, target_path, target_language, vocab_list, llm_caller, relative_path, reasoning_caller=reasoning_caller)

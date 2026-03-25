@@ -17,17 +17,15 @@ dependencies = [
     "tree-sitter-language-pack>=0.9.0",
     "typer>=0.20.0",
     "typst-syntax>=0.1.6",
-    "unified-model-caller>=0.1.8",
+    "unified-model-caller==0.2.2",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.uv.sources]
-unified-model-caller = { git = "https://github.com/DobbiKov/unified-model-caller.git" }
-
 [dependency-groups]
 dev = [
+    "build>=1.4.2",
     "pytest>=7.4.4",
 ]
 

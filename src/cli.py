@@ -7,7 +7,7 @@ import typer
 from loguru import logger
 from typing_extensions import Annotated # For Typer < 0.7 or for more complex annotations
 
-from unified_model_caller.enums import Service
+from unified_model_caller import LLMCaller
 
 from trans_lib.enums import Language
 from trans_lib.project_manager import Project, init_project, load_project
@@ -290,15 +290,14 @@ def info_on_project(ctx: typer.Context):
 @app.command("list-llms")
 def list_llm_services(ctx: typer.Context):
     """Lists all available LLM services."""
-    try:
-        services = Service.get_all_services()
+    try: # TODO add custom services before listing
+        services = LLMCaller.get_services()
         if not services:
             typer.secho("No LLM services found.", fg=typer.colors.YELLOW)
             return
         typer.secho("Available LLM services:", fg=typer.colors.BLUE)
         for service in services:
-            service_name = service.value if hasattr(service, "value") else str(service)
-            typer.echo(f"  {service_name}")
+            typer.echo(f"  {service}")
     except Exception as e:
         typer.secho(f"Error listing LLM services: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
@@ -312,13 +311,13 @@ def _read_vocab_from_file(path: Path) -> list[dict]:
         reader = csv.DictReader(f)
         return list(reader)
 
-async def _translate_file_command(project: Project, file_path_str: str, lang: Language, vocab: Path | None):
+async def _translate_file_command(project: Project, file_path_str: str, lang: Language, vocab: Path | None, use_reasoning_model: bool = False):
     try:
         vocabulary = None
         if vocab is not None:
             vocabulary = vocab_list_from_vocab_db(_read_vocab_from_file(vocab), project.get_source_langugage(), lang)
 
-        await project.translate_single_file(file_path_str, lang, vocabulary) # WARNING: remove None
+        await project.translate_single_file(file_path_str, lang, vocabulary, use_reasoning_model=use_reasoning_model) # WARNING: remove None
         typer.secho(f"File '{file_path_str}' translated to {lang.value} successfully.", fg=typer.colors.GREEN)
     except errors.TranslateFileError as e:
         typer.secho(f"Error translating file '{file_path_str}': {e}", fg=typer.colors.RED, err=True)
@@ -332,20 +331,21 @@ def translate_file_cli(
     ctx: typer.Context,
     file_path: Annotated[str, typer.Argument(help="Path to the translatable file.")],
     lang: Annotated[Language, typer.Argument(help="Target language for translation.", case_sensitive=False)],
-    vocabulary: Annotated[Path | None, typer.Option(help="A path to the csv file with the vocabulary.", case_sensitive=False)] = None
+    vocabulary: Annotated[Path | None, typer.Option(help="A path to the csv file with the vocabulary.", case_sensitive=False)] = None,
+    use_reasoning_model: Annotated[bool, typer.Option("--use-reasoning-model", help="Use the configured reasoning model instead of the regular model.")] = False,
 ):
     """Translates a single specified translatable file."""
     project = get_project_from_context(ctx)
-    asyncio.run(_translate_file_command(project, file_path, lang, vocabulary))
+    asyncio.run(_translate_file_command(project, file_path, lang, vocabulary, use_reasoning_model=use_reasoning_model))
 
 
-async def _translate_all_command(project: Project, lang: Language, vocab: Path | None):
+async def _translate_all_command(project: Project, lang: Language, vocab: Path | None, use_reasoning_model: bool = False):
     try:
         vocabulary = None
         if vocab is not None:
             vocabulary = vocab_list_from_vocab_db(_read_vocab_from_file(vocab), project.get_source_langugage(), lang)
 
-        await project.translate_all_for_language(lang, vocabulary) # WARNING: remove None
+        await project.translate_all_for_language(lang, vocabulary, use_reasoning_model=use_reasoning_model) # WARNING: remove None
         typer.secho(f"All translatable files processed for language {lang.value}.", fg=typer.colors.GREEN)
     except errors.TranslateFileError as e: # Should be caught by individual file errors mostly
         typer.secho(f"Error during 'translate all' for {lang.value}: {e}", fg=typer.colors.RED, err=True)
@@ -358,11 +358,12 @@ async def _translate_all_command(project: Project, lang: Language, vocab: Path |
 def translate_all_cli(
     ctx: typer.Context,
     lang: Annotated[Language, typer.Argument(help="Target language for translation.", case_sensitive=False)],
-    vocabulary: Annotated[Path | None, typer.Option(help="A path to the csv file with the vocabulary.", case_sensitive=False)] = None
+    vocabulary: Annotated[Path | None, typer.Option(help="A path to the csv file with the vocabulary.", case_sensitive=False)] = None,
+    use_reasoning_model: Annotated[bool, typer.Option("--use-reasoning-model", help="Use the configured reasoning model instead of the regular model.")] = False,
 ):
     """Translates all translatable files to the specified language."""
     project = get_project_from_context(ctx)
-    asyncio.run(_translate_all_command(project, lang, vocabulary))
+    asyncio.run(_translate_all_command(project, lang, vocabulary, use_reasoning_model=use_reasoning_model))
 
 
 # ============ cache app =============
