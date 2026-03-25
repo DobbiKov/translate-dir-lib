@@ -292,7 +292,7 @@ def list_llm_services(ctx: typer.Context):
     """Lists all available LLM services."""
     try:
         load_project(".")
-    except errors.LoadProjectError:
+    except errors.NoConfigFoundError:
         pass  # Not in a project — only built-in services will be listed
     try:
         services = LLMCaller.get_services()

@@ -462,7 +462,7 @@ def load_project(path_str: str) -> Project:
     
     config_dir_path = find_dir_upwards(start_path, CONF_DIR)
     if not config_dir_path:
-        raise LoadProjectError(NoConfigFoundError(f"No '{CONF_DIR}' found in or above {start_path}."))
+        raise NoConfigFoundError(f"No '{CONF_DIR}' found in or above {start_path}.")
 
     project_root = config_dir_path.parent
 
