@@ -290,7 +290,10 @@ def info_on_project(ctx: typer.Context):
 @app.command("list-llms")
 def list_llm_services(ctx: typer.Context):
     """Lists all available LLM services."""
-    get_project_from_context(ctx)
+    try:
+        load_project(".")
+    except errors.LoadProjectError:
+        pass  # Not in a project — only built-in services will be listed
     try:
         services = LLMCaller.get_services()
         if not services:

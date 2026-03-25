@@ -474,7 +474,7 @@ def load_project(path_str: str) -> Project:
         if project.paths_normalized_on_load:
             project.save_config()
         load_custom_services(config_dir_path)
-        print(f"Project '{project.config.name}' loaded from {project_root}")
+        logger.debug(f"Project '{project.config.name}' loaded from {project_root}")
         return project
     except ConfigLoadError as e:
         raise LoadProjectError(f"Failed to load project configuration: {e}", e)
