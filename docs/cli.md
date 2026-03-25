@@ -32,8 +32,10 @@ Extended abstract about the project: [link](https://dobbikov.github.io/sci-trans
     - [Project management](#project-management)
     - [File management](#file-management)
     - [Translation](#translation)
+        - [--use-reasoning-model](#--use-reasoning-model)
     - [Cache management](#cache-management)
     - [LLM configuration](#llm-configuration)
+        - [Custom LLM services](#custom-llm-services)
     - [Typst configuration](#typst-configuration)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
@@ -398,7 +400,7 @@ Translation commands require `LLM_API_KEY` to be set in the environment.
 #### `translate file`
 
 ```
-translate-dir translate file <file_path> <language> [--vocabulary <csv_path>]
+translate-dir translate file <file_path> <language> [--vocabulary <csv_path>] [--use-reasoning-model]
 ```
 
 Translates a single file to the specified target language. The file must be marked as translatable.
@@ -406,12 +408,13 @@ Translates a single file to the specified target language. The file must be mark
 ```
 translate-dir translate file analysis_notes_fr/main.tex english
 translate-dir translate file analysis_notes_fr/main.tex english --vocabulary vocab.csv
+translate-dir translate file analysis_notes_fr/main.tex english --use-reasoning-model
 ```
 
 #### `translate all`
 
 ```
-translate-dir translate all <language> [--vocabulary <csv_path>]
+translate-dir translate all <language> [--vocabulary <csv_path>] [--use-reasoning-model]
 ```
 
 Translates all translatable files to the specified language.
@@ -419,6 +422,20 @@ Translates all translatable files to the specified language.
 ```
 translate-dir translate all english
 translate-dir translate all german --vocabulary vocab.csv
+translate-dir translate all english --use-reasoning-model
+```
+
+#### `--use-reasoning-model`
+
+Both `translate file` and `translate all` accept the `--use-reasoning-model` flag. When passed, the reasoning model configured via `set-reasoning-model` is used **instead of** the regular model for the entire translation run — the regular model is not called at all.
+
+This requires `LLM_REASONING_API_KEY` to be set (falls back to `LLM_API_KEY` if the reasoning key is not set separately).
+
+If no reasoning model has been configured, the flag falls back to the regular model.
+
+```
+translate-dir translate all english --use-reasoning-model
+translate-dir translate file analysis_notes_fr/main.tex english --use-reasoning-model
 ```
 
 ---
@@ -506,13 +523,13 @@ translate-dir set-llm anthropic claude-sonnet-4-5-20251001
 translate-dir set-reasoning-model <service> <model>
 ```
 
-Sets an optional secondary reasoning model for more challenging translation decisions.
+Sets an optional reasoning model. By default it is used alongside the regular model for more challenging translation decisions. Pass `--use-reasoning-model` to `translate file` or `translate all` to use it as the sole model instead.
 
 ```
 translate-dir set-reasoning-model google gemini-2.0-flash-thinking-exp
 ```
 
-Reasoning models require `LLM_REASONING_API_KEY` environment variable.
+Reasoning models require the `LLM_REASONING_API_KEY` environment variable (falls back to `LLM_API_KEY` if not set separately).
 
 #### `list-llms`
 
@@ -520,7 +537,68 @@ Reasoning models require `LLM_REASONING_API_KEY` environment variable.
 translate-dir list-llms
 ```
 
-Lists all available LLM service names that can be used with `set-llm` and `set-reasoning-model`.
+Lists all available LLM service names (built-in and custom) that can be used with `set-llm` and `set-reasoning-model`.
+
+---
+
+### Custom LLM services
+
+You can add your own LLM service by placing a Python file in `.translate_dir/services/`. Every `.py` file in that directory (except the template) is loaded automatically whenever a project command runs.
+
+After `translate-dir init`, a ready-to-copy template is placed at:
+
+```
+.translate_dir/services/custom_service_example.py
+```
+
+You can also create a new file from scratch. The only requirement is that it contains a class that inherits from `BaseService` and implements four methods:
+
+```python
+from unified_model_caller import BaseService
+
+
+class MyService(BaseService):
+    def get_name(self) -> str:
+        # The name used in `set-llm` and `set-reasoning-model`.
+        return "my-service"
+
+    def requires_token(self) -> bool:
+        # Return True if the service needs an API key.
+        # The key is read from the LLM_API_KEY environment variable by the caller.
+        return True
+
+    def service_cooldown(self) -> int:
+        # Milliseconds to wait between calls to respect rate limits. Use 0 for no delay.
+        return 0
+
+    def call(self, model: str, prompt: str) -> str:
+        # Call the remote API and return the plain-text response.
+        raise NotImplementedError
+```
+
+Once the file is saved, run `translate-dir list-llms` to confirm the service appears, then use it like any built-in service:
+
+```
+translate-dir set-llm my-service my-model-name
+```
+
+The services directory is part of the project (inside `.translate_dir/`), so committing it makes the custom service available to everyone who clones the repository.
+
+#### External dependencies
+
+If your custom service requires a third-party package (e.g. `boto3`, `mistralai`), you need to inject it into the `translate-dir` tool environment:
+
+```sh
+uv tool inject translate-dir <package-name>
+```
+
+Example:
+
+```sh
+uv tool inject translate-dir boto3
+```
+
+If the package is not installed, the service file will fail to load and a warning will be printed — no other commands are affected.
 
 ---
 
