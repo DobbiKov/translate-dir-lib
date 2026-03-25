@@ -361,18 +361,18 @@ class Project:
     def get_llm_reasoning_model(self) -> Optional[str]:
         return self.config.get_llm_reasoning_model()
 
-    async def translate_single_file(self, file_path_str: str, target_lang: Language, vocab_list: VocabList | None) -> None:
+    async def translate_single_file(self, file_path_str: str, target_lang: Language, vocab_list: VocabList | None, use_reasoning_model: bool = False) -> None:
         """Translates a single specified file to the target language."""
         from . import project_runtime as _project_runtime
 
-        await _project_runtime.translate_single_file(self, file_path_str, target_lang, vocab_list)
+        await _project_runtime.translate_single_file(self, file_path_str, target_lang, vocab_list, use_reasoning_model=use_reasoning_model)
 
 
-    async def translate_all_for_language(self, target_lang: Language, vocab_list: VocabList | None) -> None:
+    async def translate_all_for_language(self, target_lang: Language, vocab_list: VocabList | None, use_reasoning_model: bool = False) -> None:
         """Translates all translatable files to the specified target language."""
         from . import project_runtime as _project_runtime
 
-        await _project_runtime.translate_all_for_language(self, target_lang, vocab_list)
+        await _project_runtime.translate_all_for_language(self, target_lang, vocab_list, use_reasoning_model=use_reasoning_model)
 
 # TODO: remove this, as it is diff, it must be implemented in the translation, after XML tagging
 # DEBUG!
