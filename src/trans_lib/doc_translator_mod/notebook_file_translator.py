@@ -1,4 +1,4 @@
-from unified_model_caller.core import LLMCaller
+from unified_model_caller import LLMCaller
 from ..prompts import prompt_jupyter_code, prompt_jupyter_md 
 from pathlib import Path
 

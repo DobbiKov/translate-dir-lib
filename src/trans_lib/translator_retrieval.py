@@ -16,7 +16,7 @@ from trans_lib.xml_manipulator_mod.typst import parse_typst
 from trans_lib.prompts import xml_translation_prompt
 from trans_lib.translator import _ask_gemini_model
 from trans_lib.prompts import prompt4, xml_with_previous_translation_prompt
-from unified_model_caller.core import LLMCaller
+from unified_model_caller import LLMCaller
 from unified_model_caller.errors import ApiCallError
 from trans_lib.errors import ChunkTranslationFailed
 try:

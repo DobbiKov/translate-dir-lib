@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 
 from loguru import logger
-from unified_model_caller.core import LLMCaller
+from unified_model_caller import LLMCaller
 from trans_lib.doc_translator_mod.myst_chunker import split_myst_document_into_chunks
 from trans_lib.enums import ChunkType, DocumentType, Language
 from trans_lib.helpers import calculate_checksum

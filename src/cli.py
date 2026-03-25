@@ -7,7 +7,7 @@ import typer
 from loguru import logger
 from typing_extensions import Annotated # For Typer < 0.7 or for more complex annotations
 
-from unified_model_caller.enums import Service
+from unified_model_caller import LLMCaller
 
 from trans_lib.enums import Language
 from trans_lib.project_manager import Project, init_project, load_project
@@ -290,15 +290,14 @@ def info_on_project(ctx: typer.Context):
 @app.command("list-llms")
 def list_llm_services(ctx: typer.Context):
     """Lists all available LLM services."""
-    try:
-        services = Service.get_all_services()
+    try: # TODO add custom services before listing
+        services = LLMCaller.get_services()
         if not services:
             typer.secho("No LLM services found.", fg=typer.colors.YELLOW)
             return
         typer.secho("Available LLM services:", fg=typer.colors.BLUE)
         for service in services:
-            service_name = service.value if hasattr(service, "value") else str(service)
-            typer.echo(f"  {service_name}")
+            typer.echo(f"  {service}")
     except Exception as e:
         typer.secho(f"Error listing LLM services: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)

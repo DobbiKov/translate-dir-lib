@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import List, Optional, Callable
-from unified_model_caller import enums as unif_enums
+from unified_model_caller import LLMCaller
 
 from pydantic import BaseModel, Field, ConfigDict
 from loguru import logger
@@ -188,13 +188,13 @@ class ProjectConfig(BaseModel):
 
     def set_llm_service_with_model(self, service: str, model: str) -> None:
         """Set's LLM service and model"""
-        unif_enums.Service.from_str(service)
+        # TODO: verify that service is availible but add custom services beforehand
         self.llm_service = service
         self.llm_model = model
 
     def set_llm_reasoning_service_with_model(self, service: str, model: str) -> None:
         """Sets the reasoning LLM service and model."""
-        unif_enums.Service.from_str(service)
+        # TODO: verify that service is availible but add custom services beforehand
         self.llm_reasoning_service = service
         self.llm_reasoning_model = model
 
