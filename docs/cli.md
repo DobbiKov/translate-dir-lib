@@ -584,6 +584,22 @@ translate-dir set-llm my-service my-model-name
 
 The services directory is part of the project (inside `.translate_dir/`), so committing it makes the custom service available to everyone who clones the repository.
 
+#### External dependencies
+
+If your custom service requires a third-party package (e.g. `boto3`, `mistralai`), you need to inject it into the `translate-dir` tool environment:
+
+```sh
+uv tool inject translate-dir <package-name>
+```
+
+Example:
+
+```sh
+uv tool inject translate-dir boto3
+```
+
+If the package is not installed, the service file will fail to load and a warning will be printed — no other commands are affected.
+
 ---
 
 ### Typst configuration
