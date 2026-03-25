@@ -16,7 +16,7 @@ from .project_config_io import (
     copy_untranslatable_files_recursive
 )
 from .helpers import find_dir_upwards
-from .constants import CONF_DIR, CONFIG_FILENAME, CUSTOM_SERVICES_DIR_NAME
+from .constants import CONF_DIR, CONFIG_FILENAME, CUSTOM_SERVICES_DIR_NAME, CUSTOM_SERVICES_TEMPLATE_FILENAME
 from .errors import (
     InitProjectError, InvalidPathError, ProjectAlreadyInitializedError, SetLLMServiceError, WriteConfigError as ConfigWriteError,
     LoadProjectError, NoConfigFoundError, LoadConfigError as ConfigLoadError,
@@ -386,12 +386,44 @@ class Project:
 
 
 # --- Module-level functions for project init and load ---
+_CUSTOM_SERVICE_TEMPLATE = '''\
+from unified_model_caller import BaseService
+
+
+class CustomService(BaseService):
+    def get_name(self) -> str:
+        # The name used in `translate-dir set-llm` and `translate-dir set-reasoning-model`.
+        return "my-service"
+
+    def requires_token(self) -> bool:
+        # Return True if the service needs an API key (read from the environment by the caller).
+        return True
+
+    def service_cooldown(self) -> int:
+        # Milliseconds to wait between calls to respect rate limits. Use 0 for no delay.
+        return 0
+
+    def call(self, model: str, prompt: str) -> str:
+        # Call the remote API and return the plain-text response.
+        raise NotImplementedError
+'''
+
+
+def _write_custom_services_template(config_dir_path: Path) -> None:
+    services_dir = config_dir_path / CUSTOM_SERVICES_DIR_NAME
+    services_dir.mkdir(exist_ok=True)
+    template_path = services_dir / CUSTOM_SERVICES_TEMPLATE_FILENAME
+    template_path.write_text(_CUSTOM_SERVICE_TEMPLATE, encoding="utf-8")
+
+
 def load_custom_services(config_dir_path: Path) -> None:
     """Loads all .py files from the services subdirectory of the project config dir."""
     services_dir = config_dir_path / CUSTOM_SERVICES_DIR_NAME
     if not services_dir.is_dir():
         return
     for service_file in sorted(services_dir.glob("*.py")):
+        if service_file.name == CUSTOM_SERVICES_TEMPLATE_FILENAME:
+            continue
         try:
             LLMCaller.add_service(str(service_file))
             logger.debug(f"Loaded custom service from {service_file}")
@@ -415,6 +447,7 @@ def init_project(project_name: str, root_dir_str: str) -> Project:
         # Create a Project instance with an empty config, then save it.
         project = Project._create_new_for_init(project_name, abs_root_path)
         project.save_config() # This writes the initial trans_conf.json
+        _write_custom_services_template(project.config_dir_path)
         print(f"{CONF_DIR} directory has been successfully created!")
         return project
     except ConfigWriteError as e:
