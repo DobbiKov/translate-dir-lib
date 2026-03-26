@@ -23,6 +23,10 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
 [dependency-groups]
 dev = [
     "build>=1.4.2",
