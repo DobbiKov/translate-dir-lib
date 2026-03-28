@@ -718,3 +718,40 @@ def test_myst_tight_list_followed_by_paragraph_preserves_blank_line():
     reconstructed = reconstruct_from_xml(xml_output, placeholders)
     assert reconstructed == source
 
+def test_myst_admonition_option_without_blank_line_body_is_translatable():
+    """Directive body paragraph directly after an option (no blank line) must be translatable."""
+    source = (
+        ":::{admonition} Indication : Quelques éléments de Python\n"
+        ":class: hint\n"
+        "Tant que la condition est vraie, répéter les instructions :\n"
+        "\n"
+        "Bonjour à tous.\n"
+        ":::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    root = ET.fromstring(xml_output)
+    text_el = root.find("TEXT")
+    translator_text = (text_el.text or "") + "".join((ph.tail or "") for ph in text_el)
+
+    assert "Tant que la condition est vraie" in translator_text
+    assert "Bonjour à tous" in translator_text
+
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_myst_admonition_option_without_blank_line_option_is_placeholder():
+    """The ':class: hint' option line must be a placeholder, not translator-visible text."""
+    source = (
+        ":::{admonition} Note\n"
+        ":class: hint\n"
+        "Body text.\n"
+        ":::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    root = ET.fromstring(xml_output)
+    text_el = root.find("TEXT")
+    translator_text = (text_el.text or "") + "".join((ph.tail or "") for ph in text_el)
+
+    assert ":class: hint" not in translator_text
+    assert "hint" not in translator_text
