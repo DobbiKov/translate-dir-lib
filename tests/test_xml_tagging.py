@@ -705,3 +705,16 @@ def test_myst_definiendum_role_with_target_round_trip():
     reconstructed = reconstruct_from_xml(xml_output, placeholders)
     assert reconstructed == source
 
+
+def test_myst_tight_list_followed_by_paragraph_preserves_blank_line():
+    source = (
+        "- `expression` est l'opération à appliquer.\n"
+        "- `name` est une variable temporaire.\n"
+        "- `iterable` est la liste ou l'objet itérable.\n"
+        "\n"
+        "Supposons que nous ayons une liste de nombres.\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
