@@ -7,6 +7,8 @@ parse_myst(source) → Chunk
     'placeholder' — MyST/Markdown syntax, preserved verbatim
 """
 
+import re
+
 from markdown_it import MarkdownIt
 from markdown_it.tree import SyntaxTreeNode
 from mdit_py_plugins.dollarmath import dollarmath_plugin
@@ -328,6 +330,34 @@ def _render_field_list(node: SyntaxTreeNode, out: Chunk, indent_prefix: str = ''
 
 
 # ---------------------------------------------------------------------------
+# Directive option extraction
+# ---------------------------------------------------------------------------
+
+_DIRECTIVE_OPTION_RE = re.compile(r'^:[A-Za-z0-9_-]+:')
+
+
+def _split_directive_options(content: str) -> tuple[str, str]:
+    """
+    Split directive body content into (options_block, body).
+
+    MyST directive options are leading lines of the form ':key: value'.
+    Unlike RST field lists, a continuation line that doesn't match the
+    option pattern signals the end of the options block — no blank line
+    separator is required.  An optional single blank line immediately
+    after the options is consumed into the options block so it is
+    preserved verbatim on reconstruction.
+    """
+    lines = content.splitlines(keepends=True)
+    i = 0
+    while i < len(lines) and _DIRECTIVE_OPTION_RE.match(lines[i]):
+        i += 1
+    # Include optional blank line separator in the options block
+    if i < len(lines) and lines[i].strip() == '':
+        i += 1
+    return ''.join(lines[:i]), ''.join(lines[i:])
+
+
+# ---------------------------------------------------------------------------
 # Fence rendering
 # ---------------------------------------------------------------------------
 
@@ -367,8 +397,16 @@ def _render_fence(node: SyntaxTreeNode, lines: list[str], out: Chunk, list_level
     # Body: recurse for directives with MyST content, passing current list level and indent;
     # for title-only directives the body is opaque — emit it verbatim as a placeholder.
     if table_type in _DIRECTIVES_RECURSIVE_BODY and content:
-        inner = _parse_myst(content, list_level, indent_prefix)
-        out.extend(inner)
+        # Strip leading ':key: value' option lines before recursing so that the
+        # fieldlist_plugin does not consume the first body paragraph as a field
+        # continuation (MyST ends the options block at the first non-option line,
+        # no blank line separator required).
+        options, body = _split_directive_options(content)
+        if options:
+            out.append(('placeholder', indent_prefix + options))
+        if body:
+            inner = _parse_myst(body, list_level, indent_prefix)
+            out.extend(inner)
     elif content:
         out.append(('placeholder', content))
 
