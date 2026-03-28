@@ -755,3 +755,31 @@ def test_myst_admonition_option_without_blank_line_option_is_placeholder():
 
     assert ":class: hint" not in translator_text
     assert "hint" not in translator_text
+
+
+def test_myst_blockquote_inside_list_item_preserves_indent_and_continuation():
+    source = (
+        ":::{admonition} Exemple: expertiser un code\n"
+        "1. Sélectionnez du code\n"
+        "\n"
+        "2. Saisissez la question:\n"
+        "\n"
+        "   > Je suis débutant en programmation Python. Commente le code suivant en proposant des\n"
+        "   > améliorations:\n"
+        "\n"
+        "3. Cliquez sur «envoyer la sélection» avec la question.\n"
+        ":::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_myst_blockquote_at_top_level_continuation_line():
+    source = (
+        "> Line one of the blockquote that is quite long and wraps\n"
+        "> onto a second line.\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
