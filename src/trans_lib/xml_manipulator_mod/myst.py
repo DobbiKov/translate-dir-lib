@@ -517,7 +517,7 @@ def _render_list_item(item: SyntaxTreeNode, lines: list[str], out: Chunk,
             # Directive inside a list item: inner lists start one level deeper
             _render_fence(child, lines, out, actual_level + 1)
         else:
-            _render_block(child, lines, out, actual_level)
+            _render_block(child, lines, out, actual_level, continuation_indent)
 
 
 # ---------------------------------------------------------------------------
@@ -577,9 +577,16 @@ def _render_block(node: SyntaxTreeNode, lines: list[str], out: Chunk,
             _render_table(node, out)
 
         case "blockquote":
-            out.append(('placeholder', indent_prefix + '> '))
+            bq_prefix = indent_prefix + '> '
             for child in node.children:
-                _render_block(child, lines, out, list_level, indent_prefix)
+                if child.type == "paragraph":
+                    out.append(('placeholder', bq_prefix))
+                    inline = _find_inline(child)
+                    if inline:
+                        _render_inline(inline, out, softbreak_indent=bq_prefix)
+                    out.append(('placeholder', '\n'))
+                else:
+                    _render_block(child, lines, out, list_level, bq_prefix)
 
         case "hr":
             out.extend(_src(node, lines))
