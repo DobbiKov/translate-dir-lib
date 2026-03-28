@@ -421,6 +421,18 @@ def _render_list(node: SyntaxTreeNode, lines: list[str], out: Chunk,
         # (avoids a spurious blank line when the last item ended with a fence block).
         if not (out and out[-1][1].endswith('\n')):
             out.append(('placeholder', '\n'))
+        # Emit trailing blank lines that fall inside the node's source map but after
+        # the last item's content (markdown-it includes the separating blank in the
+        # last item's map for tight lists, so the gap calculation in _parse_myst
+        # sees gap=0 and skips them).
+        if node.map and lines:
+            end = node.map[1]
+            blanks = 0
+            while end > 0 and (end - 1) < len(lines) and lines[end - 1].strip() == '':
+                blanks += 1
+                end -= 1
+            if blanks > 0:
+                out.append(('placeholder', '\n' * blanks))
 
 
 def _child_gap(prev: SyntaxTreeNode, nxt: SyntaxTreeNode) -> int:
