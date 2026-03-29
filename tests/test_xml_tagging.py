@@ -783,3 +783,23 @@ def test_myst_blockquote_at_top_level_continuation_line():
     xml_output, placeholders, _ = myst_to_xml(source)
     reconstructed = reconstruct_from_xml(xml_output, placeholders)
     assert reconstructed == source
+
+def test_myst_nested_admonition_multiline_options_stay_indented():
+    source = (
+        "- Parent item\n"
+        "\n"
+        "  :::{admonition} Inner note\n"
+        "  :class: dropdown tip\n"
+        "  :name: nested-note\n"
+        "\n"
+        "  Body text.\n"
+        "  :::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    lines = reconstructed.splitlines()
+
+    assert "  :class: dropdown tip" in lines
+    assert "  :name: nested-note" in lines
+    assert ":name: nested-note" not in [line for line in lines if line.startswith(":name:")]
+    assert reconstructed == source
