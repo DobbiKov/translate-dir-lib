@@ -84,6 +84,16 @@ _DIRECTIVES_RECURSIVE_BODY = {
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _prefix_each_line(block: str, prefix: str) -> str:
+    """Prefix each non-empty line in block with prefix, preserving newlines."""
+    if not block or not prefix:
+        return block
+    return ''.join(
+        (prefix + line) if line.strip() else line
+        for line in block.splitlines(keepends=True)
+    )
+
+
 def _opening_token(node: SyntaxTreeNode):
     return node.nester_tokens.opening if node.nester_tokens else node.token
 
@@ -403,7 +413,10 @@ def _render_fence(node: SyntaxTreeNode, lines: list[str], out: Chunk, list_level
         # no blank line separator required).
         options, body = _split_directive_options(content)
         if options:
-            out.append(('placeholder', indent_prefix + options))
+            # Prepend indent_prefix to every non-blank line: markdown-it strips
+            # the list continuation indent from fence content, so each option
+            # line must have it re-added individually.
+            out.append(('placeholder', _prefix_each_line(options, indent_prefix)))
         if body:
             inner = _parse_myst(body, list_level, indent_prefix)
             out.extend(inner)
