@@ -718,3 +718,88 @@ def test_myst_tight_list_followed_by_paragraph_preserves_blank_line():
     reconstructed = reconstruct_from_xml(xml_output, placeholders)
     assert reconstructed == source
 
+def test_myst_admonition_option_without_blank_line_body_is_translatable():
+    """Directive body paragraph directly after an option (no blank line) must be translatable."""
+    source = (
+        ":::{admonition} Indication : Quelques éléments de Python\n"
+        ":class: hint\n"
+        "Tant que la condition est vraie, répéter les instructions :\n"
+        "\n"
+        "Bonjour à tous.\n"
+        ":::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    root = ET.fromstring(xml_output)
+    text_el = root.find("TEXT")
+    translator_text = (text_el.text or "") + "".join((ph.tail or "") for ph in text_el)
+
+    assert "Tant que la condition est vraie" in translator_text
+    assert "Bonjour à tous" in translator_text
+
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_myst_admonition_option_without_blank_line_option_is_placeholder():
+    """The ':class: hint' option line must be a placeholder, not translator-visible text."""
+    source = (
+        ":::{admonition} Note\n"
+        ":class: hint\n"
+        "Body text.\n"
+        ":::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    root = ET.fromstring(xml_output)
+    text_el = root.find("TEXT")
+    translator_text = (text_el.text or "") + "".join((ph.tail or "") for ph in text_el)
+
+    assert ":class: hint" not in translator_text
+    assert "hint" not in translator_text
+
+
+def test_myst_blockquote_inside_list_item_preserves_indent_and_continuation():
+    source = (
+        ":::{admonition} Exemple: expertiser un code\n"
+        "1. Sélectionnez du code\n"
+        "\n"
+        "2. Saisissez la question:\n"
+        "\n"
+        "   > Je suis débutant en programmation Python. Commente le code suivant en proposant des\n"
+        "   > améliorations:\n"
+        "\n"
+        "3. Cliquez sur «envoyer la sélection» avec la question.\n"
+        ":::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_myst_blockquote_at_top_level_continuation_line():
+    source = (
+        "> Line one of the blockquote that is quite long and wraps\n"
+        "> onto a second line.\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+def test_myst_nested_admonition_multiline_options_stay_indented():
+    source = (
+        "- Parent item\n"
+        "\n"
+        "  :::{admonition} Inner note\n"
+        "  :class: dropdown tip\n"
+        "  :name: nested-note\n"
+        "\n"
+        "  Body text.\n"
+        "  :::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    lines = reconstructed.splitlines()
+
+    assert "  :class: dropdown tip" in lines
+    assert "  :name: nested-note" in lines
+    assert ":name: nested-note" not in [line for line in lines if line.startswith(":name:")]
+    assert reconstructed == source
