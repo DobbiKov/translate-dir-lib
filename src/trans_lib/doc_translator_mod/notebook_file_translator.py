@@ -28,7 +28,7 @@ async def translate_notebook_async(
     nb = jupytext.read(source_file_path)
     for i in range(len(nb.cells)):
         nb.cells[i] = await translate_jupyter_cell_async(nb.cells[i], source_language, target_language, vocab_list, tr, relative_path, existing_meta)
-    jupytext.write(nb, target_file_path)
+    jupytext.write(nb, target_file_path, fmt={"notebook_metadata_filter": "all"})
 
 async def translate_jupyter_cell_async(
     cell: dict,
