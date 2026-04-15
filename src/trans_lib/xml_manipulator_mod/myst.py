@@ -77,6 +77,17 @@ _DIRECTIVES_RECURSIVE_BODY = {
     "{admonition}", "{attention}", "{caution}", "{danger}", "{error}",
     "{hint}", "{important}", "{note}", "{seealso}", "{tip}", "{warning}",
     "{aside}", "{sidebar}", "{topic}", "{dropdown}",
+    "{figure}",
+}
+
+# Directives that have opaque arguments (file paths, URLs) but whose specific
+# option fields contain translatable human-readable text.
+# Maps directive type → set of option key names (without colons) whose values
+# should be sent to the translator.
+_DIRECTIVES_TRANSLATABLE_OPTIONS: dict[str, set[str]] = {
+    "{figure}": {"alt"},
+    "{image}": {"alt"},
+    "{video}": {"alt"},
 }
 
 
@@ -344,6 +355,41 @@ def _render_field_list(node: SyntaxTreeNode, out: Chunk, indent_prefix: str = ''
 # ---------------------------------------------------------------------------
 
 _DIRECTIVE_OPTION_RE = re.compile(r'^:[A-Za-z0-9_-]+:')
+_DIRECTIVE_OPTION_PARSE_RE = re.compile(r'^(:[A-Za-z0-9_-]+:)([ \t]?)(.*)')
+
+
+def _render_directive_options(
+    options: str,
+    translatable_keys: set[str],
+    indent_prefix: str,
+    out: Chunk,
+) -> None:
+    """Render directive option lines, emitting translatable option values as text segments.
+
+    Non-translatable options and blank lines are emitted as placeholders verbatim.
+    markdown-it strips the fence-content indent, so ``indent_prefix`` is re-added
+    to every non-blank line (matching the behaviour of ``_prefix_each_line``).
+    """
+    for line in options.splitlines(keepends=True):
+        content = line.rstrip('\n').rstrip('\r')
+        m = _DIRECTIVE_OPTION_PARSE_RE.match(content)
+        if m:
+            key_part = m.group(1)    # e.g. ":alt:"
+            sep = m.group(2)         # space between key and value (may be empty)
+            value_part = m.group(3)  # e.g. "A beautiful sunset"
+            key_name = key_part[1:-1]  # strip surrounding colons → "alt"
+            if key_name in translatable_keys and value_part:
+                out.append(('placeholder', indent_prefix + key_part + sep))
+                out.append(('text', value_part))
+                out.append(('placeholder', '\n'))
+            else:
+                out.append(('placeholder', indent_prefix + content + '\n'))
+        elif content.strip():
+            # Non-empty, non-option line (shouldn't appear in a well-formed options block)
+            out.append(('placeholder', indent_prefix + content + '\n'))
+        else:
+            # Blank separator line — emit as-is (no indent needed)
+            out.append(('placeholder', line))
 
 
 def _split_directive_options(content: str) -> tuple[str, str]:
@@ -386,7 +432,9 @@ def _render_fence(node: SyntaxTreeNode, lines: list[str], out: Chunk, list_level
             info = info[end + 1:]
 
     # For non-directive and opaque directive fences: use source lines verbatim
-    if table_type not in _DIRECTIVES_TRANSLATABLE_TITLE and table_type not in _DIRECTIVES_RECURSIVE_BODY:
+    if (table_type not in _DIRECTIVES_TRANSLATABLE_TITLE
+            and table_type not in _DIRECTIVES_RECURSIVE_BODY
+            and table_type not in _DIRECTIVES_TRANSLATABLE_OPTIONS):
         out.extend(_src(node, lines))
         return
 
@@ -404,9 +452,22 @@ def _render_fence(node: SyntaxTreeNode, lines: list[str], out: Chunk, list_level
         out.append(('placeholder', info))
     out.append(('placeholder', '\n'))
 
-    # Body: recurse for directives with MyST content, passing current list level and indent;
+    # Body: directives with translatable options get option-by-option rendering;
+    # directives with recursive MyST bodies get parsed recursively;
     # for title-only directives the body is opaque — emit it verbatim as a placeholder.
-    if table_type in _DIRECTIVES_RECURSIVE_BODY and content:
+    if table_type in _DIRECTIVES_TRANSLATABLE_OPTIONS and content:
+        translatable_keys = _DIRECTIVES_TRANSLATABLE_OPTIONS[table_type]
+        options, body = _split_directive_options(content)
+        if options:
+            _render_directive_options(options, translatable_keys, indent_prefix, out)
+        if body:
+            if table_type in _DIRECTIVES_RECURSIVE_BODY:
+                # e.g. {figure} caption is plain MyST prose
+                inner = _parse_myst(body, list_level, indent_prefix)
+                out.extend(inner)
+            else:
+                out.append(('placeholder', body))
+    elif table_type in _DIRECTIVES_RECURSIVE_BODY and content:
         # Strip leading ':key: value' option lines before recursing so that the
         # fieldlist_plugin does not consume the first body paragraph as a field
         # continuation (MyST ends the options block at the first non-option line,
