@@ -803,3 +803,246 @@ def test_myst_nested_admonition_multiline_options_stay_indented():
     assert "  :name: nested-note" in lines
     assert ":name: nested-note" not in [line for line in lines if line.startswith(":name:")]
     assert reconstructed == source
+
+
+# ---------------------------------------------------------------------------
+# Helpers for media directive tests
+# ---------------------------------------------------------------------------
+
+def _translator_visible_text(xml_output: str) -> str:
+    """Return only the text that the translator will see (TEXT node text + PH tails)."""
+    root = ET.fromstring(xml_output)
+    text_el = root.find("TEXT")
+    return (text_el.text or "") + "".join((ph.tail or "") for ph in text_el)
+
+
+# ---------------------------------------------------------------------------
+# {image} directive — :alt: translatability
+# ---------------------------------------------------------------------------
+
+def test_myst_image_alt_is_translatable():
+    """:alt: value in {image} must reach the translator."""
+    source = ":::{image} path/to/image.png\n:alt: A beautiful sunset over the mountains\n:::\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    translator_text = _translator_visible_text(xml_output)
+    assert "A beautiful sunset over the mountains" in translator_text
+
+
+def test_myst_image_path_and_non_alt_options_are_placeholders():
+    """:width:, :height: and the image path must NOT reach the translator."""
+    source = ":::{image} path/to/image.png\n:alt: Some alt text\n:width: 80%\n:height: 200px\n:::\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    translator_text = _translator_visible_text(xml_output)
+    assert "path/to/image.png" not in translator_text
+    assert ":width: 80%" not in translator_text
+    assert ":height: 200px" not in translator_text
+
+
+@pytest.mark.parametrize("options_before,options_after", [
+    # alt first
+    ([], [":width: 80%", ":align: center"]),
+    # alt last
+    ([":width: 80%", ":align: center"], []),
+    # alt in the middle
+    ([":width: 80%"], [":align: center", ":height: 100px"]),
+])
+def test_myst_image_alt_is_translatable_regardless_of_field_order(options_before, options_after):
+    """The :alt: value must be translatable no matter where it appears in the option block."""
+    lines = [":::{image} path/to/image.png"]
+    lines += options_before
+    lines += [":alt: Descriptive alt text"]
+    lines += options_after
+    lines += [":::"]
+    source = "\n".join(lines) + "\n"
+
+    xml_output, placeholders, _ = myst_to_xml(source)
+    translator_text = _translator_visible_text(xml_output)
+
+    assert "Descriptive alt text" in translator_text
+    for opt in options_before + options_after:
+        # Strip leading ':' to get just the value or key part
+        _, _, value = opt.partition(": ")
+        assert value not in translator_text
+
+
+def test_myst_image_with_only_alt_round_trip():
+    source = ":::{image} path/to/image.png\n:alt: A beautiful sunset\n:::\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_myst_image_with_alt_and_other_options_round_trip():
+    source = ":::{image} path/to/image.png\n:alt: A beautiful sunset\n:width: 80%\n:align: center\n:::\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_myst_image_alt_last_round_trip():
+    source = ":::{image} path/to/image.png\n:width: 80%\n:align: center\n:alt: A beautiful sunset\n:::\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+# ---------------------------------------------------------------------------
+# {figure} directive — :alt: and caption body translatability
+# ---------------------------------------------------------------------------
+
+def test_myst_figure_alt_is_translatable():
+    """:alt: value in {figure} must reach the translator."""
+    source = (
+        ":::{figure} path/to/image.png\n"
+        ":alt: A diagram showing the architecture\n"
+        "\n"
+        "Figure caption text.\n"
+        ":::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    translator_text = _translator_visible_text(xml_output)
+    assert "A diagram showing the architecture" in translator_text
+
+
+def test_myst_figure_caption_body_is_translatable():
+    """Figure caption (body after options) must reach the translator."""
+    source = (
+        ":::{figure} path/to/image.png\n"
+        ":alt: Alt text\n"
+        "\n"
+        "This caption explains the figure in detail.\n"
+        ":::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    translator_text = _translator_visible_text(xml_output)
+    assert "This caption explains the figure in detail." in translator_text
+
+
+def test_myst_figure_path_and_non_alt_options_are_placeholders():
+    """Image path and non-alt options in {figure} must NOT reach the translator."""
+    source = (
+        ":::{figure} path/to/image.png\n"
+        ":alt: Alt text\n"
+        ":width: 80%\n"
+        ":align: center\n"
+        "\n"
+        "Caption.\n"
+        ":::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    translator_text = _translator_visible_text(xml_output)
+    assert "path/to/image.png" not in translator_text
+    assert ":width: 80%" not in translator_text
+    assert ":align: center" not in translator_text
+
+
+def test_myst_figure_caption_only_no_alt_is_translatable():
+    """A figure without :alt: still has a translatable caption."""
+    source = (
+        ":::{figure} path/to/image.png\n"
+        ":width: 60%\n"
+        "\n"
+        "Caption without an alt field.\n"
+        ":::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    translator_text = _translator_visible_text(xml_output)
+    assert "Caption without an alt field." in translator_text
+
+
+@pytest.mark.parametrize("options_before,options_after", [
+    # alt first
+    ([], [":width: 80%"]),
+    # alt last
+    ([":width: 80%"], []),
+    # alt in the middle
+    ([":width: 80%"], [":align: center"]),
+])
+def test_myst_figure_alt_is_translatable_regardless_of_field_order(options_before, options_after):
+    """The :alt: value in {figure} must be translatable regardless of its position."""
+    lines = [":::{figure} path/to/image.png"]
+    lines += options_before
+    lines += [":alt: Architecture overview"]
+    lines += options_after
+    lines += ["", "Caption text.", ":::"]
+    source = "\n".join(lines) + "\n"
+
+    xml_output, placeholders, _ = myst_to_xml(source)
+    translator_text = _translator_visible_text(xml_output)
+
+    assert "Architecture overview" in translator_text
+    assert "Caption text." in translator_text
+    for opt in options_before + options_after:
+        _, _, value = opt.partition(": ")
+        assert value not in translator_text
+
+
+def test_myst_figure_full_round_trip():
+    source = (
+        ":::{figure} path/to/image.png\n"
+        ":alt: A diagram showing the architecture\n"
+        ":width: 80%\n"
+        ":align: center\n"
+        "\n"
+        "This caption explains the figure in detail.\n"
+        ":::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_myst_figure_alt_last_round_trip():
+    source = (
+        ":::{figure} path/to/image.png\n"
+        ":width: 80%\n"
+        ":align: center\n"
+        ":alt: A diagram showing the architecture\n"
+        "\n"
+        "Caption text.\n"
+        ":::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+def test_myst_figure_no_alt_round_trip():
+    source = (
+        ":::{figure} path/to/image.png\n"
+        ":width: 60%\n"
+        "\n"
+        "Caption without an alt field.\n"
+        ":::\n"
+    )
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
+
+
+# ---------------------------------------------------------------------------
+# {video} directive — :alt: translatability
+# ---------------------------------------------------------------------------
+
+def test_myst_video_alt_is_translatable():
+    """:alt: value in {video} must reach the translator."""
+    source = ":::{video} path/to/video.mp4\n:alt: A video demonstrating the workflow\n:width: 100%\n:::\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    translator_text = _translator_visible_text(xml_output)
+    assert "A video demonstrating the workflow" in translator_text
+
+
+def test_myst_video_path_and_non_alt_options_are_placeholders():
+    """Video path and non-alt options must NOT reach the translator."""
+    source = ":::{video} path/to/video.mp4\n:alt: A video\n:width: 100%\n:::\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    translator_text = _translator_visible_text(xml_output)
+    assert "path/to/video.mp4" not in translator_text
+    assert ":width: 100%" not in translator_text
+
+
+def test_myst_video_round_trip():
+    source = ":::{video} path/to/video.mp4\n:alt: A video demonstrating the workflow\n:width: 100%\n:::\n"
+    xml_output, placeholders, _ = myst_to_xml(source)
+    reconstructed = reconstruct_from_xml(xml_output, placeholders)
+    assert reconstructed == source
