@@ -14,6 +14,27 @@ the translation process and compiling of the translated version of the documents
 
 > The library is still in an early phase of development and may have bugs and unimplemented features
 
+## For French users and members of Université Paris-Saclay
+This CLI supports ilaas (French independent LLM service provider) and LLMs on
+MyDocker that any member of Paris-Saclay cluster can access for free.
+
+In order to translate documents on MyDocker open [MyDocker
+docs](https://mydocker.gitlab.dsi.universite-paris-saclay.fr/) and create
+`JupyterLab et Python` instance and you will be able to open jupyter in your
+browser. Then, open terminal (important: in the jupyter tab in web) – you will be able
+to install CLI and translate your document.
+
+For using open-source llms on jupyter: run `translate-dir set-llm
+aristoteonmydocker <model>` command.
+As of April 24, the next models are availible:
+- gemma-4-31b
+- gpt-oss-120b
+- llama-3.1-8b
+- llama-3.3-70b
+- mistral-medium-250523
+- mistral-small-3.2-24b
+- qwen-3.6-35b-instruct
+
 ## Features
 
 - [x] Project creation
